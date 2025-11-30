@@ -42,13 +42,51 @@ export default function ProjectDetailPage() {
     const [uploading, setUploading] = useState(false)
     const [isApsBrowserOpen, setIsApsBrowserOpen] = useState(false)
     const [convertingFiles, setConvertingFiles] = useState<Set<string>>(new Set())
+    const [translatingFiles, setTranslatingFiles] = useState<Set<string>>(new Set())
     const [selectedFiles, setSelectedFiles] = useState<string[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [viewerModal, setViewerModal] = useState<{ isOpen: boolean, file: any, token?: string } | null>(null)
+    const [supportedFormats, setSupportedFormats] = useState<Record<string, string[]> | null>(null)
 
     const projectId = params.id as string
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
     const router = useRouter()
+
+    useEffect(() => {
+        const fetchFormats = async () => {
+            try {
+                const response = await axios.get(`${API_URL}/api/conversion/formats`)
+                if (response.data && response.data.formats) {
+                    setSupportedFormats(response.data.formats)
+                }
+            } catch (error) {
+                console.warn("Failed to fetch supported formats", error)
+            }
+        }
+        fetchFormats()
+    }, [])
+
+    const isConversionSupported = (fileType: string, targetFormat: string) => {
+        if (!supportedFormats) return true // Default to true if not loaded yet
+        
+        const ext = fileType.toLowerCase()
+        const format = targetFormat.toLowerCase()
+        
+        // Direct check (e.g. ifc -> [rvt])
+        if (supportedFormats[format] && supportedFormats[format].includes(ext)) {
+            return true
+        }
+        
+        // Special case for PDF via SVF2
+        // Our backend uses SVF2 + 2dviews for PDF generation
+        if (format === 'pdf') {
+             if (supportedFormats['svf2'] && supportedFormats['svf2'].includes(ext)) {
+                 return true
+             }
+        }
+        
+        return false
+    }
 
     const fetchProject = useCallback(async () => {
         try {
@@ -101,9 +139,25 @@ export default function ProjectDetailPage() {
     const handleBulkConvert = async (format: 'pdf' | 'ifc') => {
         if (selectedFiles.length === 0) return
         
-        toast.info(`Starting bulk conversion to ${format.toUpperCase()} for ${selectedFiles.length} files...`)
+        // Filter files that support the requested format
+        const validFiles = selectedFiles.filter(fileId => {
+            const file = project?.files.find(f => f.id === fileId)
+            if (!file) return false
+            return isConversionSupported(file.type, format)
+        })
+
+        if (validFiles.length === 0) {
+            toast.error(`None of the selected files support conversion to ${format.toUpperCase()}`)
+            return
+        }
+
+        if (validFiles.length < selectedFiles.length) {
+            toast.warning(`Skipping ${selectedFiles.length - validFiles.length} files that do not support ${format.toUpperCase()} conversion.`)
+        }
         
-        for (const fileId of selectedFiles) {
+        toast.info(`Starting bulk conversion to ${format.toUpperCase()} for ${validFiles.length} files...`)
+        
+        for (const fileId of validFiles) {
             // Skip if already converting
             if (convertingFiles.has(fileId)) continue
             
@@ -187,6 +241,20 @@ export default function ProjectDetailPage() {
         if (!e.target.files || e.target.files.length === 0) return
 
         const file = e.target.files[0]
+        
+        // Client-side validation
+        const allowedExtensions = ['rvt', 'dwg', 'pdf', 'ifc', 'nwc', 'dwf'];
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        
+        if (!fileExt || !allowedExtensions.includes(fileExt)) {
+            toast.error("Unsupported file format", {
+                description: `Allowed formats: ${allowedExtensions.join(', ').toUpperCase()}`
+            });
+            // Reset input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         const formData = new FormData()
         formData.append('file', file)
         formData.append('projectId', projectId)
@@ -241,7 +309,7 @@ export default function ProjectDetailPage() {
             setDownloadModal(null)
             fetchProject()
         } catch (error: any) {
-            console.error("Save to project error:", error);
+            // console.warn("Save to project error:", error);
             const errorMessage = error.response?.data?.details 
                 ? (typeof error.response.data.details === 'object' ? JSON.stringify(error.response.data.details) : error.response.data.details)
                 : error.message;
@@ -307,7 +375,7 @@ export default function ProjectDetailPage() {
                         toast.error(`Conversion failed`, { description: statusResponse.data.error || 'Unknown error' })
                     }
                 } catch (pollError) {
-                    console.error('Failed to check conversion status:', pollError)
+                    console.warn('Failed to check conversion status:', pollError)
                 }
             }, 1000) // Poll every 1 second for faster feedback
 
@@ -380,7 +448,9 @@ export default function ProjectDetailPage() {
 
     const handleStartTranslation = async (fileId: string) => {
         try {
+            setTranslatingFiles(prev => new Set(prev).add(fileId))
             toast.info('Starting translation...')
+            
             const response = await axios.post(`${API_URL}/api/translation/${fileId}/translate`, {}, { withCredentials: true })
 
             if (response.data.status === 'READY') {
@@ -388,15 +458,22 @@ export default function ProjectDetailPage() {
             } else if (response.data.status === 'TRANSLATING' && response.data.message.includes('already')) {
                 toast.info('Translation is already in progress.')
             } else {
-                toast.success('Translation started! Refreshing...')
+                toast.success('Translation started!')
             }
 
-            // Refresh project after 2 seconds
-            setTimeout(() => {
-                fetchProject()
-            }, 2000)
+            // Immediate refresh to show status change
+            fetchProject()
         } catch (error: unknown) {
             showError(error, user?.role, "Failed to start translation")
+        } finally {
+            // Keep the loading state for a moment to prevent double-clicks and show "reaction"
+            setTimeout(() => {
+                setTranslatingFiles(prev => {
+                    const newSet = new Set(prev)
+                    newSet.delete(fileId)
+                    return newSet
+                })
+            }, 1000)
         }
     }
 
@@ -475,6 +552,7 @@ export default function ProjectDetailPage() {
         handleStartTranslation, 
         handleConvert, 
         convertingFiles, 
+        translatingFiles,
         handleValidate, 
         confirmDeleteFile,
         handleViewFile
@@ -537,9 +615,16 @@ export default function ProjectDetailPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleStartTranslation(file.id)}
+                        disabled={translatingFiles?.has(file.id)}
                         className="h-9 px-4 text-xs border-2 border-yellow-500/50 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white glass-button font-medium"
                     >
-                        Start Translation
+                        {translatingFiles?.has(file.id) ? (
+                            <>
+                                <RefreshCw className="h-3 w-3 mr-2 animate-spin" /> Starting...
+                            </>
+                        ) : (
+                            'Start Translation'
+                        )}
                     </Button>
                 )}
                 {file.status === 'READY' && (
@@ -567,19 +652,25 @@ export default function ProjectDetailPage() {
                                 <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wider dark:text-gray-400 text-gray-500 px-2 py-2 mt-1">Conversion</DropdownMenuLabel>
                                 <DropdownMenuItem
                                     onClick={() => handleConvert(file.id, 'pdf')}
-                                    disabled={convertingFiles.has(file.id)}
+                                    disabled={convertingFiles.has(file.id) || !isConversionSupported(file.type, 'pdf')}
                                     className="cursor-pointer dark:hover:bg-white/10 hover:bg-gray-100 dark:focus:bg-white/10 focus:bg-gray-100 dark:text-white text-gray-900"
                                 >
                                     <FileText className="mr-2 h-4 w-4 text-red-500 dark:text-red-400" />
-                                    <span>{convertingFiles.has(file.id) ? 'Converting...' : 'Convert to PDF'}</span>
+                                    <span>
+                                        {convertingFiles.has(file.id) ? 'Converting...' : 
+                                         !isConversionSupported(file.type, 'pdf') ? 'Not Supported' : 'Convert to PDF'}
+                                    </span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                     onClick={() => handleConvert(file.id, 'ifc')}
-                                    disabled={convertingFiles.has(file.id)}
+                                    disabled={convertingFiles.has(file.id) || !isConversionSupported(file.type, 'ifc')}
                                     className="cursor-pointer dark:hover:bg-white/10 hover:bg-gray-100 dark:focus:bg-white/10 focus:bg-gray-100 dark:text-white text-gray-900"
                                 >
                                     <Box className="mr-2 h-4 w-4 text-yellow-500 dark:text-yellow-400" />
-                                    <span>{convertingFiles.has(file.id) ? 'Converting...' : 'Convert to IFC'}</span>
+                                    <span>
+                                        {convertingFiles.has(file.id) ? 'Converting...' : 
+                                         !isConversionSupported(file.type, 'ifc') ? 'Not Supported' : 'Convert to IFC'}
+                                    </span>
                                 </DropdownMenuItem>
 
                                 <DropdownMenuSeparator className="dark:bg-white/10 bg-gray-200 my-2" />
@@ -742,6 +833,7 @@ export default function ProjectDetailPage() {
                                 ref={fileInputRef}
                                 onChange={handleFileUpload}
                                 disabled={uploading}
+                                accept=".rvt,.dwg,.pdf,.ifc,.nwc,.dwf"
                                 className="hidden"
                             />
                             <label
@@ -810,6 +902,7 @@ export default function ProjectDetailPage() {
                                             handleStartTranslation={handleStartTranslation}
                                             handleConvert={handleConvert}
                                             convertingFiles={convertingFiles}
+                                            translatingFiles={translatingFiles}
                                             handleValidate={handleValidate}
                                             confirmDeleteFile={confirmDeleteFile}
                                             handleViewFile={handleViewFile}
@@ -851,6 +944,7 @@ export default function ProjectDetailPage() {
                                             handleStartTranslation={handleStartTranslation}
                                             handleConvert={handleConvert}
                                             convertingFiles={convertingFiles}
+                                            translatingFiles={translatingFiles}
                                             handleValidate={handleValidate}
                                             confirmDeleteFile={confirmDeleteFile}
                                             handleViewFile={handleViewFile}

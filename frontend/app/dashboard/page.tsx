@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { showError } from "@/lib/error-handler"
+import { useUser } from "@/context/UserContext"
 
 interface Project {
     id: string
@@ -23,6 +25,7 @@ interface Project {
 
 
 export default function DashboardPage() {
+    const { user } = useUser()
     const [projects, setProjects] = useState<Project[]>([])
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -50,8 +53,7 @@ export default function DashboardPage() {
             const response = await axios.get(`${API_URL}/api/projects`)
             setProjects(response.data)
         } catch (error) {
-            console.error('Failed to fetch projects:', error)
-            toast.error("Failed to load projects")
+            showError(error, user?.role, "Failed to load projects")
         } finally {
             setLoading(false)
         }
@@ -71,8 +73,7 @@ export default function DashboardPage() {
             setNewProject({ name: "", description: "" })
             toast.success("Project created successfully!")
         } catch (error) {
-            console.error('Failed to create project:', error)
-            toast.error("Failed to create project")
+            showError(error, user?.role, "Failed to create project")
         } finally {
             setCreating(false)
         }
@@ -89,8 +90,7 @@ export default function DashboardPage() {
             setProjectToDelete(null)
             toast.success("Project deleted successfully")
         } catch (error) {
-            console.error('Failed to delete project:', error)
-            toast.error("Failed to delete project")
+            showError(error, user?.role, "Failed to delete project")
         } finally {
             setDeleting(false)
         }

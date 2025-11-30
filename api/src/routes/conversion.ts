@@ -11,6 +11,16 @@ import axios from 'axios';
 const router = Router();
 const BUCKET_KEY = process.env.APS_BUCKET || 'dom-bim-platform-us-test-001';
 
+// Get supported formats from APS
+router.get('/formats', async (req, res) => {
+    try {
+        const formats = await modelDerivativeService.getFormats();
+        res.json(formats);
+    } catch (error: any) {
+        res.status(500).json({ error: 'Failed to fetch formats', details: error.message });
+    }
+});
+
 // TEST ENDPOINT - Direct PDF download (for testing)
 router.get('/test/download-pdf', (req, res) => {
     console.log('🧪 TEST: Direct PDF download requested');
@@ -404,7 +414,7 @@ router.get('/:conversionId/download', async (req, res) => {
 
             try {
                 // Use signed URL for download
-                const signedUrl = await apsDataService.getSignedUrl(objectKey);
+                const signedUrl = await apsDataManagementService.getSignedUrl(objectKey);
                 if (!signedUrl) throw new Error('Failed to get signed URL');
 
                 const response = await axios.get(signedUrl, {
@@ -535,7 +545,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                 try {
                     // Use signed URL for download as direct GET might be deprecated
                     console.log(`🔑 Getting signed URL for download...`);
-                    const signedUrl = await apsDataService.getSignedUrl(objectKey);
+                    const signedUrl = await apsDataManagementService.getSignedUrl(objectKey);
                     
                     if (!signedUrl) {
                         throw new Error('Failed to generate signed URL for OSS object');

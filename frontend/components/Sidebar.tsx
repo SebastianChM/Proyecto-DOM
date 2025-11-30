@@ -32,7 +32,7 @@ export function Sidebar() {
             // Redirect to login page
             window.location.href = '/';
         } catch (error) {
-            console.error('Logout failed:', error);
+            console.warn('Logout failed:', error);
             // Force redirect even if API fails
             window.location.href = '/';
         }

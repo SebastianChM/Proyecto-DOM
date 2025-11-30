@@ -8,6 +8,8 @@ import { ArrowLeft, Clock, GitCompare, Eye, CheckSquare, Square } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { useUser } from "@/context/UserContext"
+import { showError } from "@/lib/error-handler"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
@@ -37,6 +39,7 @@ interface VersionsResponse {
 export default function FileHistoryPage() {
     const params = useParams()
     const router = useRouter()
+    const { user } = useUser()
     const fileId = params.id as string
 
     const [data, setData] = useState<VersionsResponse | null>(null)
@@ -49,7 +52,7 @@ export default function FileHistoryPage() {
                 const response = await axios.get<VersionsResponse>(`${API_URL}/api/files/${fileId}/versions`)
                 setData(response.data)
             } catch (error) {
-                console.error('Failed to fetch file history:', error)
+                showError(error, user?.role, "Failed to fetch file history")
             } finally {
                 setLoading(false)
             }
@@ -58,7 +61,7 @@ export default function FileHistoryPage() {
         if (fileId) {
             fetchFileHistory()
         }
-    }, [fileId])
+    }, [fileId, user?.role])
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleString('en-US', {

@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
+import { useUser } from "@/context/UserContext"
+import { showError } from "@/lib/error-handler"
 
 declare global {
     interface Window {
@@ -12,11 +14,12 @@ declare global {
     }
 }
 
-export default function CompareViewerPage() {
+function CompareViewerContent() {
     const viewerRef = useRef<HTMLDivElement>(null)
     const viewerInstanceRef = useRef<any>(null)
     const searchParams = useSearchParams()
     const router = useRouter()
+    const { user } = useUser()
 
     const primaryUrn = searchParams.get('primary')
     const diffUrn = searchParams.get('diff')
@@ -28,7 +31,9 @@ export default function CompareViewerPage() {
 
     useEffect(() => {
         if (!primaryUrn || !diffUrn || !viewerRef.current) {
-            setError('Missing required parameters')
+            const msg = 'Missing required parameters'
+            setError(msg)
+            showError(new Error(msg), user?.role, "Comparison Error")
             setLoading(false)
             return
         }
@@ -42,6 +47,7 @@ export default function CompareViewerPage() {
 
                 // Fetch token first
                 const res = await fetch('http://localhost:8080/api/viewer/token')
+                if (!res.ok) throw new Error('Failed to fetch viewer token')
                 const tokenData = await res.json()
                 const token = tokenData.access_token
 
@@ -58,12 +64,13 @@ export default function CompareViewerPage() {
 
                         const startedCode = viewer.start()
                         if (startedCode > 0) {
-                            console.error('Failed to create a Viewer: WebGL not supported.')
+                            const msg = 'Failed to create a Viewer: WebGL not supported.'
                             setError('WebGL is not supported in your browser')
+                            showError(new Error(msg), user?.role, "Viewer Initialization Error")
                             return
                         }
 
-                        console.log(`Viewer initialized, mode: ${type}`)
+                        // console.log(`Viewer initialized, mode: ${type}`)
 
                         const formatUrn = (urn: string) => urn.startsWith('urn:') ? urn : `urn:${urn}`;
                         const documentId1 = formatUrn(primaryUrn);
@@ -86,24 +93,23 @@ export default function CompareViewerPage() {
                         }
 
                         try {
-                            console.log('Loading primary model...')
+                            // console.log('Loading primary model...')
                             const model1 = await loadModel(documentId1)
                             
-                            console.log('Loading secondary model...')
+                            // console.log('Loading secondary model...')
                             const model2 = await loadModel(documentId2, { 
                                 keepCurrentModels: true, 
                                 placementTransform: (new window.THREE.Matrix4()).identity() 
                             })
 
-                            console.log('Both models loaded. Initializing comparison...')
+                            // console.log('Both models loaded. Initializing comparison...')
 
                             // Wait a bit for geometry to settle
                             await new Promise(resolve => setTimeout(resolve, 1000));
 
                             if (type === '2d') {
                                 // Use PixelCompare for 2D sheets (PDFs)
-                                // Note: For DWG 2D views, DiffTool is often better, but if user specifically wants PixelCompare:
-                                console.log('Loading PixelCompare extension...')
+                                // console.log('Loading PixelCompare extension...')
                                 const pixelCompare = await viewer.loadExtension("Autodesk.Viewing.PixelCompare")
                                 if (pixelCompare) {
                                     pixelCompare.compareTwoModels(model1, model2)
@@ -113,7 +119,7 @@ export default function CompareViewerPage() {
                                 }
                             } else {
                                 // Use DiffTool for 3D and complex 2D (DWG)
-                                console.log('Loading DiffTool extension...')
+                                // console.log('Loading DiffTool extension...')
                                 const diffConfig = {
                                     primaryModels: [model1],
                                     diffModels: [model2],
@@ -125,7 +131,7 @@ export default function CompareViewerPage() {
                                 
                                 const diffTool = await viewer.loadExtension("Autodesk.DiffTool", diffConfig)
                                 if (diffTool) {
-                                    console.log('DiffTool loaded, activating...')
+                                    // console.log('DiffTool loaded, activating...')
                                     diffTool.activate()
                                     setLoading(false)
                                 } else {
@@ -134,19 +140,18 @@ export default function CompareViewerPage() {
                             }
 
                         } catch (loadErr) {
-                            console.error('Error loading models or extensions:', loadErr)
                             handleLoadError(loadErr, 'models')
                         }
 
                     } catch (error) {
-                        console.error('Error initializing viewer:', error)
                         setError('Failed to initialize 3D viewer')
+                        showError(error, user?.role, "Viewer Initialization Error")
                         setLoading(false)
                     }
                 })
             } catch (error) {
-                console.error('Error loading viewer:', error)
                 setError('Failed to load viewer scripts')
+                showError(error, user?.role, "Script Loading Error")
                 setLoading(false)
             }
         }
@@ -159,16 +164,12 @@ export default function CompareViewerPage() {
                 viewerInstanceRef.current = null
             }
         }
-    }, [primaryUrn, diffUrn, type])
+    }, [primaryUrn, diffUrn, type, user?.role])
 
     const handleLoadError = (errorCode: any, model: string) => {
-        // Suppress console error for expected "Not Found" (7) errors to keep console clean
-        if (errorCode !== 7) {
-            console.warn(`Failed to load ${model} model. Error code:`, errorCode)
-        }
-
         const msg = errorCode === 7 ? 'Model not found or invalid URN' : `Failed to load ${model} model (Error ${errorCode})`
         setError(msg)
+        showError(new Error(msg), user?.role, "Model Loading Error")
         setLoading(false)
     }
 
@@ -241,5 +242,20 @@ export default function CompareViewerPage() {
             </div>
             <div ref={viewerRef} className="flex-1 w-full" />
         </div>
+    )
+}
+
+export default function CompareViewerPage() {
+    return (
+        <Suspense fallback={
+            <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+                <div className="flex items-center space-x-2 text-sm dark:text-gray-400">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span>Loading viewer...</span>
+                </div>
+            </div>
+        }>
+            <CompareViewerContent />
+        </Suspense>
     )
 }

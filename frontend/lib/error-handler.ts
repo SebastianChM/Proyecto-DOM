@@ -7,7 +7,8 @@ export const showError = (error: unknown, userRole: string = 'USER', fallbackMes
         // Do not console.error for validation errors to keep console clean
         console.warn("Validation Error:", error.response.data.error || error.message);
     } else {
-        console.error(fallbackMessage, error)
+        // Use warn instead of error to keep the console "cleaner" (yellow vs red) while still logging
+        console.warn(fallbackMessage, error)
     }
 
     let message = fallbackMessage

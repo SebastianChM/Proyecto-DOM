@@ -7,6 +7,8 @@ import axios from "axios"
 import { isMockUrn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
+import { useUser } from "@/context/UserContext"
+import { showError } from "@/lib/error-handler"
 
 interface ViewerProps {
     urn: string
@@ -22,6 +24,7 @@ declare global {
 export default function Viewer({ urn, token: providedToken }: ViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const [viewer, setViewer] = useState<any>(null)
+    const { user } = useUser()
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
     // Professional handling of Mock/Simulation Data
@@ -81,7 +84,8 @@ export default function Viewer({ urn, token: providedToken }: ViewerProps) {
                     viewerInstance.loadDocumentNode(doc, defaultModel)
                 },
                 (errorCode: any, errorMsg: any) => {
-                    console.error("Load Error:", errorCode, errorMsg)
+                    // console.error("Load Error:", errorCode, errorMsg)
+                    showError(new Error(`Viewer Load Error: ${errorCode}`), user?.role, "Model Loading Failed")
                 }
             )
         }
@@ -110,7 +114,8 @@ export default function Viewer({ urn, token: providedToken }: ViewerProps) {
                     }
                 })
             } catch (error) {
-                console.error("Failed to initialize viewer:", error)
+                // console.error("Failed to initialize viewer:", error)
+                showError(error, user?.role, "Viewer Initialization Failed")
             }
         }
 
@@ -122,7 +127,7 @@ export default function Viewer({ urn, token: providedToken }: ViewerProps) {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [urn])
+    }, [urn, user?.role])
 
     return <div ref={containerRef} className="w-full h-full relative" />
 }

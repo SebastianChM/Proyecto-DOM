@@ -101,10 +101,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     });
 });
 
+import { modelDerivativeService } from './services/aps/model-derivative.service';
+
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 DOM BIM API running on port ${PORT}`);
     console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+
+    // Warm up formats cache on startup
+    try {
+        console.log('🔄 Pre-fetching supported formats from APS...');
+        await modelDerivativeService.getFormats();
+        console.log('✅ Formats cache warmed up');
+    } catch (error) {
+        console.warn('⚠️ Failed to warm up formats cache (will retry on demand):', error);
+    }
 });
 
 export default app;

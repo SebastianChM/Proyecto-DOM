@@ -4,9 +4,59 @@ import axios from 'axios';
 
 export class APSModelDerivativeService {
     private api: any;
+    private formatsCache: any = null;
+    private lastCacheTime: number = 0;
+    private lastModified: string | null = null;
+    private readonly CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
     constructor() {
         this.api = new DerivativesApi();
+    }
+
+    /**
+     * Get supported formats (Cached)
+     */
+    async getFormats() {
+        // Return cached data if valid
+        if (this.formatsCache && (Date.now() - this.lastCacheTime < this.CACHE_DURATION)) {
+            console.log('📦 Serving formats from cache');
+            return this.formatsCache;
+        }
+
+        const token = await apsAuthService.getInternalToken();
+        try {
+            console.log('🌐 Fetching formats from Autodesk...');
+            
+            const headers: any = {
+                'Authorization': `Bearer ${token}`
+            };
+            
+            if (this.lastModified) {
+                headers['If-Modified-Since'] = this.lastModified;
+            }
+
+            const response = await axios.get(
+                'https://developer.api.autodesk.com/modelderivative/v2/designdata/formats',
+                { headers }
+            );
+            
+            // Update cache
+            this.formatsCache = response.data;
+            this.lastCacheTime = Date.now();
+            this.lastModified = response.headers['last-modified'] || null;
+            
+            return response.data;
+        } catch (error: any) {
+            // Handle 304 Not Modified
+            if (error.response?.status === 304 && this.formatsCache) {
+                console.log('📦 Formats not modified (304), serving from cache');
+                this.lastCacheTime = Date.now(); // Refresh cache timer
+                return this.formatsCache;
+            }
+
+            console.error('❌ Failed to get formats:', error.response?.data || error.message);
+            throw error;
+        }
     }
 
     /**

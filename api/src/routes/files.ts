@@ -36,6 +36,21 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Project ID is required' });
         }
 
+        // Server-side validation
+        const allowedExtensions = ['rvt', 'dwg', 'pdf', 'ifc', 'nwc', 'dwf'];
+        const fileExt = req.file.originalname.split('.').pop()?.toLowerCase();
+
+        if (!fileExt || !allowedExtensions.includes(fileExt)) {
+            // Clean up uploaded file immediately
+            if (fs.existsSync(req.file.path)) {
+                fs.unlinkSync(req.file.path);
+            }
+            return res.status(400).json({ 
+                error: 'Unsupported file format', 
+                details: `Allowed formats: ${allowedExtensions.join(', ').toUpperCase()}` 
+            });
+        }
+
         console.log(`Processing upload: ${req.file.originalname} for project ${projectId} (Force Local: ${forceLocal})`);
 
         // Get or create temporary user
