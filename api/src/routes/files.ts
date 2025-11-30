@@ -4,6 +4,8 @@ import fs from 'fs';
 import prisma from '../lib/prisma';
 import { apsDataService } from '../services/aps/data-management.service';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
+import { apsAuthService } from '../services/aps/auth.service';
+import axios from 'axios';
 
 const router = Router();
 const upload = multer({ dest: 'uploads/' });
@@ -91,7 +93,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             }
         });
 
-        // 4. If LOCAL_ONLY mode, simulate translation after 5 seconds
+        // 4. If LOCAL_ONLY mode, simulate translation after 1 second
         if (fileStatus === 'LOCAL_ONLY' && (dbFile.type === 'RVT' || dbFile.type === 'DWG' || dbFile.type === 'IFC')) {
             console.log(`🔄 Simulating translation for ${dbFile.name} in LOCAL_ONLY mode...`);
             setTimeout(async () => {
@@ -104,7 +106,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                 } catch (e) {
                     console.error('Failed to update mock translation status:', e);
                 }
-            }, 5000); // 5 second delay to simulate translation
+            }, 1000); // 1 second delay to simulate translation
         }
         // 5. If APS upload succeeded, trigger translation
         else if (fileStatus === 'UPLOADED' && apsUrn && !apsUrn.startsWith('local-')) {
@@ -148,10 +150,90 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+// Download file content
+router.get('/:id/download', async (req, res) => {
+    try {
+        const file = await prisma.file.findUnique({
+            where: { id: req.params.id }
+        });
+
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Handle Local Mode
+        if (file.apsUrn?.startsWith('local-')) {
+             return res.status(404).json({ error: 'Local file download not implemented' });
+        }
+
+        if (!file.apsUrn) {
+             return res.status(400).json({ error: 'File has no URN' });
+        }
+
+        try {
+            // Decode URN to get object key
+            const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
+            // Check if it matches the pattern urn:adsk.objects:os.object:bucketKey/objectName
+            const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+            
+            let objectKey = file.s3Key; 
+            
+            if (match) {
+                objectKey = match[1];
+            }
+
+            // Get signed URL
+            const signedUrl = await apsDataService.getSignedUrl(objectKey);
+            
+            if (!signedUrl) {
+                return res.status(500).json({ error: 'Failed to generate signed URL' });
+            }
+
+            // Proxy the file download to set correct headers for browser viewing
+            const response = await axios.get(signedUrl, {
+                responseType: 'stream'
+            });
+
+            // Set headers
+            const contentType = file.type === 'PDF' || file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream';
+            res.setHeader('Content-Type', contentType);
+            // Sanitize filename for header
+            const safeFilename = file.name.replace(/"/g, '');
+            res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+            
+            // Disable X-Frame-Options to allow iframe embedding
+            res.removeHeader('X-Frame-Options');
+            // Set CSP to allow embedding
+            res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *");
+
+            // Pipe the stream
+            response.data.pipe(res);
+
+        } catch (e) {
+            console.error('Download error:', e);
+            res.status(500).json({ error: 'Failed to process download' });
+        }
+
+    } catch (error: any) {
+        console.error('Download endpoint error:', error);
+        res.status(500).json({ error: 'Download failed', details: error.message });
+    }
+});
+
 // Import file from APS (ACC/BIM 360)
 router.post('/import-aps', async (req, res) => {
     try {
-        const { projectId, name, urn, apsProjectId, apsFileId } = req.body;
+        const {
+            projectId,
+            name,
+            urn,
+            apsProjectId,
+            apsItemId,
+            apsHubId,
+            apsFolderId,
+            apsStorageId,
+            size
+        } = req.body;
 
         if (!projectId || !name || !urn) {
             return res.status(400).json({ error: 'Missing required fields' });
@@ -169,19 +251,44 @@ router.post('/import-aps', async (req, res) => {
             });
         }
 
-        // Create DB record
+        // Check if file already exists in this project (by APS Item ID)
+        if (apsItemId) {
+            const existingFile = await prisma.file.findFirst({
+                where: {
+                    projectId: projectId,
+                    apsItemId: apsItemId
+                }
+            });
+
+            if (existingFile) {
+                console.log(`File ${name} already imported (ID: ${existingFile.id}). Returning existing record.`);
+                return res.json({
+                    success: true,
+                    file: existingFile,
+                    message: 'File already imported'
+                });
+            }
+        }
+
+        // Create DB record with APS metadata
         const dbFile = await prisma.file.create({
             data: {
                 name: name,
                 originalName: name,
                 type: getFileType('application/octet-stream', name), // Infer type from name
-                size: 0, // Unknown size for imported files
+                size: size || 0,
                 s3Key: 'IMPORTED_FROM_APS',
                 apsUrn: urn,
+                // APS Data Management fields
+                apsProjectId: apsProjectId || null,
+                apsItemId: apsItemId || null,
+                apsHubId: apsHubId || null,
+                apsFolderId: apsFolderId || null,
+                apsStorageId: apsStorageId || null,
                 projectId,
                 userId: user.id,
                 status: 'READY' // Assumed ready since it's from APS
-            }
+            } as any // Cast to any to avoid type errors until Prisma Client is regenerated
         });
 
         res.json({
@@ -207,10 +314,34 @@ router.get('/project/:projectId', async (req, res) => {
             }
         });
 
+        // Check status for active files
+        for (const file of files) {
+            if ((file.status === 'TRANSLATING' || file.status === 'PROCESSING') && file.apsUrn && !file.apsUrn.startsWith('local-')) {
+                try {
+                    const manifest = await modelDerivativeService.getManifest(file.apsUrn);
+                    if (manifest.status === 'success') {
+                        await prisma.file.update({
+                            where: { id: file.id },
+                            data: { status: 'READY' }
+                        });
+                        file.status = 'READY';
+                    } else if (manifest.status === 'failed') {
+                        await prisma.file.update({
+                            where: { id: file.id },
+                            data: { status: 'FAILED' }
+                        });
+                        file.status = 'FAILED';
+                    }
+                } catch (e) {
+                    console.error(`Failed to check manifest for file ${file.id}:`, e);
+                }
+            }
+        }
+
         // Add progress estimation
         const filesWithProgress = files.map(file => {
             let progress = 0;
-            if (file.status === 'TRANSLATING') {
+            if (file.status === 'TRANSLATING' || file.status === 'PROCESSING') {
                 const elapsed = Date.now() - new Date(file.updatedAt).getTime();
                 const isLocal = file.apsUrn && file.apsUrn.startsWith('local-');
                 const duration = isLocal ? 5000 : 60000; // 5s for local, 60s for real
@@ -244,7 +375,7 @@ router.get('/:id', async (req, res) => {
         }
 
         // Check translation status if currently translating
-        if (file.status === 'TRANSLATING') {
+        if (file.status === 'TRANSLATING' || file.status === 'PROCESSING') {
             const elapsed = Date.now() - new Date(file.updatedAt).getTime();
             const isLocal = file.apsUrn && file.apsUrn.startsWith('local-');
             const duration = isLocal ? 5000 : 60000; // 5s for local, 60s for real
@@ -254,7 +385,7 @@ router.get('/:id', async (req, res) => {
             (file as any).progress = 100;
         }
 
-        if (file.status === 'TRANSLATING' && file.apsUrn && !file.apsUrn.startsWith('local-')) {
+        if ((file.status === 'TRANSLATING' || file.status === 'PROCESSING') && file.apsUrn && !file.apsUrn.startsWith('local-')) {
             try {
                 const manifest = await modelDerivativeService.getManifest(file.apsUrn);
                 if (manifest.status === 'success') {
@@ -348,11 +479,115 @@ router.get('/:id/bom', async (req, res) => {
     }
 });
 
+// Get file versions (from APS Data Management for ACC/BIM 360 files)
+router.get('/:id/versions', async (req, res) => {
+    try {
+        const file = await prisma.file.findUnique({
+            where: { id: req.params.id },
+            include: {
+                versions: {
+                    orderBy: { version: 'desc' }
+                }
+            }
+        });
+
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // If file is from APS (has apsProjectId and apsItemId), fetch real versions
+        const apsFile = file as any;
+        if (apsFile.apsProjectId && apsFile.apsItemId) {
+            // Get 3-legged token from session
+            const accessToken = (req as any).session?.apsToken;
+
+            if (!accessToken) {
+                return res.status(401).json({
+                    error: 'Not authenticated with Autodesk. Please sign in again.'
+                });
+            }
+
+            try {
+                const versionsData: any = await apsDataService.getItemVersions(
+                    apsFile.apsProjectId,
+                    apsFile.apsItemId,
+                    accessToken
+                );
+
+                // Transform to our format
+                const formattedVersions = versionsData.data.map((v: any, index: number) => ({
+                    id: v.id,
+                    versionNumber: v.attributes.versionNumber,
+                    displayName: v.attributes.displayName,
+                    createTime: v.attributes.createTime,
+                    createUserName: v.attributes.createUserName || 'Unknown',
+                    storageId: v.relationships?.storage?.data?.id,
+                    urn: v.relationships?.storage?.data?.id
+                        ? apsDataService.getDerivativeUrn(v.relationships.storage.data.id)
+                        : null,
+                    size: v.attributes.storageSize || 0,
+                    status: 'READY' // Assume ready since it's from APS
+                }));
+
+                return res.json({
+                    file: {
+                        id: file.id,
+                        name: file.name,
+                        projectId: file.projectId
+                    },
+                    versions: formattedVersions,
+                    source: 'APS'
+                });
+            } catch (apsError: any) {
+                console.error('Failed to fetch APS versions:', apsError);
+                return res.status(500).json({
+                    error: 'Failed to fetch versions from Autodesk',
+                    details: apsError.message
+                });
+            }
+        }
+
+        // Fallback: Return local versions from database
+        const localVersions = file.versions.map((v, index) => ({
+            id: v.id,
+            versionNumber: v.version,
+            displayName: `Version ${v.version}`,
+            createTime: v.createdAt.toISOString(),
+            createUserName: 'Local User',
+            urn: v.apsUrn,
+            size: file.size,
+            status: 'READY'
+        }));
+
+        res.json({
+            file: {
+                id: file.id,
+                name: file.name,
+                projectId: file.projectId
+            },
+            versions: localVersions.length > 0 ? localVersions : [{
+                id: file.id,
+                versionNumber: 1,
+                displayName: 'Current Version',
+                createTime: file.createdAt.toISOString(),
+                createUserName: 'Local User',
+                urn: file.apsUrn,
+                size: file.size,
+                status: file.status
+            }],
+            source: 'LOCAL'
+        });
+    } catch (error: any) {
+        console.error('Get versions error:', error);
+        res.status(500).json({ error: 'Failed to get versions', details: error.message });
+    }
+});
+
 // Delete file
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         // Check if file exists
         const file = await prisma.file.findUnique({
             where: { id }

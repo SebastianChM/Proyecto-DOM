@@ -134,6 +134,45 @@ export class APSModelDerivativeService {
     }
 
     /**
+     * Get download URL and cookies for a derivative using signed cookies
+     */
+    async getDerivativeDownloadInfo(urn: string, derivativeUrn: string): Promise<{ url: string, headers: any }> {
+        const token = await apsAuthService.getInternalToken();
+        const encodedUrn = encodeURIComponent(derivativeUrn);
+        const url = `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest/${encodedUrn}/signedcookies`;
+
+        console.log(`🔑 Getting signed cookies/url from: ${url}`);
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            // The response can contain 'url' or 'downloadUrl' depending on the API version/state
+            const downloadUrl = response.data.url || response.data.downloadUrl;
+            
+            if (!downloadUrl) {
+                throw new Error('No download URL found in signedcookies response');
+            }
+
+            // Extract cookies from Set-Cookie header
+            const setCookie = response.headers['set-cookie'];
+            const headers: any = {};
+            
+            if (setCookie) {
+                headers['Cookie'] = setCookie.map((c: string) => c.split(';')[0]).join('; ');
+            }
+
+            return { url: downloadUrl, headers };
+        } catch (error: any) {
+            console.error('❌ Failed to get signed download URL:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    /**
      * Download a derivative
      */
     async getDerivative(urn: string, derivativeUrn: string): Promise<Buffer> {

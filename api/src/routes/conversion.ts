@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
 import { designAutomationService } from '../services/aps/design-automation.service';
 import { apsAuthService } from '../services/aps/auth.service';
+import { apsDataService as apsDataManagementService } from '../services/aps/data-management.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
@@ -78,7 +79,7 @@ router.post('/:fileId', async (req, res) => {
                 } catch (e) {
                     console.error('Failed to update mock conversion:', e);
                 }
-            }, 5000);
+            }, 1000); // Reduced to 1s for faster testing
 
             return res.json({
                 success: true,
@@ -219,15 +220,21 @@ router.post('/:fileId', async (req, res) => {
                 error: 'Conversion failed',
                 details: diagnostic || jobError.message,
                 reason: jobError.response?.data?.reason || 'Unknown reason',
-                message: errorMessage
+                message: errorMessage,
+                fullError: jobError.response?.data
             });
         }
 
     } catch (error: any) {
         console.error('Conversion error:', error);
+        console.error('Stack:', error.stack);
         const status = error.response?.status || 500;
         const message = error.response?.data?.reason || error.message || 'Internal Server Error';
-        res.status(status).json({ error: message, details: error.response?.data });
+        res.status(status).json({ 
+            error: message, 
+            details: error.response?.data,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
@@ -396,11 +403,11 @@ router.get('/:conversionId/download', async (req, res) => {
             console.log(`📦 Bucket: ${bucket}, Object: ${objectKey}`);
 
             try {
-                const token = await apsAuthService.getInternalToken();
-                const url = `https://developer.api.autodesk.com/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}`;
+                // Use signed URL for download
+                const signedUrl = await apsDataService.getSignedUrl(objectKey);
+                if (!signedUrl) throw new Error('Failed to get signed URL');
 
-                const response = await axios.get(url, {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                const response = await axios.get(signedUrl, {
                     responseType: 'arraybuffer'
                 });
 
@@ -453,6 +460,241 @@ router.get('/:conversionId/download', async (req, res) => {
     } catch (error: any) {
         console.error('Download error:', error);
         res.status(500).json({ error: 'Download failed' });
+    }
+});
+
+// Save conversion result to project
+router.post('/:conversionId/save-to-project', async (req, res) => {
+    try {
+        const { conversionId } = req.params;
+        console.log(`💾 Save to project request for conversion: ${conversionId}`);
+
+        const conversion = await prisma.conversion.findUnique({
+            where: { id: conversionId },
+            include: { file: true }
+        });
+
+        if (!conversion) {
+            return res.status(404).json({ error: 'Conversion not found' });
+        }
+
+        const baseFilename = conversion.file.name.replace(/\.[^/.]+$/, '');
+        let newFilename = `${baseFilename}.${conversion.targetFormat}`;
+        let fileBuffer: Buffer | null = null;
+        let uploadedObject: any = null;
+        let fileSize = 0;
+
+        // OPTIMIZATION: Check if we can use server-side copy (Design Automation)
+        if (conversion.resultUrn?.startsWith('oss:')) {
+            console.log(`⚡ FAST PATH: Using server-side copy for Design Automation result`);
+            const [, bucketAndKey] = conversion.resultUrn.split('oss:');
+            const [bucket, ...keyParts] = bucketAndKey.split('/');
+            const sourceObjectKey = keyParts.join('/');
+
+            // If source and target buckets match (which they should in this app), use copyObject
+            if (bucket === BUCKET_KEY) {
+                try {
+                    // Sanitize new filename
+                    const safeFilename = newFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+                    const newObjectKey = `${Date.now()}-${safeFilename}`;
+
+                    uploadedObject = await apsDataManagementService.copyObject(sourceObjectKey, newObjectKey);
+                    fileSize = uploadedObject.size;
+                    console.log(`✅ Server-side copy complete. New Object ID: ${uploadedObject.objectId}, Size: ${fileSize}`);
+                } catch (copyError) {
+                    console.warn('⚠️ Server-side copy failed, falling back to download/upload:', copyError);
+                    // Fallback will happen below
+                }
+            }
+        }
+
+        if (!uploadedObject) {
+            // SLOW PATH: Download and Re-upload (Model Derivative or Cross-Bucket)
+            
+            // Handle Local Mode
+            if (conversion.file.apsUrn?.startsWith('local-') || conversion.resultUrn?.startsWith('local-mock-')) {
+                console.log(`🏠 Local mode detected, reading mock file...`);
+                const localPath = path.resolve(process.cwd(), 'downloads', `mock-result.${conversion.targetFormat}`);
+                if (fs.existsSync(localPath)) {
+                    fileBuffer = fs.readFileSync(localPath);
+                    fileSize = fileBuffer.length;
+                    // Upload buffer
+                    console.log(`📤 Uploading ${newFilename} to OSS...`);
+                    uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                } else {
+                    return res.status(404).json({ error: 'Local mock file not found' });
+                }
+            }
+            // Handle Design Automation result (OSS object) - Fallback
+            else if (conversion.resultUrn?.startsWith('oss:')) {
+                console.log(`📐 Downloading Design Automation result from OSS (Fallback)`);
+                const [, bucketAndKey] = conversion.resultUrn.split('oss:');
+                const [bucket, ...keyParts] = bucketAndKey.split('/');
+                const objectKey = keyParts.join('/');
+
+                try {
+                    // Use signed URL for download as direct GET might be deprecated
+                    console.log(`🔑 Getting signed URL for download...`);
+                    const signedUrl = await apsDataService.getSignedUrl(objectKey);
+                    
+                    if (!signedUrl) {
+                        throw new Error('Failed to generate signed URL for OSS object');
+                    }
+
+                    // Try streaming first
+                    console.log(`⬇️ Streaming from OSS (Signed URL)...`);
+                    const response = await axios.get(signedUrl, {
+                        responseType: 'stream'
+                    });
+                    
+                    const contentLength = parseInt(response.headers['content-length'] || '0');
+                    if (contentLength > 0) {
+                        console.log(`📤 Streaming upload ${newFilename} to OSS...`);
+                        uploadedObject = await apsDataManagementService.uploadStream(response.data, newFilename, contentLength);
+                        fileSize = contentLength;
+                    } else {
+                        // Fallback to buffer
+                        console.log(`⚠️ No content length, buffering...`);
+                        const bufferResponse = await axios.get(signedUrl, {
+                            responseType: 'arraybuffer'
+                        });
+                        fileBuffer = Buffer.from(bufferResponse.data);
+                        fileSize = fileBuffer.length;
+                        uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                    }
+                } catch (ossError: any) {
+                    console.error('OSS download error:', ossError.response?.data || ossError.message);
+                    return res.status(500).json({ error: 'Failed to download PDF from storage' });
+                }
+            }
+            // Handle Model Derivative result
+            else if (conversion.resultUrn) {
+                console.log(`🌐 Downloading Model Derivative: ${conversion.resultUrn}`);
+                try {
+                    // Ensure we have the parent URN
+                    if (!conversion.file.apsUrn) {
+                        throw new Error('Parent file URN is missing');
+                    }
+
+                    // 1. Get Signed Download URL (more robust than direct download)
+                    console.log(`🔑 Requesting signed download URL...`);
+                    const { url: downloadUrl, headers: downloadHeaders } = await modelDerivativeService.getDerivativeDownloadInfo(conversion.file.apsUrn, conversion.resultUrn);
+                    console.log(`⬇️ Streaming from signed URL...`);
+
+                    // 2. Stream the file
+                    const response = await axios.get(downloadUrl, {
+                        headers: downloadHeaders,
+                        responseType: 'stream',
+                        maxContentLength: Infinity,
+                        maxBodyLength: Infinity
+                    });
+
+                    const contentLength = parseInt(response.headers['content-length'] || '0');
+                    console.log(`📦 Stream ready. Content Length: ${contentLength}`);
+
+                    if (contentLength > 0) {
+                         // 3. Upload Stream to OSS
+                        console.log(`📤 Streaming upload ${newFilename} to OSS...`);
+                        uploadedObject = await apsDataManagementService.uploadStream(response.data, newFilename, contentLength);
+                        fileSize = contentLength;
+                    } else {
+                        // Fallback to buffer if no content length (rare)
+                        console.warn('⚠️ No content-length, falling back to buffer download...');
+                         const bufferResponse = await axios.get(downloadUrl, {
+                            headers: downloadHeaders,
+                            responseType: 'arraybuffer',
+                            maxContentLength: Infinity,
+                            maxBodyLength: Infinity
+                        });
+                        fileBuffer = Buffer.from(bufferResponse.data);
+                        fileSize = fileBuffer.length;
+                        console.log(`📤 Uploading buffer ${newFilename} to OSS...`);
+                        uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                    }
+
+                } catch (downloadError: any) {
+                    console.error('Download/Stream error:', downloadError.message);
+                    if (downloadError.response) {
+                        console.error('Download error details:', downloadError.response.data);
+                    }
+                    return res.status(500).json({ 
+                        error: 'Failed to process file from Model Derivative', 
+                        details: downloadError.response?.data || downloadError.message 
+                    });
+                }
+            }
+
+            if (!uploadedObject) {
+                return res.status(400).json({ error: 'Could not retrieve or upload file content' });
+            }
+        }
+        
+        console.log(`✅ Upload/Copy complete. Object ID: ${uploadedObject.objectId}`);
+
+        // 3. Create File record in Prisma
+        console.log(`📝 Creating File record in database...`);
+        console.log(`   Name: ${newFilename}`);
+        console.log(`   Project ID: ${conversion.file.projectId}`);
+        console.log(`   User ID: ${conversion.file.userId}`);
+        
+        // Use helper to get URL-safe Base64 URN
+        const urn = uploadedObject.objectId ? apsDataManagementService.getDerivativeUrn(uploadedObject.objectId) : `local-${Date.now()}`;
+        console.log(`   Generated URN: ${urn}`);
+        
+        try {
+            const newFile = await prisma.file.create({
+                data: {
+                    name: newFilename,
+                    originalName: newFilename,
+                    size: fileSize,
+                    type: conversion.targetFormat === 'pdf' ? 'PDF' : (conversion.targetFormat === 'ifc' ? 'IFC' : 'OTHER'),
+                    apsUrn: urn,
+                    s3Key: uploadedObject.objectKey || newFilename,
+                    projectId: conversion.file.projectId,
+                    userId: conversion.file.userId,
+                    status: 'UPLOADED' // Initial status
+                }
+            });
+            console.log(`✅ File record created: ${newFile.id}`);
+            
+            // 4. Trigger Translation (so it can be viewed)
+            if (newFile.apsUrn && !newFile.apsUrn.startsWith('local-')) {
+                console.log(`🔄 Triggering translation for new file...`);
+                try {
+                    await modelDerivativeService.translateToSVF2(newFile.apsUrn);
+                    await prisma.file.update({
+                        where: { id: newFile.id },
+                        data: { status: 'TRANSLATING' }
+                    });
+                } catch (translationError) {
+                    console.error('Failed to trigger translation for saved file:', translationError);
+                    // Don't fail the request, just log it. The user can retry translation later if needed.
+                }
+            }
+
+            console.log(`✅ File saved successfully: ${newFile.id}`);
+            res.json({ success: true, file: newFile });
+
+        } catch (dbError: any) {
+            console.error('Database error creating file:', dbError);
+            throw new Error(`Database error: ${dbError.message}`);
+        }
+
+    } catch (error: any) {
+        console.error('Save to project error:', error);
+        console.error('Stack:', error.stack);
+        
+        // Extract meaningful error message
+        let errorMessage = error.message;
+        if (error.response?.data) {
+            errorMessage += ` - ${JSON.stringify(error.response.data)}`;
+        }
+        
+        res.status(500).json({ 
+            error: 'Failed to save file to project', 
+            details: errorMessage,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
