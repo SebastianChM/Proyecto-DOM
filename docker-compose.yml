@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dom-bim-db
+    environment:
+      POSTGRES_DB: dom_bim
+      POSTGRES_USER: dom
+      POSTGRES_PASSWORD: dom_secure_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dom-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dom-bim-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dom-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  dom-network:
+    driver: bridge

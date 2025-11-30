@@ -1,0 +1,19 @@
+[2025-11-27T00:49:53.346Z] Starting Inventor pipeline
+[2025-11-27T00:49:56.220Z] Uploading configuration file
+[2025-11-27T00:50:01.542Z] Preparing template assets
+[2025-11-27T00:50:05.701Z] Generating signed urls for input and output files
+[2025-11-27T00:50:11.006Z] Creating a work item
+[2025-11-27T00:50:14.341Z] Job started: {"status":"pending","activityId":"RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.Assemble+prod","stats":{"timeQueued":"2025-11-27T00:50:12.7569712Z"},"id":"650a82154b46445e8a40d26d7f35781f"}
+[2025-11-27T00:50:19.262Z] Waiting for work item to complete
+[2025-11-27T00:50:22.362Z] Job still running ...
+[2025-11-27T00:50:30.368Z] Job still running ...
+[2025-11-27T00:50:38.910Z] Job still running ...
+[2025-11-27T00:50:47.143Z] Job still running ...
+[2025-11-27T00:50:55.460Z] Job still running ...
+[2025-11-27T00:51:05.462Z] Job finished successfully: {"status":"success","reportUrl":"https://dasprod-store.s3.us-east-1.amazonaws.com/workItem/RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi/650a82154b46445e8a40d26d7f35781f/report?X-Amz-Expires=3600&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEMn%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIQD04MDGHW1MhWR%2BfCdDBcsVLODWQj8zdJTW7CxzosFIsAIgIFOJ%2Fmao1KTyHBE0t5GNV5iMEN35BOfKF0DsXJsjuTYqiQMIkv%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAEGgwyMjA0NzMxNTIzMTAiDCA0CI2Sa5iHKCF0TyrdAjsfEqlQu01DE1ojnxFgnYvuN9Df4tbBg41twyJ%2FlVk8qagHVkWnJlhM1dXLoaht6JKZim2bIEoFMxYDZ9PsWfhuBIOzs1nJ8AnFK491adqRXlPh0iA9PIxYD4xlgFpJT0eiqLHkXvdB2%2BsZnaUglyTP9%2FWx6UpMs%2FY%2BZAj%2FdfsqUxeo96fB3cY77WU2ljJBtSUsEBMeeIbU5ZE4loCse7LH0YIk959%2BsUQorh%2FZUGaf8JwKAobLxEEvekEHeeqO3RuzqPe%2Fj1F5PCVKQMVa7XidtvOw%2BaO1mSqn9ow5ucalNiNypXpXLc2%2B2UvD4zixizO%2BCgqNdc9dpHTFS%2FqTIgvr8grry5CfbD%2Bpewp%2F9alte1TMJtChsdzLdwn89RhnxkZwigNwJy4OGjkDGMuPjexqu1tTYY1k1EN72SmyYfh3aTkqLXGbbAIbbjZ3kAMqODN6Odg3lZZv%2FeUkl28w1LyeyQY6ngEcYMRij%2FdJcPEMYlvrQqP5W0BoPHizUNei66fYdNvXhHcHxjGtDaeV%2BGHKDiOOrno6P6VsvMCLnBO4ceXeCHXgMqdphAcwLZchFM3wYMrPyqhHI8rE7abYOal0XmLJSUY2Gj5jNjmMsfibt1rm4RQ0W01rQyP82qoelrziBVlEPas3UEZxdkRcNCQ%2FYwvzxj8Pk6THZ%2BZhuCZoWl7%2FCQ%3D%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIATGVJZKM3MPMKUK6N%2F20251127%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251127T005102Z&X-Amz-SignedHeaders=host&X-Amz-Signature=9d69f08e3b75ce18d45dbd88fed421228a39c068a29de947a45529aa26fa23e0","activityId":"RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.Assemble+prod","stats":{"timeQueued":"2025-11-27T00:50:12.7569712Z","timeDownloadStarted":"2025-11-27T00:50:12.8074928Z","timeInstructionsStarted":"2025-11-27T00:50:13.6981754Z","timeInstructionsEnded":"2025-11-27T00:50:55.7364981Z","timeUploadEnded":"2025-11-27T00:50:56.5883084Z","timeFinished":"2025-11-27T00:50:56.9968317Z","bytesDownloaded":12069599,"bytesUploaded":395969},"id":"650a82154b46445e8a40d26d7f35781f"}
+[2025-11-27T00:51:10.622Z] Downloading results
+[2025-11-27T00:51:17.984Z] Converting results for viewing
+[2025-11-27T00:51:21.403Z] {"result":"success","urn":"dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6YXBzLWFzc2VtYmx5LWNvbmZpZ3VyYXRvci1pZG9tLWRlbW8vcHJvamVjdHMlMkZkYTM5Yzc3NS03MTcyLTRhOGQtOGZlMi00MzMyNjFiYTM3ODIlMkZvdXRwdXQuemlw","acceptedJobs":{"output":{"formats":[{"type":"svf","views":["2d","3d"]}],"destination":{"region":"US"}}}}
+[2025-11-27T00:51:24.395Z] Conversion running ...
+[2025-11-27T00:51:32.917Z] Manifest status: success
+[2025-11-27T00:51:37.754Z] Inventor pipeline completed

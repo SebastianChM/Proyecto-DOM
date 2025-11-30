@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  apsUserId String?
+  role      String   @default("USER") // Enum: USER, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects  Project[]
+  files     File[]
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  files       File[]
+  comparisons Comparison[]
+}
+
+model File {
+  id             String      @id @default(uuid())
+  name           String
+  originalName   String
+  type           String      // Enum: RVT, DWG, PDF, IFC, NWC, DWF, OTHER
+  size           Int
+  s3Key          String
+  apsUrn         String?
+  status         String      @default("UPLOADED") // Enum: UPLOADED, TRANSLATING, READY, FAILED
+  projectId      String
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  versions       FileVersion[]
+  conversions    Conversion[]
+  comparisonsAsBase Comparison[] @relation("BaseFile")
+  comparisonsAsTarget Comparison[] @relation("TargetFile")
+}
+
+model FileVersion {
+  id        String   @id @default(uuid())
+  fileId    String
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  version   Int
+  apsUrn    String
+  createdAt DateTime @default(now())
+
+  @@unique([fileId, version])
+}
+
+model Conversion {
+  id           String          @id @default(uuid())
+  fileId       String
+  file         File            @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  targetFormat String
+  status       String          @default("PENDING") // Enum: PENDING, PROCESSING, COMPLETED, FAILED
+  resultUrn    String?
+  resultUrl    String?
+  error        String?
+  createdAt    DateTime        @default(now())
+  completedAt  DateTime?
+}
+
+model Comparison {
+  id          String           @id @default(uuid())
+  projectId   String
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  baseFileId  String
+  baseFile    File             @relation("BaseFile", fields: [baseFileId], references: [id])
+  targetFileId String
+  targetFile  File             @relation("TargetFile", fields: [targetFileId], references: [id])
+  type        String           // Enum: RVT_VS_RVT, PDF_VS_RVT, PDF_VS_PDF
+  status      String           @default("PENDING") // Enum: PENDING, PROCESSING, COMPLETED, FAILED
+  diffId      String?
+  result      String?          // Stored as JSON string
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+}

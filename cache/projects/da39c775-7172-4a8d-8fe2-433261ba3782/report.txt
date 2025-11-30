@@ -1,0 +1,119 @@
+[11/27/2025 00:50:12] Job information:
+{
+  "CommandLine": [
+    "$(engine.path)\\InventorCoreConsole.exe /al \"$(appbundles[InventorAssembler].path)\" \"$(args[configJson].path)\" \"$(args[templateArchive].path)\""
+  ],
+  "Settings": {
+    "dasOpenNetwork": {
+      "value": "true",
+      "isEnvironmentVariable": true
+    }
+  },
+  "Id": "650a82154b46445e8a40d26d7f35781f",
+  "ActivityId": "RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.Assemble+prod",
+  "EngineId": "Autodesk.Inventor_2024!45",
+  "Apps": [
+    "RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.InventorAssembler!1"
+  ],
+  "BoundArguments": {
+    "configJson": {
+      "localName": "config.json",
+      "url": "https://cdn.us.oss.api.autodesk.com/Masked:2oJ8ENp/odEffoCytwPbZU0wxd0=",
+      "verb": "get"
+    },
+    "templateArchive": {
+      "zip": true,
+      "localName": "template",
+      "url": "https://cdn.us.oss.api.autodesk.com/Masked:5b2YvKfrRGorxDFyVMpcTwJxqn8=",
+      "verb": "get"
+    },
+    "outputZip": {
+      "localName": "output.zip",
+      "url": "https://cdn.us.oss.api.autodesk.com/Masked:0QCQaX+nIu4QPenG5/c8ni6b1XU=",
+      "verb": "put"
+    },
+    "outputRfa": {
+      "localName": "output.rfa",
+      "url": "https://cdn.us.oss.api.autodesk.com/Masked:L92hCBS85L5ZcgXerngFDKS8v+0=",
+      "verb": "put"
+    }
+  },
+  "Quotas": {
+    "limitProcessingTimeSec": 900,
+    "limitTotalUncompressedAppsSizeInMB": 500
+  }
+}
+[11/27/2025 00:50:12] Starting work item 650a82154b46445e8a40d26d7f35781f
+[11/27/2025 00:50:12] Start download phase.
+[11/27/2025 00:50:12] Start downloading input: verb - 'Get', url - 'https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/534c31d5-9d84-4600-bc63-d9abbecf5850?region=US'
+[11/27/2025 00:50:12] Start downloading input: verb - 'Get', url - 'https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/5d18af32-092f-4b47-8db4-c517b6ac2d24?region=US'
+[11/27/2025 00:50:13] End downloading file. Source=https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/534c31d5-9d84-4600-bc63-d9abbecf5850?region=US,LocalFile=C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\config.json,BytesDownloaded=2,Duration=159ms
+[11/27/2025 00:50:13] End downloading file. Source=https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/5d18af32-092f-4b47-8db4-c517b6ac2d24?region=US,LocalFile=C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\zip_104.zip,BytesDownloaded=12069597,Duration=509ms
+[11/27/2025 00:50:13] C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\zip_104.zip has been unpacked to folder C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\template.
+[11/27/2025 00:50:13] End download phase successfully.
+[11/27/2025 00:50:13] Start preparing script and command line parameters.
+[11/27/2025 00:50:13] Command line: [ /al "C:\DARoot\Applications\9103dfde2a9ec5d965f9f1d95d5f2856.RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.InventorAssembler[1].package" "C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\config.json" "C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\template"]
+[11/27/2025 00:50:13] End preparing script and command line parameters.
+[11/27/2025 00:50:13] Start script phase.
+[11/27/2025 00:50:13] Start Inventor Core Engine standard output dump.
+[11/27/2025 00:50:13] InventorCoreConsole.exe Information: 0 : InventorCoreConsole.exe: 25.0.18300.0, 5-b990ed0+b990ed0193c509321edff4878614c00a89311214
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Starting Inventor Server.
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Trying to get Inventor Server version in use.
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Inventor Server version is 28.20.27200.0000.
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Inventor Server version is 2023 or newer
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : LoadInventorServer.loader.Invoke = 0
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Started Inventor Server 2024.2 (Build 282272000, 272) (28.20.27200.0000)
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : ...
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Loading plug-in: iLogic Plugin
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : Activating plug-in: iLogic Plugin
+[11/27/2025 00:50:14]     iLogic Plugin: initializing...
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Setting up iLogicLogLevelTo: Warn
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Getting Inventor plug-in.
+[11/27/2025 00:50:14] InventorCoreConsole.exe Information: 0 : Plug-in: DesignAutomationForInventor1Plugin
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : Activating plug-in: DesignAutomationForInventor1Plugin
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : : DesignAutomationForInventor1Plugin (1.0.7803.35570): initializing... 
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : Executing 'RunWithArguments' method on Automation object.
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : AppBundle 1.0.7803.35570 (5/13/2021 7:45:40 PM)
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : Parsing configuration
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : HeartBeating every 30000ms.
+[11/27/2025 00:50:14]     InventorCoreConsole.exe Information: 0 : Assembling modules
+[11/27/2025 00:50:16]     InventorCoreConsole.exe Information: 0 : Finishing assembly
+[11/27/2025 00:50:16]     InventorCoreConsole.exe Information: 0 : Saving assembly
+[11/27/2025 00:50:16]     InventorCoreConsole.exe Information: 0 : Exporting RFA file.
+[11/27/2025 00:50:44]     InventorCoreConsole.exe Information: 0 : HeartBeat 30.
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Exported RFA file.
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Compressing output
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Closing assembly
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Ending HeartBeat
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Performing iLogic diagnostics...
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : End of iLogic diagnostics...
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : Deactivating plug-in: DesignAutomationForInventor1Plugin
+[11/27/2025 00:50:54]     InventorCoreConsole.exe Information: 0 : : DesignAutomationForInventor1Plugin: deactivating... 
+[11/27/2025 00:50:54] CoreConsole Dispose start
+[11/27/2025 00:50:54] CoreConsole ReleaseAll start
+[11/27/2025 00:50:54] CoreConsole ReleaseAll end
+[11/27/2025 00:50:54] CoreConsole Dispose end
+[11/27/2025 00:50:54] CoreConsole exiting (0)
+[11/27/2025 00:50:55] End Inventor Core Engine standard output dump.
+[11/27/2025 00:50:55] End script phase.
+[11/27/2025 00:50:55] Start upload phase.
+[11/27/2025 00:50:55] Uploading 'C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\output.zip': verb - 'Put', url - 'https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/b3e86339-1ac1-4e71-bb5a-d3a65ddd5b9b?region=US'
+[11/27/2025 00:50:55] Uploading 'C:\DARoot\Jobs\650a82154b46445e8a40d26d7f35781f\output.rfa': verb - 'Put', url - 'https://cdn.us.oss.api.autodesk.com/oss/v2/signedresources/7f1f0eab-3b4e-4995-8d70-4d4856f5666b?region=US'
+[11/27/2025 00:50:56] End upload phase successfully.
+[11/27/2025 00:50:56] Job finished with result Succeeded
+[11/27/2025 00:50:56] Job Status:
+{
+  "status": "success",
+  "reportUrl": "https://dasprod-store.s3.us-east-1.amazonaws.com/workItem/RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi/650a82154b46445e8a40d26d7f35781f/report?X-Amz-Expires=90000&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEMn%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIQC7dbiO3DLTl0hCK6TpAKjyVSdpiT4iz8lNSH3RMlloTAIgDSOFLCCVNbP0sLYEmy5V5UV71%2Bfios5yWMk%2B8sDMKp0qiQMIkv%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAEGgwyMjA0NzMxNTIzMTAiDD7LugEH6rZBsSdo3yrdAkjTTOwScAm2cl%2F5d%2FlFiTqjP2h92SdvJ6PEzilOVmTTsB%2B7Ol0DJ%2BeVBjm%2By0z4lFzdc6hPQPCEUcuopl%2Fln4tlIJESAB1JX%2FmQOWxsqy8NjeKDvi2aoSfsfVLCO3fSo%2FB5uE6ox9SJilp8ymw7q4pszXA0APXdQyxeoFsOMor195pCP62wTtc1%2F3PuQfeoCtY0Eb9BPS2ooHwJotqr2dqJUrCz7T4gKUNwT3dyX9pceTDn3FBBA%2FlauS12%2BOM4ARpBRytHKjs9zX2TId3gu298GYv3c1T4y7VkWcO7eSujoQ546trZ4iRUxLB0xx1iT%2FqGGrRi6jkub8PhmnrTOyGqjL%2BI2gN8djNmJeWJTR%2FioRloEFtxL0VKaD5wZXJCA19wg%2FU8fRWblS73ZCRDuAMGWsAfVgSTc%2F1dbjKyBqP7I4j7wSnoTpivJLtKTfRT%2F%2FCn2Xn1ReK%2FPTzH8AQw1LyeyQY6ngFhstZFYnUzNkhbQiGhAIj6URbdsAweMMwURD19jerT86zYY%2FH6FeToBzNPqQpQQym4ZUKKDyAQPSLU%2FiBqWMHczvHdp83ocw%2Fv9nEea2Is2VoMaLu0F8FwaAUlZImpkXGMpSXJh%2BOinZxtn27Pa3QNDaXUUkBffhVxcBI2myX%2F6QGpveMUSEwz0giEbNggiEUzZHvVpSz8T4QNOYYKmg%3D%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIATGVJZKM3BNR6H2CH%2F20251127%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251127T005012Z&X-Amz-SignedHeaders=host&X-Amz-Signature=4008e8edc33f9dbd7478bfb4c76af18446f8cec34d8e5ebbcf725e324b3ffabc",
+  "activityId": "RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi.Assemble+prod",
+  "stats": {
+    "timeQueued": "2025-11-27T00:50:12.7569712Z",
+    "timeDownloadStarted": "2025-11-27T00:50:12.8074928Z",
+    "timeInstructionsStarted": "2025-11-27T00:50:13.6981754Z",
+    "timeInstructionsEnded": "2025-11-27T00:50:55.7364981Z",
+    "timeUploadEnded": "2025-11-27T00:50:56.5883084Z",
+    "bytesDownloaded": 12069599,
+    "bytesUploaded": 395969
+  },
+  "id": "650a82154b46445e8a40d26d7f35781f"
+}

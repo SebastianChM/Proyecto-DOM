@@ -1,0 +1,30 @@
+{
+  "name": "dom-bim-platform",
+  "version": "2.0.0",
+  "description": "DOM BIM Platform - Enterprise solution for multi-format BIM management",
+  "private": true,
+  "workspaces": [
+    "api",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "cd api && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:api && npm run build:frontend",
+    "build:api": "cd api && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "prisma:generate": "cd api && npx prisma generate",
+    "prisma:push": "cd api && npx prisma db push",
+    "prisma:studio": "cd api && npx prisma studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "form-data": "^4.0.5"
+  }
+}

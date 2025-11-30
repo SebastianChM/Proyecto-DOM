@@ -1,0 +1,27 @@
+# Root level gitignore
+# Specific ignores are in /api and /frontend subdirectories
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Gemini artifacts (optional - uncomment if you don't want to commit)
+# .gemini/
