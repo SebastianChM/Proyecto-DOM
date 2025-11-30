@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Settings, LogOut, Building2, ChevronRight } from "lucide-react"
+import { LayoutDashboard, Settings, LogOut, LogIn, Building2, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useUser } from "@/context/UserContext"
@@ -14,10 +14,16 @@ const sidebarItems = [
 
 export function Sidebar() {
     const pathname = usePathname()
-    const { user } = useUser()
+    const { user, loading } = useUser()
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
     const handleLogout = async () => {
+        if (!user) {
+            // If guest, redirect to login
+            window.location.href = `${API_URL}/api/auth/login`;
+            return;
+        }
+
         try {
             // Call backend logout endpoint
             await fetch(`${API_URL}/api/auth/logout`, {
@@ -104,12 +110,18 @@ export function Sidebar() {
                         )}
                         <div className="flex flex-col overflow-hidden">
                             <span className="text-sm font-medium text-white group-hover:text-red-200 transition-colors truncate max-w-[100px]">
-                                {user ? user.name : 'Loading...'}
+                                {loading ? 'Loading...' : (user ? user.name : 'Guest User')}
                             </span>
-                            <span className="text-[10px] text-blue-200 dark:text-gray-400 group-hover:text-red-300 transition-colors">Log Out</span>
+                            <span className="text-[10px] text-blue-200 dark:text-gray-400 group-hover:text-red-300 transition-colors">
+                                {user ? 'Log Out' : 'Sign In'}
+                            </span>
                         </div>
                     </div>
-                    <LogOut className="w-4 h-4 text-blue-200 dark:text-gray-400 group-hover:text-red-400 transition-colors" />
+                    {user ? (
+                        <LogOut className="w-4 h-4 text-blue-200 dark:text-gray-400 group-hover:text-red-400 transition-colors" />
+                    ) : (
+                        <LogIn className="w-4 h-4 text-blue-200 dark:text-gray-400 group-hover:text-green-400 transition-colors" />
+                    )}
                 </div>
             </div>
         </aside>

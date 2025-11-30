@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react"
 
 interface ViewerProps {
     urn: string
+    token?: string
 }
 
 declare global {
@@ -18,7 +19,7 @@ declare global {
     }
 }
 
-export default function Viewer({ urn }: ViewerProps) {
+export default function Viewer({ urn, token: providedToken }: ViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const [viewer, setViewer] = useState<any>(null)
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -87,8 +88,12 @@ export default function Viewer({ urn }: ViewerProps) {
 
         const initializeViewer = async () => {
             try {
-                const response = await axios.get(`${API_URL}/api/auth/token`)
-                const token = response.data.access_token
+                let token = providedToken;
+                
+                if (!token) {
+                    const response = await axios.get(`${API_URL}/api/auth/token`)
+                    token = response.data.access_token
+                }
 
                 const options = {
                     env: "AutodeskProduction",

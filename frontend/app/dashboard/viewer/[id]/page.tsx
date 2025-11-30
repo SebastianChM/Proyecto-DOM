@@ -20,6 +20,7 @@ interface FileData {
     apsUrn: string | null
     projectId: string
     status: string
+    type: string
 }
 
 export default function ViewerPage() {
@@ -116,7 +117,7 @@ export default function ViewerPage() {
                     </Link>
                     <div>
                         <h1 className="text-xl font-bold dark:text-white text-gray-900">{file.name}</h1>
-                        <p className="text-sm dark:text-gray-400 text-gray-600">3D Model Viewer</p>
+                        <p className="text-sm dark:text-gray-400 text-gray-600">{file.type.toLowerCase().includes('pdf') ? 'PDF Viewer' : '3D Model Viewer'}</p>
                     </div>
                 </div>
                 <Button
@@ -141,7 +142,15 @@ export default function ViewerPage() {
 
             {/* Viewer */}
             <div className="flex-1 relative bg-gray-100 dark:bg-gray-950">
-                <Viewer urn={file.apsUrn} />
+                {file.type.toLowerCase().includes('pdf') ? (
+                    <iframe 
+                        src={`${API_URL}/api/files/${file.id}/download`} 
+                        className="w-full h-full border-none"
+                        title="PDF Viewer"
+                    />
+                ) : (
+                    <Viewer urn={file.apsUrn} />
+                )}
             </div>
         </div>
     )

@@ -26,7 +26,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const fetchUser = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/auth/me`)
+            const response = await axios.get(`${API_URL}/api/auth/me`, { withCredentials: true })
             if (response.data.authenticated && response.data.user) {
                 setUser(response.data.user)
             } else {

@@ -42,6 +42,14 @@ model File {
   s3Key          String
   apsUrn         String?
   status         String      @default("UPLOADED") // Enum: UPLOADED, TRANSLATING, READY, FAILED
+  
+  // APS Data Management fields for ACC/BIM 360 files
+  apsProjectId   String?     // ACC/BIM 360 project ID
+  apsItemId      String?     // Item ID in APS Data Management
+  apsHubId       String?     // Hub ID
+  apsFolderId    String?     // Folder ID
+  apsStorageId   String?     // Storage ID for version tracking
+  
   projectId      String
   project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId         String
