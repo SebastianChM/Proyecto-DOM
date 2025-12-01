@@ -4,6 +4,27 @@ import { modelDerivativeService } from '../services/aps/model-derivative.service
 
 const router = Router();
 
+/**
+ * @swagger
+ * /translation/{fileId}/translate:
+ *   post:
+ *     summary: Retry translation for a file
+ *     tags: [Translation]
+ *     parameters:
+ *       - in: path
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: Translation started
+ *       400:
+ *         description: File not found or not supported
+ *       500:
+ *         description: Server error
+ */
 // Retry translation for a file stuck in UPLOADED state
 router.post('/:fileId/translate', async (req, res) => {
     try {
@@ -40,12 +61,12 @@ router.post('/:fileId/translate', async (req, res) => {
         // Check supported file types
         const supportedExtensions = ['.rvt', '.dwg', '.ifc', '.nwc', '.obj', '.stl', '.step', '.stp', '.3dm', '.skp', '.max', '.f3d', '.iam', '.ipt'];
         const fileExt = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
-        
+
         // Check if it's a local mock file (which we allow to "translate" for testing)
         const isLocalMock = file.apsUrn.startsWith('local-');
 
         if (!supportedExtensions.includes(fileExt) && !isLocalMock) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: `File type ${fileExt} is not supported for 3D translation.`,
                 details: 'Supported formats: ' + supportedExtensions.join(', ')
             });
@@ -53,7 +74,7 @@ router.post('/:fileId/translate', async (req, res) => {
 
         // Start translation
         console.log(`🔄 Starting translation for file: ${file.name}`);
-        
+
         if (file.apsUrn.startsWith('local-')) {
             console.log('🔧 Local mode detected. Simulating translation...');
             // Simulate translation
@@ -75,7 +96,7 @@ router.post('/:fileId/translate', async (req, res) => {
             if (safeUrn.includes('+') || safeUrn.includes('/') || safeUrn.includes('=')) {
                 console.log(`⚠️ Detected non-URL-safe URN for file ${file.name}. Fixing...`);
                 safeUrn = safeUrn.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-                
+
                 // Update DB with safe URN to prevent future issues
                 await prisma.file.update({
                     where: { id: fileId },
@@ -102,7 +123,7 @@ router.post('/:fileId/translate', async (req, res) => {
     } catch (error: any) {
         console.error('Translation retry failed:', error);
         console.error('Error details:', error.response?.data || error.message);
-        
+
         const statusCode = error.response?.status || 500;
         res.status(statusCode).json({
             error: 'Failed to start translation',

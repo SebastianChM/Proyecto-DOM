@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuGroup } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
@@ -148,12 +149,75 @@ export default function ProjectDetailPage() {
         setSelectedFiles(prev => {
             if (prev.includes(fileId)) {
                 return prev.filter(id => id !== fileId)
-            } else if (prev.length < 2) {
-                return [...prev, fileId]
             } else {
-                return [prev[1], fileId]
+                return [...prev, fileId]
             }
         })
+    }
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (!project) return
+        
+        if (checked) {
+            // Select all files (both source and generated)
+            setSelectedFiles(project.files.map(f => f.id))
+        } else {
+            setSelectedFiles([])
+        }
+    }
+
+    const handleUpdateProject = async (data: any) => {
+        try {
+            await axios.put(`${API_URL}/api/projects/${projectId}`, {
+                status: data.projectType,
+                discipline: data.discipline,
+                clientName: data.ownerName,
+                location: data.location,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                description: data.notes
+            });
+            toast.success("Project details updated successfully");
+            fetchProject();
+        } catch (error) {
+            showError(error, user?.role, "Failed to update project details");
+        }
+    }
+
+    const handleBatchDownload = async () => {
+        if (selectedFiles.length === 0) return
+
+        if (selectedFiles.length > 2) {
+            try {
+                toast.info("Preparing ZIP archive...")
+                const response = await axios.post(`${API_URL}/api/files/batch-download`, {
+                    fileIds: selectedFiles
+                }, {
+                    responseType: 'blob'
+                })
+
+                const url = window.URL.createObjectURL(new Blob([response.data]))
+                const link = document.createElement('a')
+                link.href = url
+                link.setAttribute('download', `project_files_${Date.now()}.zip`)
+                document.body.appendChild(link)
+                link.click()
+                link.remove()
+                window.URL.revokeObjectURL(url)
+                
+                toast.success("ZIP download started")
+            } catch (error) {
+                console.error("Batch download failed", error)
+                toast.error("Failed to create ZIP archive")
+            }
+        } else {
+            selectedFiles.forEach((fileId, index) => {
+                setTimeout(() => {
+                    window.open(`${API_URL}/api/files/${fileId}/download`, '_blank')
+                }, index * 1000)
+            })
+            toast.success(`Started download for ${selectedFiles.length} files`)
+        }
     }
 
     const handleBulkConvert = async (format: 'pdf' | 'ifc') => {
@@ -553,9 +617,10 @@ export default function ProjectDetailPage() {
                         discipline={project.discipline || "Architecture"}
                         ownerName={project.clientName || "DOM Client"}
                         location={project.location || "Madrid, Spain"}
-                        startDate={project.startDate || "2024-01-01"}
-                        endDate={project.endDate || "2024-12-31"}
+                        startDate={project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "2024-01-01"}
+                        endDate={project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "2024-12-31"}
                         notes={project.description || "No description provided."}
+                        onSave={handleUpdateProject}
                     />
                 </TabsContent>
 
@@ -572,13 +637,23 @@ export default function ProjectDetailPage() {
                             {/* Source Files Section */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <Layers className="h-5 w-5 text-dom-blue" />
-                                        Source Files
-                                    </h3>
-                                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-white/10 px-2 py-1 rounded-full">
-                                        {project.files.filter(f => !f.type.toLowerCase().includes('pdf')).length}
-                                    </span>
+                                    <div className="flex items-center gap-4">
+                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Layers className="h-5 w-5 text-dom-blue" />
+                                            Source Files
+                                        </h3>
+                                        <span className="text-xs text-gray-500 bg-gray-100 dark:bg-white/10 px-2 py-1 rounded-full">
+                                            {project.files.filter(f => !f.type.toLowerCase().includes('pdf')).length}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white dark:bg-white/5 px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 h-9">
+                                        <Checkbox 
+                                            checked={project.files.length > 0 && selectedFiles.length === project.files.length}
+                                            onCheckedChange={(checked) => toggleSelectAll(checked as boolean)}
+                                            className="data-[state=checked]:bg-dom-blue data-[state=checked]:border-dom-blue"
+                                        />
+                                        <span className="text-sm text-gray-500 font-medium">Select All</span>
+                                    </div>
                                 </div>
                                 {project.files.filter(f => !f.type.toLowerCase().includes('pdf')).map((file) => (
                                     <FileRow
@@ -837,6 +912,7 @@ export default function ProjectDetailPage() {
                     <Button variant="ghost" size="sm" onClick={() => handleBulkConvert('pdf')}>PDF</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleBulkConvert('ifc')}>IFC</Button>
                     <Button variant="ghost" size="sm" onClick={handleBulkValidate}>Validate</Button>
+                    <Button variant="ghost" size="sm" onClick={handleBatchDownload}>Download</Button>
                     <div className="w-px h-6 bg-gray-200 mx-2"></div>
                     <Button variant="ghost" size="icon" onClick={() => setSelectedFiles([])}>
                         <span className="sr-only">Clear</span>

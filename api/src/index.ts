@@ -19,6 +19,8 @@ import comparisonRouter from './routes/comparison';
 import apsRouter from './routes/aps';
 import translationRouter from './routes/translation';
 import viewerRouter from './routes/viewer';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 
 // Global error handling for debugging crashes
 process.on('uncaughtException', (error) => {
@@ -91,6 +93,9 @@ app.use('/api/comparison', comparisonRouter);
 app.use('/api/aps', apsRouter);
 app.use('/api/translation', translationRouter);
 app.use('/api/viewer', viewerRouter);
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

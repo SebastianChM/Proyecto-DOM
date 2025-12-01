@@ -16,6 +16,8 @@ interface Project {
     id: string
     name: string
     description: string | null
+    clientName: string | null
+    location: string | null
     createdAt: string
     updatedAt: string
     _count: {
@@ -270,6 +272,22 @@ export default function ProjectsPage() {
                                     </div>
 
                                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-dom-blue dark:group-hover:text-dom-blue-light transition-colors">{project.name}</h3>
+                                    
+                                    {(project.clientName || project.location) && (
+                                        <div className="flex flex-col gap-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
+                                            {project.clientName && (
+                                                <div className="flex items-center">
+                                                    <span className="font-semibold mr-1">Client:</span> {project.clientName}
+                                                </div>
+                                            )}
+                                            {project.location && (
+                                                <div className="flex items-center">
+                                                    <span className="font-semibold mr-1">Loc:</span> <span className="truncate max-w-[200px]">{project.location}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-6 flex-1">
                                         {project.description || "No description provided."}
                                     </p>

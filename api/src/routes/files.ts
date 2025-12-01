@@ -7,6 +7,7 @@ import { apsOssService } from '../services/aps/oss.service';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
 import { apsAuthService } from '../services/aps/auth.service';
 import axios from 'axios';
+import archiver from 'archiver';
 
 const router = Router();
 const upload = multer({ dest: 'uploads/' });
@@ -23,6 +24,32 @@ function getFileType(mimetype: string, filename: string) {
     return 'OTHER';
 }
 
+/**
+ * @swagger
+ * /files/upload:
+ *   post:
+ *     summary: Upload a file
+ *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               projectId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: File uploaded successfully
+ *       400:
+ *         description: Invalid file or missing project ID
+ *       500:
+ *         description: Server error
+ */
 // Upload file endpoint
 router.post('/upload', upload.single('file'), async (req, res) => {
     try {
@@ -46,9 +73,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             if (fs.existsSync(req.file.path)) {
                 fs.unlinkSync(req.file.path);
             }
-            return res.status(400).json({ 
-                error: 'Unsupported file format', 
-                details: `Allowed formats: ${allowedExtensions.join(', ').toUpperCase()}` 
+            return res.status(400).json({
+                error: 'Unsupported file format',
+                details: `Allowed formats: ${allowedExtensions.join(', ').toUpperCase()}`
             });
         }
 
@@ -166,6 +193,184 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/batch-download:
+ *   post:
+ *     summary: Batch download files
+ *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fileIds
+ *             properties:
+ *               fileIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: ZIP file containing requested files
+ *         content:
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: No file IDs provided
+ *       404:
+ *         description: No files found
+ *       500:
+ *         description: Server error
+ */
+// Batch Download (ZIP)
+router.post('/batch-download', async (req, res) => {
+    try {
+        const { fileIds } = req.body;
+
+        if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+            return res.status(400).json({ error: 'No file IDs provided' });
+        }
+
+        const files = await prisma.file.findMany({
+            where: {
+                id: { in: fileIds }
+            }
+        });
+
+        if (files.length === 0) {
+            return res.status(404).json({ error: 'No files found' });
+        }
+
+        // Set headers for ZIP download
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="files_archive_${Date.now()}.zip"`);
+
+        const archive = archiver('zip', {
+            zlib: { level: 9 } // Sets the compression level.
+        });
+
+        // Listen for all archive data to be written
+        // 'close' event is fired only when a file descriptor is involved
+        res.on('close', function () {
+            console.log(archive.pointer() + ' total bytes');
+            console.log('archiver has been finalized and the output file descriptor has closed.');
+        });
+
+        // This event is fired when the data source is drained no matter what was the data source.
+        // It is not part of this library but rather from the NodeJS Stream API.
+        // @see: https://nodejs.org/api/stream.html#stream_event_end
+        res.on('end', function () {
+            console.log('Data has been drained');
+        });
+
+        // good practice to catch warnings (ie stat failures and other non-blocking errors)
+        archive.on('warning', function (err) {
+            if (err.code === 'ENOENT') {
+                // log warning
+                console.warn('Archiver warning:', err);
+            } else {
+                // throw error
+                throw err;
+            }
+        });
+
+        // good practice to catch this error explicitly
+        archive.on('error', function (err) {
+            throw err;
+        });
+
+        // Pipe archive data to the response
+        archive.pipe(res);
+
+        // Process files sequentially to avoid overwhelming the server/network
+        for (const file of files) {
+            try {
+                if (!file.apsUrn) {
+                    console.warn(`Skipping file ${file.name}: No URN`);
+                    archive.append(`File ${file.name} skipped: No URN available.\n`, { name: `${file.name}.txt` });
+                    continue;
+                }
+
+                if (file.apsUrn.startsWith('local-')) {
+                    // Handle local files (mock content for now as we don't store actual files locally in this demo)
+                    archive.append(`This is a placeholder for local file: ${file.name}\nOriginal size: ${file.size} bytes.\n`, { name: `${file.name}.txt` });
+                    continue;
+                }
+
+                // Decode URN to get object key
+                const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
+                const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+                let objectKey = file.s3Key;
+                if (match) {
+                    objectKey = match[1];
+                }
+
+                // Get signed URL
+                const signedUrl = await apsOssService.getSignedUrl(objectKey);
+
+                if (!signedUrl) {
+                    console.warn(`Skipping file ${file.name}: Failed to get signed URL`);
+                    archive.append(`File ${file.name} skipped: Failed to retrieve download URL.\n`, { name: `${file.name}.txt` });
+                    continue;
+                }
+
+                // Get file stream
+                const response = await axios.get(signedUrl, {
+                    responseType: 'stream'
+                });
+
+                // Append stream to archive
+                archive.append(response.data, { name: file.name });
+
+            } catch (fileError: any) {
+                console.error(`Error processing file ${file.name} for zip:`, fileError.message);
+                archive.append(`Error downloading file: ${fileError.message}\n`, { name: `${file.name}_error.txt` });
+            }
+        }
+
+        // Finalize the archive (ie we are done appending files but streams have to finish yet)
+        // 'close', 'end' or 'finish' may be fired right after calling this method so register to them beforehand
+        await archive.finalize();
+
+    } catch (error: any) {
+        console.error('Batch download error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Batch download failed', details: error.message });
+        }
+    }
+});
+
+/**
+ * @swagger
+ * /files/{id}/download:
+ *   get:
+ *     summary: Download a file
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: File content
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Server error
+ */
 // Download file content
 router.get('/:id/download', async (req, res) => {
     try {
@@ -179,11 +384,11 @@ router.get('/:id/download', async (req, res) => {
 
         // Handle Local Mode
         if (file.apsUrn?.startsWith('local-')) {
-             return res.status(404).json({ error: 'Local file download not implemented' });
+            return res.status(404).json({ error: 'Local file download not implemented' });
         }
 
         if (!file.apsUrn) {
-             return res.status(400).json({ error: 'File has no URN' });
+            return res.status(400).json({ error: 'File has no URN' });
         }
 
         try {
@@ -191,16 +396,16 @@ router.get('/:id/download', async (req, res) => {
             const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
             // Check if it matches the pattern urn:adsk.objects:os.object:bucketKey/objectName
             const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
-            
-            let objectKey = file.s3Key; 
-            
+
+            let objectKey = file.s3Key;
+
             if (match) {
                 objectKey = match[1];
             }
 
             // Get signed URL
             const signedUrl = await apsOssService.getSignedUrl(objectKey);
-            
+
             if (!signedUrl) {
                 return res.status(500).json({ error: 'Failed to generate signed URL' });
             }
@@ -216,7 +421,7 @@ router.get('/:id/download', async (req, res) => {
             // Sanitize filename for header
             const safeFilename = file.name.replace(/"/g, '');
             res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-            
+
             // Disable X-Frame-Options to allow iframe embedding
             res.removeHeader('X-Frame-Options');
             // Set CSP to allow embedding
@@ -236,6 +441,49 @@ router.get('/:id/download', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/import-aps:
+ *   post:
+ *     summary: Import file from APS
+ *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - projectId
+ *               - name
+ *               - urn
+ *             properties:
+ *               projectId:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               urn:
+ *                 type: string
+ *               apsProjectId:
+ *                 type: string
+ *               apsItemId:
+ *                 type: string
+ *               apsHubId:
+ *                 type: string
+ *               apsFolderId:
+ *                 type: string
+ *               apsStorageId:
+ *                 type: string
+ *               size:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: File imported successfully
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
+ */
 // Import file from APS (ACC/BIM 360)
 router.post('/import-aps', async (req, res) => {
     try {
@@ -318,6 +566,40 @@ router.post('/import-aps', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/project/{projectId}:
+ *   get:
+ *     summary: List files for a project
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Project ID
+ *     responses:
+ *       200:
+ *         description: List of files
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   status:
+ *                     type: string
+ *                   progress:
+ *                     type: integer
+ *       500:
+ *         description: Server error
+ */
 // List files for a project
 router.get('/project/:projectId', async (req, res) => {
     try {
@@ -375,6 +657,27 @@ router.get('/project/:projectId', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/{id}:
+ *   get:
+ *     summary: Get file details
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: File details
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Server error
+ */
 // Get file details
 router.get('/:id', async (req, res) => {
     try {
@@ -428,6 +731,33 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/{id}/bom:
+ *   get:
+ *     summary: Get BOM (Bill of Materials)
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: BOM data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       404:
+ *         description: File not found or not processed
+ *       500:
+ *         description: Server error
+ */
 // Get BOM (Metadata + Properties)
 router.get('/:id/bom', async (req, res) => {
     try {
@@ -495,6 +825,27 @@ router.get('/:id/bom', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/{id}/versions:
+ *   get:
+ *     summary: Get file versions
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: List of file versions
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Server error
+ */
 // Get file versions (from APS Data Management for ACC/BIM 360 files)
 router.get('/:id/versions', async (req, res) => {
     try {
@@ -538,7 +889,7 @@ router.get('/:id/versions', async (req, res) => {
                     createTime: v.attributes.createTime,
                     createUserName: v.attributes.createUserName || 'Unknown',
                     storageId: v.relationships?.storage?.data?.id,
-                        urn: v.relationships?.storage?.data?.id
+                    urn: v.relationships?.storage?.data?.id
                         ? apsOssService.getDerivativeUrn(v.relationships.storage.data.id)
                         : null,
                     size: v.attributes.storageSize || 0,
@@ -599,6 +950,27 @@ router.get('/:id/versions', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /files/{id}:
+ *   delete:
+ *     summary: Delete a file
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File ID
+ *     responses:
+ *       200:
+ *         description: File deleted
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Server error
+ */
 // Delete file
 router.delete('/:id', async (req, res) => {
     try {

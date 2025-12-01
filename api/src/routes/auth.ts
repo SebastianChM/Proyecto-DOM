@@ -6,17 +6,47 @@ import path from 'path';
 
 const router = Router();
 
+/**
+ * @swagger
+ * /auth/login:
+ *   get:
+ *     summary: Initiate APS authentication
+ *     description: Redirects the user to the Autodesk Platform Services login page.
+ *     tags: [Auth]
+ *     responses:
+ *       302:
+ *         description: Redirects to Autodesk login
+ */
 // Login endpoint - Redirects to APS login
 router.get('/login', (req, res) => {
     const url = apsAuthService.getAuthorizationUrl();
     res.redirect(url);
 });
 
+/**
+ * @swagger
+ * /auth/callback:
+ *   get:
+ *     summary: APS Authentication Callback
+ *     description: Handles the callback from Autodesk Platform Services after login.
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: The authorization code returned by APS
+ *     responses:
+ *       302:
+ *         description: Redirects to the dashboard on success
+ *       500:
+ *         description: Authentication failed
+ */
 // Callback endpoint - Handles APS response
 router.get('/callback', async (req, res) => {
     const debugLogPath = path.join(process.cwd(), 'auth_callback_debug.txt');
     fs.appendFileSync(debugLogPath, `[${new Date().toISOString()}] Callback hit with code: ${req.query.code ? 'YES' : 'NO'}\n`);
-    
+
     try {
         const code = req.query.code as string;
         if (!code) {
@@ -24,7 +54,7 @@ router.get('/callback', async (req, res) => {
         }
 
         const credentials = await apsAuthService.getPublicToken(code);
-        
+
         const debugPath = path.join(process.cwd(), 'auth_callback_debug.txt');
         fs.appendFileSync(debugPath, `[${new Date().toISOString()}] Token received. Scope: ${credentials.scope}\n`);
 
@@ -32,7 +62,7 @@ router.get('/callback', async (req, res) => {
         let profile: any = null;
         try {
             profile = await apsAuthService.getUserProfile(credentials.access_token);
-            
+
             // DEBUG: Capture the exact profile data to a file for inspection
             try {
                 fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] Profile received: ${JSON.stringify(profile)}\n`);
@@ -44,23 +74,23 @@ router.get('/callback', async (req, res) => {
             // Note: Autodesk User Profile API v1 returns 'emailId', but OIDC compliant endpoints return 'email'
             // We check for both to be safe.
             const email = profile.email || profile.emailId;
-            
+
             if (!profile || !email) {
                 fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] WARNING: Profile incomplete (missing email)\n`);
                 console.warn('Received incomplete profile:', JSON.stringify(profile));
                 throw new Error('Profile missing email');
             }
-            
+
             // Normalize profile data
             profile.emailId = email;
             profile.firstName = profile.given_name || profile.firstName;
             profile.lastName = profile.family_name || profile.lastName;
             profile.userId = profile.sub || profile.userId; // 'sub' is the standard OIDC user ID
-            
+
         } catch (profileError: any) {
             fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] ERROR fetching profile: ${JSON.stringify(profileError)}\n`);
             console.error('CRITICAL: Could not fetch user profile. Error details:', profileError);
-            
+
             // Fallback
             profile = {
                 emailId: 'user@autodesk.com',
@@ -95,7 +125,7 @@ router.get('/callback', async (req, res) => {
             req.session.token = credentials.access_token;
             req.session.refreshToken = credentials.refresh_token;
             req.session.expiresAt = Date.now() + (credentials.expires_in * 1000);
-            
+
             // Handle different picture formats (SDK vs OIDC)
             let pictureUrl = '';
             if (profile.picture) {
@@ -122,6 +152,28 @@ router.get('/callback', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /auth/token:
+ *   get:
+ *     summary: Get Viewer Token
+ *     description: Returns a public read-only token for the viewer.
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Viewer token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 access_token:
+ *                   type: string
+ *                 expires_in:
+ *                   type: integer
+ *       500:
+ *         description: Failed to get viewer token
+ */
 // Get viewer token - Returns a public read-only token for the viewer
 router.get('/token', async (req, res) => {
     try {
@@ -132,6 +184,28 @@ router.get('/token', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /auth/user-token:
+ *   get:
+ *     summary: Get User Token
+ *     description: Returns the 3-legged token from the session.
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: User access token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 access_token:
+ *                   type: string
+ *       401:
+ *         description: No user token available
+ */
 // Get user token - Returns the 3-legged token from session (for viewing ACC/BIM 360 files)
 router.get('/user-token', (req, res) => {
     if (req.session && req.session.token) {
@@ -141,12 +215,58 @@ router.get('/user-token', (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Logout
+ *     description: Clears the user session.
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ */
 // Logout endpoint
 router.post('/logout', (req, res) => {
     req.session = null;
     res.json({ success: true });
 });
 
+/**
+ * @swagger
+ * /auth/me:
+ *   get:
+ *     summary: Get Current User
+ *     description: Returns information about the currently authenticated user.
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: User information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 authenticated:
+ *                   type: boolean
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     picture:
+ *                       type: string
+ *       401:
+ *         description: Invalid session
+ */
 // Get current user info
 router.get('/me', async (req, res) => {
     if (!req.session?.token) {

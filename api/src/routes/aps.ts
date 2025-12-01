@@ -13,6 +13,25 @@ const getPublicToken = (req: any) => {
     return { access_token: req.session.token };
 };
 
+/**
+ * @swagger
+ * /aps/manifest/{urn}:
+ *   get:
+ *     summary: Get manifest for a URN
+ *     tags: [APS]
+ *     parameters:
+ *       - in: path
+ *         name: urn
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File URN
+ *     responses:
+ *       200:
+ *         description: Manifest data
+ *       500:
+ *         description: Server error
+ */
 // Get manifest for a URN (public endpoint for debugging)
 router.get('/manifest/:urn', async (req, res) => {
     try {
@@ -26,6 +45,31 @@ router.get('/manifest/:urn', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /aps/derivative/{urn}/{derivativeUrn}:
+ *   get:
+ *     summary: Download a specific derivative
+ *     tags: [APS]
+ *     parameters:
+ *       - in: path
+ *         name: urn
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: File URN
+ *       - in: path
+ *         name: derivativeUrn
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Derivative URN
+ *     responses:
+ *       200:
+ *         description: Derivative file
+ *       500:
+ *         description: Server error
+ */
 // Download a specific derivative
 router.get('/derivative/:urn/:derivativeUrn', async (req, res) => {
     try {
@@ -40,6 +84,22 @@ router.get('/derivative/:urn/:derivativeUrn', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /aps/hubs:
+ *   get:
+ *     summary: List Hubs
+ *     tags: [APS]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: List of hubs
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
 // List Hubs
 router.get('/hubs', async (req, res) => {
     try {
@@ -53,6 +113,29 @@ router.get('/hubs', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /aps/hubs/{hubId}/projects:
+ *   get:
+ *     summary: List Projects in a Hub
+ *     tags: [APS]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hubId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hub ID
+ *     responses:
+ *       200:
+ *         description: List of projects
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
 // List Projects in a Hub
 router.get('/hubs/:hubId/projects', async (req, res) => {
     try {
@@ -67,6 +150,35 @@ router.get('/hubs/:hubId/projects', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /aps/hubs/{hubId}/projects/{projectId}/topFolders:
+ *   get:
+ *     summary: List Top Folders of a Project
+ *     tags: [APS]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hubId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hub ID
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Project ID
+ *     responses:
+ *       200:
+ *         description: List of top folders
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
 // List Top Folders (Top Folder) of a Project
 router.get('/hubs/:hubId/projects/:projectId/topFolders', async (req, res) => {
     try {
@@ -81,6 +193,35 @@ router.get('/hubs/:hubId/projects/:projectId/topFolders', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /aps/projects/{projectId}/folders/{folderId}/contents:
+ *   get:
+ *     summary: List Contents of a Folder
+ *     tags: [APS]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Project ID
+ *       - in: path
+ *         name: folderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Folder ID
+ *     responses:
+ *       200:
+ *         description: List of folder contents
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
 // List Contents of a Folder
 router.get('/projects/:projectId/folders/:folderId/contents', async (req, res) => {
     try {

@@ -26,7 +26,8 @@ export default function DashboardPage() {
         totalFiles: 0,
         activeModels: 0,
         totalSize: 0,
-        recentActivity: [] as any[]
+        recentActivity: [] as any[],
+        isProcessing: false
     })
     const [loading, setLoading] = useState(true)
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -52,13 +53,19 @@ export default function DashboardPage() {
                 const totalSize = projects.reduce((acc: number, p: any) => {
                     return acc + (p.files?.reduce((fAcc: number, f: any) => fAcc + (f.size || 0), 0) || 0)
                 }, 0)
+
+                // Check if any file is currently processing
+                const isProcessing = projects.some((p: any) => 
+                    p.files?.some((f: any) => f.status === 'TRANSLATING' || f.status === 'PROCESSING')
+                )
                 
                 setStats({
                     totalProjects: projects.length,
                     totalFiles: totalFiles,
                     activeModels: Math.floor(totalFiles * 0.4), // Mocking active models count for now
                     totalSize: totalSize,
-                    recentActivity: projects.slice(0, 5) // Using recent projects as activity
+                    recentActivity: projects.slice(0, 5), // Using recent projects as activity
+                    isProcessing: isProcessing
                 })
             } catch (error) {
                 console.error("Failed to load dashboard stats", error)
@@ -70,20 +77,22 @@ export default function DashboardPage() {
     }, [])
 
     const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
-        <Card className="glass-panel border-white/10 relative overflow-hidden group">
-            <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity ${color}`}>
-                <Icon className="w-24 h-24" />
+        <Card className="glass-panel border-white/10 relative overflow-hidden group hover:scale-105 transition-transform duration-300">
+            <div className={`absolute -top-4 -right-4 p-4 opacity-5 group-hover:opacity-10 transition-opacity ${color}`}>
+                <Icon className="w-32 h-32" />
             </div>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+                <CardTitle className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                     {title}
                 </CardTitle>
-                <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
+                <div className={`p-2 rounded-lg bg-white/5 ${color.replace('text-', 'text-')}`}>
+                    <Icon className="w-4 h-4" />
+                </div>
             </CardHeader>
-            <CardContent>
-                <div className="text-3xl font-bold text-white mb-1">{value}</div>
-                <p className="text-xs text-gray-500 flex items-center">
-                    <span className="text-green-500 flex items-center mr-1">
+            <CardContent className="relative z-10">
+                <div className="text-3xl font-black text-white mb-1 tracking-tight">{value}</div>
+                <p className="text-[10px] font-medium text-gray-500 flex items-center uppercase tracking-wide">
+                    <span className="text-green-400 flex items-center mr-1.5 bg-green-400/10 px-1.5 py-0.5 rounded">
                         <ArrowUpRight className="w-3 h-3 mr-1" /> {trend}
                     </span>
                     vs last month
@@ -170,7 +179,15 @@ export default function DashboardPage() {
                                             </div>
                                             <div>
                                                 <h4 className="font-semibold text-white group-hover:text-dom-blue transition-colors">{project.name}</h4>
-                                                <p className="text-xs text-gray-500">Updated {new Date(project.updatedAt).toLocaleDateString()}</p>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-xs text-gray-500">Updated {new Date(project.updatedAt).toLocaleDateString()}</p>
+                                                    {project.location && (
+                                                        <p className="text-[10px] text-gray-400 flex items-center">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-dom-blue/50 mr-1.5"></span>
+                                                            {project.location.split(',')[0]}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -208,10 +225,12 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-2 w-2 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
+                                    <div className={`h-2 w-2 rounded-full ${stats.isProcessing ? 'bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]'}`}></div>
                                     <span className="text-sm font-medium text-gray-300">Conversion Engine</span>
                                 </div>
-                                <span className="text-xs text-yellow-500">Idle</span>
+                                <span className={`text-xs ${stats.isProcessing ? 'text-blue-500 font-semibold' : 'text-yellow-500'}`}>
+                                    {stats.isProcessing ? 'Processing...' : 'Idle'}
+                                </span>
                             </div>
                             <div className="pt-4 border-t border-white/10">
                                 <progress 
@@ -231,3 +250,4 @@ export default function DashboardPage() {
         </div>
     )
 }
+// End of DashboardPage
