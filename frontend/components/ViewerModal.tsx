@@ -39,9 +39,6 @@ export function ViewerModal({ isOpen, onClose, file, token }: ViewerModalProps) 
                                 Full Page
                             </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 text-gray-400 hover:text-white hover:bg-white/10">
-                            <X className="h-4 w-4" />
-                        </Button>
                     </div>
                 </div>
                 <div className="flex-1 relative bg-black overflow-hidden">

@@ -2,13 +2,28 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Settings, LogOut, LogIn, Building2, ChevronRight } from "lucide-react"
+import { 
+    LayoutDashboard, 
+    Settings, 
+    LogOut, 
+    LogIn, 
+    Building2, 
+    ChevronRight,
+    FolderKanban,
+    FileText,
+    TableProperties,
+    Box
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useUser } from "@/context/UserContext"
 
 const sidebarItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+    { icon: FolderKanban, label: "Projects", href: "/dashboard/projects" },
+    { icon: FileText, label: "All Files", href: "/dashboard/files" },
+    { icon: TableProperties, label: "BOM & Quantities", href: "/dashboard/bom" },
+    { icon: Box, label: "3D Viewer", href: "/dashboard/viewer" },
     { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ]
 

@@ -102,3 +102,64 @@ model Comparison {
   createdAt   DateTime         @default(now())
   completedAt DateTime?
 }
+
+// --- APS Data Management Layer (Local Catalog) ---
+
+model ApsHub {
+  id          String       @id // APS Hub ID (b.xxxx)
+  name        String
+  region      String?
+  projects    ApsProject[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ApsProject {
+  id           String      @id // APS Project ID (b.yyyy)
+  hubId        String
+  hub          ApsHub      @relation(fields: [hubId], references: [id])
+  name         String
+  rootFolderId String?     // ID of the top-level folder
+  folders      ApsFolder[]
+  items        ApsItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model ApsFolder {
+  id          String      @id // APS Folder ID
+  name        String
+  projectId   String
+  project     ApsProject  @relation(fields: [projectId], references: [id])
+  parentId    String?
+  parent      ApsFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    ApsFolder[] @relation("FolderHierarchy")
+  items       ApsItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ApsItem {
+  id          String      @id // APS Item ID
+  name        String
+  folderId    String
+  folder      ApsFolder   @relation(fields: [folderId], references: [id])
+  projectId   String
+  project     ApsProject  @relation(fields: [projectId], references: [id])
+  versions    ApsVersion[]
+  currentVersionId String?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ApsVersion {
+  id            String   @id // APS Version ID
+  itemId        String
+  item          ApsItem  @relation(fields: [itemId], references: [id])
+  versionNumber Int
+  urn           String
+  mimeType      String?
+  storageSize   Int?
+  createdAt     DateTime @default(now())
+}

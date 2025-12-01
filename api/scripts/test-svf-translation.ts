@@ -6,10 +6,12 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { modelDerivativeService } from '../src/services/aps/model-derivative.service';
 
-const URN = 'dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6aWRvbS1iaW0tcGxhdGZvcm0tdXMtdGVzdC0wMDEvMTc2NDQ3MTcxMjg0OS1TQ0ZBLVBCLVBDMi1BUlEtR0VOLVBMRy0wMDAxLmR3Zw';
+const RAW_URN = 'urn:adsk.objects:os.object:dom-bim-platform-us-test-001/1764554140148-mock-result.ifc';
+const URN = Buffer.from(RAW_URN).toString('base64').replace(/=/g, '');
 
 async function testSvf() {
     console.log('🧪 Testing SVF Translation...');
+    console.log('URN:', URN);
 
     try {
         // We don't have a direct method for SVF in the service that returns the job result easily without just calling translate

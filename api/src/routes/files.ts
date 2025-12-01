@@ -2,7 +2,8 @@ import { Router } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import prisma from '../lib/prisma';
-import { apsDataService } from '../services/aps/data-management.service';
+import { apsDataManagementService } from '../services/aps/data-management.service';
+import { apsOssService } from '../services/aps/oss.service';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
 import { apsAuthService } from '../services/aps/auth.service';
 import axios from 'axios';
@@ -74,7 +75,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             if (forceLocal) {
                 throw new Error('Forced Local Mode by client');
             }
-            const apsObject = await apsDataService.uploadFile(req.file);
+            const apsObject = await apsOssService.uploadFile(req.file);
             // Convert to URL-safe Base64 (replace + with -, / with _, remove =)
             apsUrn = Buffer.from((apsObject as any).objectId).toString('base64')
                 .replace(/\+/g, '-')
@@ -198,7 +199,7 @@ router.get('/:id/download', async (req, res) => {
             }
 
             // Get signed URL
-            const signedUrl = await apsDataService.getSignedUrl(objectKey);
+            const signedUrl = await apsOssService.getSignedUrl(objectKey);
             
             if (!signedUrl) {
                 return res.status(500).json({ error: 'Failed to generate signed URL' });
@@ -523,7 +524,7 @@ router.get('/:id/versions', async (req, res) => {
             }
 
             try {
-                const versionsData: any = await apsDataService.getItemVersions(
+                const versionsData: any = await apsDataManagementService.getItemVersions(
                     apsFile.apsProjectId,
                     apsFile.apsItemId,
                     accessToken
@@ -537,8 +538,8 @@ router.get('/:id/versions', async (req, res) => {
                     createTime: v.attributes.createTime,
                     createUserName: v.attributes.createUserName || 'Unknown',
                     storageId: v.relationships?.storage?.data?.id,
-                    urn: v.relationships?.storage?.data?.id
-                        ? apsDataService.getDerivativeUrn(v.relationships.storage.data.id)
+                        urn: v.relationships?.storage?.data?.id
+                        ? apsOssService.getDerivativeUrn(v.relationships.storage.data.id)
                         : null,
                     size: v.attributes.storageSize || 0,
                     status: 'READY' // Assume ready since it's from APS

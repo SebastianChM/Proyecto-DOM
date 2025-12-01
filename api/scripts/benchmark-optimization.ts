@@ -1,12 +1,11 @@
-
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import { apsDataService } from '../src/services/aps/data-management.service';
 import { apsAuthService } from '../src/services/aps/auth.service';
+import { apsOssService } from '../src/services/aps/oss.service';
 import axios from 'axios';
 
 async function runBenchmark() {
@@ -21,7 +20,7 @@ async function runBenchmark() {
         console.log('\n📦 Setting up test file...');
         const testContent = Buffer.alloc(5 * 1024 * 1024, 'x'); // 5MB dummy file
         const sourceFilename = `benchmark-source-${Date.now()}.bin`;
-        const sourceObj = await apsDataService.uploadBuffer(testContent, sourceFilename);
+        const sourceObj = await apsOssService.uploadBuffer(testContent, sourceFilename);
         console.log(`   Source file created: ${sourceObj.objectKey} (5MB)`);
 
         // ==========================================
@@ -33,7 +32,7 @@ async function runBenchmark() {
         // Step A: Download
         console.log('   [Old Way] Downloading...');
         // Use signed URL for download as direct GET might be deprecated
-        const signedDownloadUrl = await apsDataService.getSignedUrl(sourceObj.objectKey);
+        const signedDownloadUrl = await apsOssService.getSignedUrl(sourceObj.objectKey);
         if (!signedDownloadUrl) throw new Error('Failed to get signed URL');
 
         const dlResponse = await axios.get(signedDownloadUrl, {
@@ -45,7 +44,7 @@ async function runBenchmark() {
         // Step B: Upload
         console.log('   [Old Way] Uploading...');
         const oldWayFilename = `benchmark-old-${Date.now()}.bin`;
-        await apsDataService.uploadBuffer(buffer, oldWayFilename);
+        await apsOssService.uploadBuffer(buffer, oldWayFilename);
         console.log('   [Old Way] Upload complete');
 
         const endOld = performance.now();
@@ -60,7 +59,7 @@ async function runBenchmark() {
         const startNew = performance.now();
 
         const newWayFilename = `benchmark-new-${Date.now()}.bin`;
-        await apsDataService.copyObject(sourceObj.objectKey, newWayFilename);
+        await apsOssService.copyObject(sourceObj.objectKey, newWayFilename);
 
         const endNew = performance.now();
         const timeNew = (endNew - startNew) / 1000;

@@ -1,3 +1,4 @@
+/// <reference path="../../types/forge-apis.d.ts" />
 import { DerivativesApi } from 'forge-apis';
 import { apsAuthService } from './auth.service';
 import axios from 'axios';

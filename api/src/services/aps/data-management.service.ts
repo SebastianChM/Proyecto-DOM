@@ -1,339 +1,85 @@
-// @ts-ignore
-import { ObjectsApi, BucketsApi } from 'forge-apis';
-import { apsAuthService } from './auth.service';
-import fs from 'fs';
 import axios from 'axios';
+import { apsAuthService } from './auth.service';
 
-export class APSDataManagementService {
-    private objectsApi: any;
-    private bucketsApi: any;
-    private bucketKey: string;
+const APS_BASE_URL = 'https://developer.api.autodesk.com';
 
-    constructor() {
-        this.objectsApi = new ObjectsApi();
-        this.bucketsApi = new BucketsApi();
-        // Use static bucket from .env instead of generating dynamic ones
-        this.bucketKey = process.env.APS_BUCKET || 'aps-assembly-configurator-dom-demo';
-        console.log('Using APS Bucket:', this.bucketKey);
-    }
-
-    /**
-     * Ensure the bucket exists
-     */
-    async ensureBucketExists() {
+export class ApsDataManagementService {
+    
+    private async getClient() {
         const token = await apsAuthService.getInternalToken();
-        try {
-            console.log(`Checking if bucket ${this.bucketKey} exists...`);
-            await this.bucketsApi.getBucketDetails(this.bucketKey, { access_token: token }, { access_token: token });
-            console.log('Bucket exists.');
-        } catch (error: any) {
-            if (error.statusCode === 404) {
-                console.log('Bucket not found, creating...');
-                try {
-                    await this.bucketsApi.createBucket(
-                        { bucketKey: this.bucketKey, policyKey: 'transient' },
-                        {},
-                        { access_token: token },
-                        { access_token: token }
-                    );
-                    console.log('Bucket created successfully.');
-                } catch (createError: any) {
-                    console.error('Failed to create bucket:', createError.response ? createError.response.body : createError);
-                    throw new Error('Failed to create APS bucket: ' + (createError.response?.body?.reason || createError.message));
-                }
-            } else {
-                console.error('Failed to check bucket details:', error.response ? error.response.body : error);
-                throw error;
+        return axios.create({
+            baseURL: APS_BASE_URL,
+            headers: {
+                'Authorization': `Bearer ${token}`
             }
-        }
+        });
     }
 
     /**
-     * Copy an object within the same bucket or to another bucket
+     * Get all Hubs (BIM 360 / ACC Accounts)
      */
-    async copyObject(objectName: string, newObjectName: string) {
-        await this.ensureBucketExists();
-        const token = await apsAuthService.getInternalToken();
-        
-        console.log(`Copying object ${objectName} to ${newObjectName} in bucket ${this.bucketKey}...`);
+    async getHubs() {
+        const client = await this.getClient();
+        const response = await client.get('/project/v1/hubs');
+        console.log("Hubs Response:", JSON.stringify(response.data, null, 2));
+        return response.data.data;
+    }
 
-        try {
-            const url = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/copyto/${encodeURIComponent(newObjectName)}`;
-            
-            const response = await axios.put(url, {}, {
+    /**
+     * Get all Projects in a Hub
+     */
+    async getProjects(hubId: string) {
+        const client = await this.getClient();
+        const response = await client.get(`/project/v1/hubs/${hubId}/projects`);
+        return response.data.data;
+    }
+
+    /**
+     * Get Top Folders of a Project
+     */
+    async getTopFolders(hubId: string, projectId: string) {
+        const client = await this.getClient();
+        const response = await client.get(`/project/v1/hubs/${hubId}/projects/${projectId}/topFolders`);
+        return response.data.data;
+    }
+
+    /**
+     * Get Contents of a Folder
+     */
+    async getFolderContents(projectId: string, folderId: string) {
+        const client = await this.getClient();
+        const response = await client.get(`/data/v1/projects/${projectId}/folders/${folderId}/contents`);
+        return response.data.data;
+    }
+
+    /**
+     * Get Item Details
+     */
+    async getItem(projectId: string, itemId: string) {
+        const client = await this.getClient();
+        const response = await client.get(`/data/v1/projects/${projectId}/items/${itemId}`);
+        return response.data.data;
+    }
+
+    /**
+     * Get Versions of an Item
+     */
+    async getItemVersions(projectId: string, itemId: string, accessToken?: string) {
+        // If a 3-legged access token is provided (user session), use it.
+        if (accessToken) {
+            const url = `${APS_BASE_URL}/data/v1/projects/${projectId}/items/${itemId}/versions`;
+            const response = await axios.get(url, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    Authorization: `Bearer ${accessToken}`
                 }
             });
-
-            console.log('Copy successful:', response.data);
-            return response.data;
-        } catch (error: any) {
-            console.error('Copy failed:', error.response?.data || error.message);
-            throw error;
+            return response.data.data;
         }
-    }
 
-    /**
-     * Upload a buffer to OSS using the classic PUT endpoint
-     * Simpler than Direct to S3, recommended for files < 100MB
-     */
-    async uploadObject(buffer: Buffer, filename: string) {
-        await this.ensureBucketExists();
-        const token = await apsAuthService.getInternalToken();
-
-        // Sanitize filename
-        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const objectName = `${Date.now()}-${safeFilename}`;
-
-        console.log(`Uploading buffer ${objectName} to bucket ${this.bucketKey} using Classic PUT...`);
-
-        try {
-            const url = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}`;
-            
-            const response = await axios.put(url, buffer, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/octet-stream'
-                },
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity
-            });
-
-            console.log('Upload successful:', response.data);
-            return response.data;
-        } catch (error: any) {
-            console.error('Classic upload failed:', error.response?.data || error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Upload a stream to OSS using Direct to S3 (Signed URLs)
-     * Optimized for large files to avoid memory issues
-     */
-    async uploadStream(stream: any, filename: string, contentLength: number) {
-        await this.ensureBucketExists();
-        const token = await apsAuthService.getInternalToken();
-
-        // Sanitize filename
-        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const objectName = `${Date.now()}-${safeFilename}`;
-
-        console.log(`Uploading stream ${objectName} to bucket ${this.bucketKey} using Direct to S3...`);
-
-        try {
-            // 1. Get Signed URL
-            const getUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/signeds3upload`;
-            
-            const getResponse = await axios.get(getUrl, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            const signedData = getResponse.data;
-            const uploadUrl = signedData.urls[0];
-            const uploadKey = signedData.uploadKey;
-
-            console.log('Got signed URL. Streaming to S3...');
-
-            // 2. Upload to S3
-            await axios.put(uploadUrl, stream, {
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity,
-                headers: {
-                    'Content-Length': contentLength
-                }
-            });
-
-            console.log('Stream upload to S3 successful. Finalizing...');
-
-            // 3. Finalize Upload
-            const postUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/signeds3upload`;
-            
-            const postResponse = await axios.post(postUrl, {
-                uploadKey: uploadKey
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const object = postResponse.data;
-            console.log('Upload finalized successfully:', object);
-            return object;
-
-        } catch (error: any) {
-            console.error('Stream upload failed:', error.response?.data || error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Upload a buffer to OSS using Direct to S3 (Signed URLs)
-     */
-    async uploadBuffer(buffer: Buffer, filename: string) {
-        await this.ensureBucketExists();
-        const token = await apsAuthService.getInternalToken();
-
-        // Sanitize filename to ensure it's safe for OSS/S3
-        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const objectName = `${Date.now()}-${safeFilename}`;
-
-        console.log(`Uploading buffer ${objectName} to bucket ${this.bucketKey} using Direct to S3...`);
-
-        try {
-            // 1. Get Signed URL
-            const getUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/signeds3upload`;
-            
-            const getResponse = await axios.get(getUrl, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            const signedData = getResponse.data;
-            const uploadUrl = signedData.urls[0];
-            const uploadKey = signedData.uploadKey;
-
-            console.log('Got signed URL. Uploading to S3...');
-
-            // 2. Upload to S3
-            // Note: Do not set Content-Type header as it might invalidate the S3 signature
-            await axios.put(uploadUrl, buffer, {
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity
-            });
-
-            console.log('Upload to S3 successful. Finalizing...');
-
-            // 3. Finalize Upload
-            const postUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/signeds3upload`;
-            
-            const postResponse = await axios.post(postUrl, {
-                uploadKey: uploadKey
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const object = postResponse.data;
-            console.log('Upload finalized successfully:', object);
-            return object;
-
-        } catch (error: any) {
-            console.error('Upload failed:', error.response?.data || error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Upload a file to OSS using Direct to S3 (Signed URLs)
-     */
-    async uploadFile(file: Express.Multer.File) {
-        const fileContent = fs.readFileSync(file.path);
-        return this.uploadBuffer(fileContent, file.originalname);
-    }
-
-    /**
-     * Get object details
-     */
-    async getObjectDetails(objectName: string) {
-        const token = await apsAuthService.getInternalToken();
-        const result = await this.objectsApi.getObjectDetails(this.bucketKey, objectName, {}, { access_token: token }, { access_token: token });
-        return result.body;
-    }
-
-    /**
-     * Generate a signed URL for download
-     */
-    async getSignedUrl(objectName: string) {
-        const token = await apsAuthService.getInternalToken();
-        try {
-            const result = await this.objectsApi.createSignedResource(
-                this.bucketKey,
-                objectName,
-                {
-                    singleUse: false,
-                    minutesExpiration: 60
-                },
-                { access: 'read' },
-                { access_token: token },
-                { access_token: token }
-            );
-            return result.body.signedUrl;
-        } catch (error) {
-            console.error('Failed to get signed URL:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get all versions of an item from ACC/BIM 360
-     * Uses Data Management API to fetch version history
-     */
-    async getItemVersions(projectId: string, itemId: string, accessToken: string) {
-        const url = `https://developer.api.autodesk.com/data/v2/projects/${projectId}/items/${itemId}/versions`;
-
-        try {
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to get item versions: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            return data;
-        } catch (error: any) {
-            console.error('Error fetching item versions:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get URN from storage ID for Model Derivative
-     * Converts storage ID to base64 URL-safe URN
-     * 
-     * Example:
-     * Input: "urn:adsk.objects:os.object:bucket/object.rvt"
-     * Output: "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6YnVja2V0L29iamVjdC5ydnQ"
-     */
-    getDerivativeUrn(storageId: string): string {
-        // Storage ID format: urn:adsk.objects:os.object:BUCKET/OBJECT_NAME
-        // We need to base64 encode the entire URN in URL-safe format
-
-        const base64 = Buffer.from(storageId)
-            .toString('base64')
-            .replace(/\+/g, '-')  // Replace + with -
-            .replace(/\//g, '_')  // Replace / with _
-            .replace(/=+$/, '');  // Remove trailing =
-
-        return base64;
-    }
-
-    /**
-     * Decode a base64 URN back to storage ID
-     */
-    decodeUrn(urn: string): string {
-        // Add back the padding if needed
-        const paddedUrn = urn
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-
-        const padding = (4 - (paddedUrn.length % 4)) % 4;
-        const base64 = paddedUrn + '='.repeat(padding);
-
-        return Buffer.from(base64, 'base64').toString('utf-8');
+        const client = await this.getClient();
+        const response = await client.get(`/data/v1/projects/${projectId}/items/${itemId}/versions`);
+        return response.data.data;
     }
 }
 
-export const apsDataService = new APSDataManagementService();
+export const apsDataManagementService = new ApsDataManagementService();

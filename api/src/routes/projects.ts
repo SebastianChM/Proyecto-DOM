@@ -51,6 +51,7 @@ router.get('/', async (req, res) => {
         const projects = await prisma.project.findMany({
             orderBy: { updatedAt: 'desc' },
             include: {
+                files: true,
                 _count: {
                     select: { files: true }
                 }

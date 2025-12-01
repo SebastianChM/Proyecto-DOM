@@ -3,7 +3,8 @@ import prisma from '../lib/prisma';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
 import { designAutomationService } from '../services/aps/design-automation.service';
 import { apsAuthService } from '../services/aps/auth.service';
-import { apsDataService as apsDataManagementService } from '../services/aps/data-management.service';
+import { apsDataManagementService } from '../services/aps/data-management.service';
+import { apsOssService } from '../services/aps/oss.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
@@ -413,8 +414,8 @@ router.get('/:conversionId/download', async (req, res) => {
             console.log(`📦 Bucket: ${bucket}, Object: ${objectKey}`);
 
             try {
-                // Use signed URL for download
-                const signedUrl = await apsDataManagementService.getSignedUrl(objectKey);
+                // Use signed URL for download via OSS service
+                const signedUrl = await apsOssService.getSignedUrl(objectKey);
                 if (!signedUrl) throw new Error('Failed to get signed URL');
 
                 const response = await axios.get(signedUrl, {
@@ -508,7 +509,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                     const safeFilename = newFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
                     const newObjectKey = `${Date.now()}-${safeFilename}`;
 
-                    uploadedObject = await apsDataManagementService.copyObject(sourceObjectKey, newObjectKey);
+                    uploadedObject = await apsOssService.copyObject(sourceObjectKey, newObjectKey);
                     fileSize = uploadedObject.size;
                     console.log(`✅ Server-side copy complete. New Object ID: ${uploadedObject.objectId}, Size: ${fileSize}`);
                 } catch (copyError) {
@@ -530,7 +531,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                     fileSize = fileBuffer.length;
                     // Upload buffer
                     console.log(`📤 Uploading ${newFilename} to OSS...`);
-                    uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                    uploadedObject = await apsOssService.uploadBuffer(fileBuffer, newFilename);
                 } else {
                     return res.status(404).json({ error: 'Local mock file not found' });
                 }
@@ -545,7 +546,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                 try {
                     // Use signed URL for download as direct GET might be deprecated
                     console.log(`🔑 Getting signed URL for download...`);
-                    const signedUrl = await apsDataManagementService.getSignedUrl(objectKey);
+                    const signedUrl = await apsOssService.getSignedUrl(objectKey);
                     
                     if (!signedUrl) {
                         throw new Error('Failed to generate signed URL for OSS object');
@@ -560,7 +561,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                     const contentLength = parseInt(response.headers['content-length'] || '0');
                     if (contentLength > 0) {
                         console.log(`📤 Streaming upload ${newFilename} to OSS...`);
-                        uploadedObject = await apsDataManagementService.uploadStream(response.data, newFilename, contentLength);
+                        uploadedObject = await apsOssService.uploadStream(response.data, newFilename, contentLength);
                         fileSize = contentLength;
                     } else {
                         // Fallback to buffer
@@ -570,7 +571,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                         });
                         fileBuffer = Buffer.from(bufferResponse.data);
                         fileSize = fileBuffer.length;
-                        uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                        uploadedObject = await apsOssService.uploadBuffer(fileBuffer, newFilename);
                     }
                 } catch (ossError: any) {
                     console.error('OSS download error:', ossError.response?.data || ossError.message);
@@ -605,7 +606,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                     if (contentLength > 0) {
                          // 3. Upload Stream to OSS
                         console.log(`📤 Streaming upload ${newFilename} to OSS...`);
-                        uploadedObject = await apsDataManagementService.uploadStream(response.data, newFilename, contentLength);
+                         uploadedObject = await apsOssService.uploadStream(response.data, newFilename, contentLength);
                         fileSize = contentLength;
                     } else {
                         // Fallback to buffer if no content length (rare)
@@ -619,7 +620,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
                         fileBuffer = Buffer.from(bufferResponse.data);
                         fileSize = fileBuffer.length;
                         console.log(`📤 Uploading buffer ${newFilename} to OSS...`);
-                        uploadedObject = await apsDataManagementService.uploadBuffer(fileBuffer, newFilename);
+                        uploadedObject = await apsOssService.uploadBuffer(fileBuffer, newFilename);
                     }
 
                 } catch (downloadError: any) {
@@ -648,7 +649,7 @@ router.post('/:conversionId/save-to-project', async (req, res) => {
         console.log(`   User ID: ${conversion.file.userId}`);
         
         // Use helper to get URL-safe Base64 URN
-        const urn = uploadedObject.objectId ? apsDataManagementService.getDerivativeUrn(uploadedObject.objectId) : `local-${Date.now()}`;
+        const urn = uploadedObject.objectId ? apsOssService.getDerivativeUrn(uploadedObject.objectId) : `local-${Date.now()}`;
         console.log(`   Generated URN: ${urn}`);
         
         try {
