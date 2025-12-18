@@ -1,0 +1,158 @@
+# TECHNICAL SPECIFICATION - INDUSTRIAL PLANT EXPANSION
+# Document Control: ET-2024-002
+# Date: 2024-12-04
+# Revision: Rev. 2
+
+================================================================================
+SECTION 1: PIPING SYSTEMS
+================================================================================
+
+## 1.1 Process Piping
+
+Line P-101-A:
+  Service: Cooling Water Supply
+  Pipe Size: 8" NPS
+  Schedule: SCH 40
+  Material: Carbon Steel ASTM A106 Gr.B
+  Design Pressure: 150 psig
+  Design Temperature: 200°F
+  Insulation: 2" Calcium Silicate
+  Coating: Epoxy primer + Polyurethane topcoat
+
+Line P-201-B:
+  Service: Steam Distribution
+  Pipe Size: 6" NPS
+  Schedule: SCH 80
+  Material: Carbon Steel ASTM A106 Gr.C
+  Design Pressure: 600 psig
+  Design Temperature: 750°F
+  Insulation: 3" Mineral Wool + Aluminum Jacket
+  Tracing: Steam tracing required
+
+## 1.2 Instrument Air System
+
+Header IA-100:
+  Pipe Size: 4" NPS
+  Material: Stainless Steel 316L
+  Design Pressure: 125 psig
+  Dew Point: -40°F @ 100 psig
+  Oil Content: <1 ppm
+  Particle Size: <3 micron
+
+================================================================================
+SECTION 2: ROTATING EQUIPMENT
+================================================================================
+
+## 2.1 Centrifugal Pumps
+
+| Tag     | Service           | Flow (GPM) | Head (ft) | Power (HP) | NPSH Req (ft) |
+|---------|-------------------|------------|-----------|------------|---------------|
+| P-1101A | Cooling Water     | 2500       | 180       | 150        | 12            |
+| P-1101B | Cooling Water     | 2500       | 180       | 150        | 12            |
+| P-1201  | Process Feed      | 850        | 320       | 100        | 18            |
+| P-1301  | Chemical Injection| 50         | 450       | 15         | 8             |
+
+## 2.2 Compressors
+
+C-1001 (Air Compressor):
+  Type: Rotary Screw
+  Capacity: 1500 SCFM
+  Discharge Pressure: 125 psig
+  Motor Power: 300 HP
+  Voltage: 460V/3Ph/60Hz
+  Control: Variable Speed Drive
+  Noise Level: <82 dB(A) @ 1m
+
+## 2.3 Fans
+
+| Tag     | Type        | Flow (CFM) | Static Pressure (inWC) | Motor (HP) |
+|---------|-------------|------------|------------------------|------------|
+| FN-101  | Centrifugal | 45000      | 8.5                    | 75         |
+| FN-102  | Axial       | 120000     | 2.0                    | 50         |
+| FN-201  | Centrifugal | 25000      | 12.0                   | 60         |
+
+================================================================================
+SECTION 3: VESSELS AND TANKS
+================================================================================
+
+## 3.1 Pressure Vessels
+
+V-1001 (Separator Drum):
+  Design Pressure: 250 psig / Full Vacuum
+  Design Temperature: -20°F to 400°F
+  Material: SA-516 Gr.70
+  Corrosion Allowance: 0.125"
+  Dimensions: 8'-0" ID x 24'-0" T/T
+  MAWP: 275 psig @ 250°F
+  MDMT: -20°F @ 250 psig
+
+## 3.2 Storage Tanks
+
+T-2001 (Raw Water Tank):
+  Capacity: 500,000 gallons
+  Diameter: 50 ft
+  Height: 40 ft
+  Material: Carbon Steel with internal Epoxy Lining
+  Roof Type: Cone Roof
+  Foundation: Concrete Ring Wall
+
+================================================================================
+SECTION 4: ELECTRICAL SYSTEMS
+================================================================================
+
+## 4.1 Motor Control Centers
+
+MCC-1A:
+  Voltage: 480V / 3Ph / 60Hz
+  Bus Rating: 2000A
+  Short Circuit Rating: 65kA RMS Sym
+  Enclosure: NEMA 12
+  Starters: Combination Reduced Voltage
+
+## 4.2 Cable Specifications
+
+Power Cables:
+  Size: 500 MCM
+  Type: THHN/THWN-2
+  Insulation: 90°C rated
+  Conductor: Copper, stranded
+  Ampacity (in conduit): 380A @ 75°C
+
+Control Cables:
+  Size: 14 AWG
+  Pairs: Multi-pair (7, 12, 19 pairs)
+  Shield: Overall aluminum/mylar with drain wire
+  Rated Voltage: 300V
+
+================================================================================
+SECTION 5: INSTRUMENTATION
+================================================================================
+
+## 5.1 Flow Instruments
+
+| Tag      | Type           | Range       | Accuracy | Output    | Connection |
+|----------|----------------|-------------|----------|-----------|------------|
+| FT-1001  | Magnetic       | 0-3000 GPM  | ±0.25%   | 4-20mA    | 8" Flange  |
+| FT-1002  | Vortex         | 0-500 SCFM  | ±0.75%   | 4-20mA    | 4" Wafer   |
+| FT-1101  | Coriolis       | 0-200 lb/min| ±0.10%   | 4-20mA+HART| 2" Flange |
+| FT-1201  | Ultrasonic     | 0-5000 GPM  | ±1.0%    | 4-20mA    | Clamp-on   |
+
+## 5.2 Pressure Instruments
+
+| Tag      | Type           | Range       | Accuracy | Output    |
+|----------|----------------|-------------|----------|-----------|
+| PT-1001  | Gauge Pressure | 0-300 psig  | ±0.25%   | 4-20mA    |
+| PT-1002  | Absolute       | 0-50 psia   | ±0.15%   | 4-20mA    |
+| PDT-1001 | Differential   | 0-100 inH2O | ±0.05%   | 4-20mA    |
+
+## 5.3 Temperature Instruments
+
+| Tag      | Type           | Range       | Accuracy | Thermowell |
+|----------|----------------|-------------|----------|------------|
+| TE-1001  | RTD Pt100      | -50 to 400°F| ±0.12%   | 316SS      |
+| TE-1002  | Type K TC      | 0 to 2000°F | ±0.75%   | Inconel 600|
+| TE-1101  | RTD Pt1000     | 32 to 250°F | ±0.08%   | 316SS      |
+
+================================================================================
+END OF DOCUMENT
+================================================================================

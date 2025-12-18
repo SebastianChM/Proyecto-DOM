@@ -12,12 +12,14 @@ model User {
   email     String   @unique
   name      String
   apsUserId String?
-  role      String   @default("USER") // Enum: USER, ADMIN
+  role      String   @default("USER") // USER, ADMIN
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects  Project[]
-  files     File[]
+  projects        Project[]
+  files           File[]
+  projectMembers  ProjectMember[]
+  notifications   Notification[]
 }
 
 model Project {
@@ -30,13 +32,23 @@ model Project {
   startDate   DateTime?
   endDate     DateTime?
   discipline  String?
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  
+  // Owner (creator del proyecto o propietario de Autodesk)
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  
+  // Si viene de Autodesk ACC/BIM 360
+  isFromAutodesk Boolean @default(false)
+  apsOwnerId     String? // Owner ID de Autodesk si viene compartido
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   files       File[]
   comparisons Comparison[]
+  members     ProjectMember[]
+  
+  @@index([ownerId])
 }
 
 model File {
@@ -44,12 +56,17 @@ model File {
   name           String
   originalName   String
   type           String      // Enum: RVT, DWG, PDF, IFC, NWC, DWF, OTHER
-  size           Int
-  s3Key          String
+  size           Int?        // Optional for ACC files initially
+  s3Key          String?     // Optional for ACC (we use urn directly)
+  localPath      String?     // Path for local persistent storage (Backup/Resurrection)
   apsUrn         String?
   status         String      @default("UPLOADED") // Enum: UPLOADED, TRANSLATING, READY, FAILED
+  origin         String      @default("LOCAL") // LOCAL, ACC
   
-  // APS Data Management fields for ACC/BIM 360 files
+  // APS Data Management fields
+  // Consolidated on aps* fields
+  
+  // Legacy APS fields (keeping for compatibility or migration if needed)
   apsProjectId   String?     // ACC/BIM 360 project ID
   apsItemId      String?     // Item ID in APS Data Management
   apsHubId       String?     // Hub ID
@@ -58,8 +75,8 @@ model File {
   
   projectId      String
   project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User        @relation(fields: [userId], references: [id])
+  uploadedBy     String?     // Usuario que subió el archivo (opcional, puede ser null para archivos de APS)
+  uploader       User?       @relation(fields: [uploadedBy], references: [id])
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -67,6 +84,9 @@ model File {
   conversions    Conversion[]
   comparisonsAsBase Comparison[] @relation("BaseFile")
   comparisonsAsTarget Comparison[] @relation("TargetFile")
+
+  @@index([projectId])
+  @@index([status])
 }
 
 model FileVersion {
@@ -166,6 +186,503 @@ model ApsVersion {
   versionNumber Int
   urn           String
   mimeType      String?
-  storageSize   Int?
+  
+  // Validation metadata
+  validationType     String   // STRUCTURE, BOM, CLASH, CUSTOM
+  validationRules    String?  // JSON string with rules applied
+  
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  
+
+  @@index([createdAt])
+}
+
+
+
+model ValidationRun {
+  id          String   @id @default(uuid())
+  fileId      String
+  fileName    String
+  fileUrn     String?
+  projectId   String?
+  userId      String
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  
+  // Validation results summary
+  totalElements      Int      @default(0)
+  missingCount       Int      @default(0)
+  mismatchCount      Int      @default(0)
+  undocumentedCount  Int      @default(0)
+  
+  // Validation metadata
+  validationType     String   // STRUCTURE, BOM, CLASH, CUSTOM
+  validationRules    String?  // JSON string with rules applied
+  
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  issues      ValidationIssue[]
+  notifications Notification[]
+  
+  @@index([fileId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ValidationIssue {
+  id              String   @id @default(uuid())
+  validationRunId String
+  validationRun   ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+  
+  // Issue details
+  type            String   // MISSING, MISMATCH, UNDOCUMENTED, DUPLICATE, INVALID
+  severity        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status          String   @default("OPEN") // OPEN, ACKNOWLEDGED, RESOLVED, IGNORED
+  
+  // Element identification
+  elementTag      String?  // e.g., "FV-101", "P-205"
+  elementType     String?  // e.g., "Valve", "Pump", "Pipe"
+  elementId       String?  // Internal element ID from model
+  
+  // Issue description
+  message         String
+  description     String?
+  location        String?  // JSON: {x, y, z} coordinates
+  
+  // Expected vs Actual (for mismatches)
+  expectedValue   String?
+  actualValue     String?
+  
+  // Resolution tracking
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  resolutionNotes String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([validationRunId])
+  @@index([type])
+  @@index([status])
+  @@index([severity])
+  @@index([elementTag])
+}
+
+// --- Sistema de Permisos y Roles ---
+
+model ProjectMember {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Roles: ADMIN, OWNER, EDITOR, VIEWER_DOWNLOAD, VIEWER
+  role        String   @default("VIEWER")
+  
+  // Metadata
+  invitedBy   String?  // User ID who shared the project
+  invitedAt   DateTime @default(now())
+  acceptedAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification content
+  type            String   // VALIDATION_COMPLETE, ISSUE_CREATED, ISSUE_RESOLVED, FILE_CHANGED, SYSTEM
+  title           String
+  message         String
+  
+  // Related entities
+  validationRunId String?
+  validationRun   ValidationRun? @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+  issueId         String?
+  fileId          String?
+  projectId       String?
+  
+  // Notification state
+  read            Boolean  @default(false)
+  readAt          DateTime?
+  priority        String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  
+  // Metadata
+  metadata        String?  // JSON string for additional data
+  
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime? // Optional expiration
+  
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+// ============================================
+// WORKFLOW ENGINE - Enterprise Grade
+// ============================================
+
+// WorkflowTemplate - Defines reusable workflow structures
+// Templates are versioned and can be activated/deactivated
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String   // e.g., "Project Delivery", "File Review"
+  code        String   @unique // e.g., "PROJECT_DELIVERY", "FILE_REVIEW"
+  description String?
+  
+  // What entity type this workflow applies to
+  entityType  String   // PROJECT, FILE, VALIDATION
+  
+  // Template management
+  version     Int      @default(1)
+  isDefault   Boolean  @default(false) // Auto-assign to new entities of this type
+  isActive    Boolean  @default(true)  // Can be used for new instances
+  isSystem    Boolean  @default(false) // Cannot be deleted by users
+  
+  // Relations
+  states      WorkflowState[]
+  transitions WorkflowTransition[]
+  instances   WorkflowInstance[]
+  
+  // Audit
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([entityType, isActive])
+  @@index([isDefault, entityType])
+}
+
+// WorkflowState - Each step/stage in a workflow
+model WorkflowState {
+  id           String   @id @default(uuid())
+  templateId   String
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  // State identification
+  name         String   // Internal name: DRAFT, IN_REVIEW, APPROVED
+  displayName  String   // UI display: "Draft", "In Review", "Approved"
+  description  String?  // Tooltip/help text
+  
+  // Visual configuration
+  color        String   @default("#6B7280") // Hex color for badges
+  icon         String?  // Lucide icon name: "file", "check", "clock"
+  order        Int      @default(0)         // Display order in timeline
+  
+  // State type flags
+  isInitial    Boolean  @default(false) // Entry point (only one per template)
+  isFinal      Boolean  @default(false) // Terminal state (can be multiple)
+  
+  // Permissions - minimum role required to have entity in this state
+  requiredRole String?  // OWNER, EDITOR, VIEWER - null means anyone
+  
+  // Auto-actions when entering this state (JSON)
+  // e.g., [{"type": "notify", "target": "owner"}, {"type": "setField", "field": "status", "value": "active"}]
+  onEnterActions String?
+  
+  // Relations for transitions
+  transitionsFrom WorkflowTransition[] @relation("FromState")
+  transitionsTo   WorkflowTransition[] @relation("ToState")
+  
+  // Current instances in this state
+  currentInstances WorkflowInstance[] @relation("CurrentState")
+  
+  @@unique([templateId, name])
+  @@index([templateId, order])
+}
+
+// WorkflowTransition - Rules for moving between states
+model WorkflowTransition {
+  id           String   @id @default(uuid())
+  templateId   String
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  // From -> To relationship
+  fromStateId  String
+  fromState    WorkflowState @relation("FromState", fields: [fromStateId], references: [id], onDelete: Cascade)
+  toStateId    String
+  toState      WorkflowState @relation("ToState", fields: [toStateId], references: [id], onDelete: Cascade)
+  
+  // Transition identification
+  name         String   // e.g., "submit_for_review", "approve", "reject"
+  displayName  String   // e.g., "Submit for Review", "Approve", "Reject"
+  description  String?
+  
+  // Visual
+  icon         String?  // Lucide icon for button
+  buttonVariant String  @default("default") // default, destructive, outline, secondary
+  
+  // Permission control
+  requiredRole String?  // Minimum role to perform this transition
+  
+  // Conditions that must be met (JSON)
+  // e.g., {"hasNoOpenIssues": true, "allFilesReady": true}
+  conditions   String?
+  
+  // Actions to execute on transition (JSON array)
+  // e.g., [{"type": "notify", "target": "owner", "template": "approved"}]
+  actions      String?
+  
+  // Require comment when performing this transition
+  requireComment Boolean @default(false)
+  
+  // Confirmation settings
+  requireConfirmation Boolean @default(false)
+  confirmationMessage String?
+  
+  @@unique([templateId, fromStateId, toStateId])
+  @@index([templateId])
+  @@index([fromStateId])
+}
+
+// WorkflowInstance - Actual workflow attached to an entity
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+  
+  // Template reference
+  templateId   String
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id])
+  
+  // Entity reference (polymorphic)
+  entityType   String   // PROJECT, FILE, VALIDATION
+  entityId     String   // UUID of the project/file/validation
+  
+  // Current state
+  currentStateId String
+  currentState   WorkflowState @relation("CurrentState", fields: [currentStateId], references: [id])
+  
+  // Denormalized for quick queries and display
+  currentStateName    String
+  currentStateDisplay String
+  currentStateColor   String @default("#6B7280")
+  
+  // Lifecycle
+  status       String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED, SUSPENDED
+  startedAt    DateTime @default(now())
+  completedAt  DateTime?
+  
+  // Who started this workflow
+  startedBy    String?
+  
+  // History of all transitions
+  history      WorkflowHistory[]
+  
+  // Ensure one workflow per entity
+  @@unique([entityType, entityId])
+  @@index([currentStateName])
+  @@index([entityType, status])
+  @@index([status])
+}
+
+// WorkflowHistory - Complete audit trail
+model WorkflowHistory {
+  id           String   @id @default(uuid())
+  instanceId   String
+  instance     WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  
+  // State change
+  fromStateName    String
+  fromStateDisplay String
+  toStateName      String
+  toStateDisplay   String
+  
+  // Transition info
+  transitionName    String?
+  transitionDisplay String?
+  
+  // Who performed this
+  performedById   String   // User ID
+  performedByName String   // Denormalized for display
+  performedByEmail String?
+  
+  performedAt  DateTime @default(now())
+  
+  // Optional details
+  comment      String?  // User comment on why transition was made
+  
+  // Additional context (JSON)
+  // e.g., {"previousValues": {...}, "triggeredBy": "auto"}
+  metadata     String?
+  
+  // Duration in previous state (seconds)
+  durationInPreviousState Int?
+  
+  @@index([instanceId, performedAt])
+  @@index([performedById])
+  @@index([performedAt])
+}
+
+// ============================================================
+// COMPLIANCE ENGINE V2 - Professional Rule-Based Validation
+// ============================================================
+
+// Collection of validation rules, grouped by discipline
+model Ruleset {
+  id          String   @id @default(uuid())
+  name        String   // "Validación Eléctrica DOM"
+  description String?
+  discipline  String   // "ELECTRICAL", "STRUCTURAL", "MEP", "ARCHITECTURAL"
+  isDefault   Boolean  @default(false) // Template rulesets
+  
+  // Optional: project-specific ruleset
+  projectId   String?
+  
+  rules       Rule[]
+  runs        ComplianceRun[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([discipline])
+  @@index([projectId])
+}
+
+// Individual validation rule
+model Rule {
+  id          String   @id @default(uuid())
+  name        String   // "Cable Tray Width Check"
+  description String?
+  isActive    Boolean  @default(true)
+  
+  // Scope: Which elements this rule applies to
+  targetCategory    String   // Revit category: "Cable Trays", "Conduits", etc.
+  targetNamePattern String?  // Optional regex for element name filtering
+  
+  // Condition: What to check
+  propertyName   String   // Property to check: "Width", "Height", "Voltage"
+  operator       String   // ">=", "<=", "==", ">", "<", "range", "exists", "contains"
+  expectedValue  String   // The expected value: "300", "100-500" for range
+  unit           String?  // Optional unit: "mm", "V", "A"
+  tolerance      Float?   // Optional tolerance ±value (in same unit)
+  
+  // Metadata
+  severity       String   @default("WARNING") // "CRITICAL", "WARNING", "INFO"
+  sourceDocument String?  // Reference to source: "ET Eléctrico Tabla 3.2"
+  sourcePage     Int?     // Page number in source document
+  
+  // Relation to ruleset
+  rulesetId  String
+  ruleset    Ruleset  @relation(fields: [rulesetId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([rulesetId])
+  @@index([targetCategory])
+}
+
+// Imported data source (extracted from PDF/Excel)
+model DataSource {
+  id            String   @id @default(uuid())
+  name          String   // "ET Eléctrico v1.0"
+  type          String   // "PDF", "EXCEL"
+  status        String   @default("PENDING") // "PENDING", "EXTRACTED", "REVIEWED"
+  
+  // Reference to original file
+  fileId        String?
+  
+  // Extracted structured data (JSON)
+  // Format: { tables: [{name, headers, rows}], metadata: {...} }
+  extractedData String?  // JSON string (SQLite doesn't have native JSON)
+  
+  // Extraction metadata
+  extractedAt   DateTime?
+  reviewedAt    DateTime?
+  
+  projectId     String
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([status])
+}
+
+// A single execution of compliance checking
+model ComplianceRun {
+  id          String   @id @default(uuid())
+  name        String?  // Optional friendly name
+  status      String   @default("PENDING") // "PENDING", "RUNNING", "COMPLETED", "FAILED"
+  
+  // Input: Model being validated
+  modelUrn    String   // URN of the RVT model
+  modelName   String?  // Friendly name of the model
+  
+  // Input: Ruleset used for validation
+  rulesetId   String
+  ruleset     Ruleset  @relation(fields: [rulesetId], references: [id])
+  
+  // Results summary
+  totalElements   Int?    // Total elements scanned
+  totalRules      Int?    // Total rules applied
+  passedCount     Int?    // Elements that passed
+  failedCount     Int?    // Elements that failed
+  warningCount    Int?    // Elements with warnings
+  complianceScore Float?  // Percentage: 0-100
+  
+  // Timing
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  duration    Int?     // Seconds
+  
+  // Error info if failed
+  errorMessage String?
+  
+  // Relation to issues found
+  issues      ComplianceIssue[]
+  
+  projectId   String
+  createdBy   String?  // User who initiated the run
+  
+  @@index([projectId])
+  @@index([status])
+  @@index([rulesetId])
+}
+
+// Individual compliance issue (violation found)
+model ComplianceIssue {
+  id          String   @id @default(uuid())
+  
+  // Parent run
+  runId       String
+  run         ComplianceRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  
+  // Which rule was violated
+  ruleName    String   // Denormalized for display
+  ruleId      String?  // Reference to rule (may be deleted later)
+  
+  // Affected element in the model
+  elementId   String   // Revit Element ID (DBID or custom ID)
+  elementName String   // Element name for display
+  elementCategory String // Revit category
+  
+  // Issue details
+  propertyName  String   // Property that failed
+  expectedValue String   // What was expected
+  actualValue   String   // What was found
+  deviation     String?  // Deviation value (if applicable)
+  
+  severity    String   @default("WARNING") // "CRITICAL", "WARNING", "INFO"
+  status      String   @default("OPEN")    // "OPEN", "RESOLVED", "IGNORED", "FALSE_POSITIVE"
+  
+  // Optional resolution info
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  resolutionNote String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([runId])
+  @@index([severity])
+  @@index([status])
+  @@index([elementCategory])
 }

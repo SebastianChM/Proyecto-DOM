@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import axios from 'axios'
+import apiClient from '@/lib/axios-config'
 
 interface User {
     id: string
@@ -22,11 +22,10 @@ const UserContext = createContext<UserContextType | undefined>(undefined)
 export function UserProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [loading, setLoading] = useState(true)
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
     const fetchUser = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/auth/me`, { withCredentials: true })
+            const response = await apiClient.get('/api/auth/me')
             if (response.data.authenticated && response.data.user) {
                 setUser(response.data.user)
             } else {

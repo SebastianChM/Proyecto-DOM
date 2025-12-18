@@ -1,0 +1,696 @@
+5.401.1 DESCRIPCIÓN Y ALCANCES
+5.401 .2 MATERIALES
+5.401.3 PROCEDIMIENTOS DE TRABAJO
+5.401.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.402.1 DESCRIPCIÓN Y ALCANCES
+5.402 .2 MATERIALES
+5.402.3 PROCEDIMIENTOS DE TRABAJO
+5.402.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.403.1 DESCRIPCIÓN Y ALCANCES
+5.403 .2 MATERIALES
+5.403.3 PROCEDIMIENTOS DE TRABAJO
+5.403.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.404.1 DESCRIPCIÓN Y ALCANCES
+5.404.2 MATERIALES
+5.404.3 PROCEDIMIENTOS DE TRABAJO
+5.404.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.405.1 DESCRIPCIÓN Y ALCANCES
+5.405.2 MATERIALES
+5.405.3 PROCEDIMIENTOS DE TRABAJO
+5.405.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.406.1 DESCRIPCIÓN Y ALCANCES
+5.406 .2 MATERIALES
+5.406.3 PROCEDIMIENTOS DE TRABAJO
+5.406.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.407.1 DESCRIPCIONES Y ALCANCES
+5.407 .2 MATERIALES
+5.407.3 PROCEDIMIENTOS DE TRABAJO
+5.407.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.408.1 DESCRIPCION Y ALCANCES
+5.408.2 MATERIALES
+5.408.3 PROCEDIMIENTOS DE TRABAJO
+5.408.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.409.1 DESCRIPCIÓN Y ALCANCE
+5.409.2 MATERIALES
+5.409.3 PROCEDIMIENTOS DE TRABAJO
+5.409.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.410.1 DESCRIPCIÓN Y ALCANCES
+5.410.2 MATERIALES
+5.410.3 PROCEDIMIENTOS DE TRABAJO
+5.410.4 PARTIDA DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.411.1 DESCRIPCIÓN Y ALCANCES
+5.411.2 MATERIALES
+5.411.3 PROCEDIMIENTOS DE TRABAJO
+5.411.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.412.1 DESCRIPCIÓN Y ALCANCES
+5.412.2 MATERIALES
+5.412.3 PROCEDIMIENTOS DE TRABAJO
+5.412.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.413.1 DESCRIPCIÓN Y ALCANCES
+5.413.2 MATERIALES
+5.413.3 PROCEDIMIENTOS DE TRABAJO
+5.413.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.414.1 DESCRIPCIÓN Y ALCANCES
+5.414.2 MATERIALES
+5.414.3 PROCEDIMIENTOS DE TRABAJO
+5.414.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.415.1 DESCRIPCIÓN Y ALCANCES
+5.415.2 MATERIALES
+5.415.3 PROCEDIMIENTOS DE TRABAJO
+5.415.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.416.1 DESCRIPCIÓN Y ALCANCES
+5.416.2 MATERIALES
+5.416.3 PROCEDIMIENTOS DE TRABAJO
+5.416.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.417.1 DESCRIPCIÓN Y ALCANCES
+5.417.2 MATERIALES
+5.417.3 PROCEDIMIENTOS DE TRABAJO
+5.417.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.418.1 DESCRIPCIÓN Y ALCANCES
+5.418.2 MATERIALES
+5.418.3 PROCEDIMIENTOS DE TRABAJO
+5.418.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.419.1 DESCRIPCIÓN Y ALCANCES
+5.419.2 MATERIALES
+5.419.3 PROCEDIMIENTOS DE TRABAJO
+5.419.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.420.1 DESCRIPCIÓN Y ALCANCES
+5.420.2 MATERIALES
+5.420.3 PROCEDIMIENTOS DE TRABAJO
+5.420.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.421.1 DESCRIPCIÓN Y ALCANCES
+5.421.2 MATERIALES
+5.421.3 PROCEDIMIENTOS DE TRABAJO
+5.421.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.422.1 DESCRIPCIÓN Y ALCANCES
+5.422.2 MATERIALES
+5.422.3 PROCEDIMIENTOS DE TRABAJO
+5.422.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.423.1 DESCRIPCIÓN Y ALCANCES
+5.423.2 MATERIALES
+5.423.3 PROCEDIMIENTOS DE TRABAJO
+5.423.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.424.1 DESCRIPCIÓN Y ALCANCES
+5.424.2 MATERIALES
+5.424.3 PROCEDIMIENTOS DE TRABAJO
+5.424.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.401.1 DESCRIPCIÓN Y ALCANCES
+5.401.2 MATERIALES
+5.401.201 Asfaltos
+5.401.202 Arenas
+5.401.3 PROCEDIMIENTOS DE TRABAJO
+5.401.301 Instalaciones y Equipos
+5.401.302 Limitaciones Meteorológicas
+5.401.303 Preparación de la Superficie a Imprimar
+5.401.304 Aplicación del Asfalto
+5.401.305 Imprimación Reforzada
+5.401.306 Medidas de Seguridad
+5.401.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.401.401 Bases Generales de Medición
+5.401.402 Partidas del Presupuesto
+5.402.1 DESCRIPCIÓN Y ALCANCES
+5.402.2 MATERIALES
+5.402.201 Asfaltos
+5.402.3 PROCEDIMIENTOS DE TRABAJO
+5.402.301 Instalaciones y Equipos
+5.402.302 Limitaciones Meteorológicas
+5.402.303 Preparación de la Superficie a Regar
+5.402.304 Aplicación del Asfalto
+5.402.305 Medidas de Seguridad
+5.402.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.403.1 DESCRIPCIÓN Y ALCANCES
+5.403.2 MATERIALES
+5.403.201 Asfaltos
+5.403.3 PROCEDIMIENTOS DE TRABAJO
+5.403.301 Instalaciones y Equipo
+5.403.302 Limitaciones Meteorológicas
+5.403.303 Preparación de la Superficie a Regar
+5.403.304 Aplicación del Material
+5.403.305 Medidas de Seguridad
+5.403.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.404.1 DESCRIPCIÓN Y ALCANCES
+5.404.2 MATERIALES
+5.404.201 Áridos
+5.404.202 Asfaltos
+5.404.203 Filler
+5.404.204 Agua
+5.404.3 PROCEDIMIENTOS DE TRABAJO
+5.404.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.405.1 DESCRIPCIÓN Y ALCANCES
+5.405.2 MATERIALES
+5.405.201 Asfalto
+5.405.202 Áridos
+5.405.3 PROCEDIMIENTOS DE TRABAJO
+5.405.301 Instalaciones y Equipo
+5.405.302 Limitaciones Meteorológicas
+5.405.303 Preparación de la Superficie
+5.405.304 Dosificación del Asfalto, Áridos y Aplicación del Material Ligante
+5.405.305 Transporte, Esparcido del Árido, Compactación y Terminaciones
+5.405.306 Mantención y Apertura al Tránsito
+5.405.307 Medidas de Seguridad
+5.405.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.406.1 DESCRIPCIÓN Y ALCANCES
+5.406.2 MATERIALES
+5.406.201 Lechada
+5.406.202 Riego de Liga
+5.406.3 PROCEDIMIENTOS DE TRABAJO
+5.406.301 Propiedades de la Mezcla
+5.406.302 Preparación de la Superficie
+5.406.303 Preparación y colocación de la Lechada Asfáltica
+5.406.304 Medidas de Seguridad
+5.406.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.407.1 DESCRIPCIÓN Y ALCANCES
+5.407.2 MATERIALES
+5.407.201 Asfaltos
+5.407.202 Áridos
+5.407.3 PROCEDIMIENTOS DE TRABAJO
+5.407.301 Instalaciones y Equipos
+5.407.302 Limitaciones Meteorológicas
+5.407.303 Preparación de la Superficie
+5.407.304 Dosificación del Asfalto, Áridos y Aplicación del Material Ligante
+5.407.305 Transporte, Esparcido del Árido, Rodillado y Terminaciones
+5.407.306 Mantención y Apertura al Tránsito
+5.407.307 Medidas de Seguridad
+5.407.308 Control de Rugosidad (IRI)
+5.407.309 Macrotextura, Resistencia al Deslizamiento
+5.407.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.408.1 DESCRIPCIÓN Y ALCANCES
+5.408.2 MATERIALES
+5.408.201 Áridos
+5.408.202 Asfalto
+5.408.203 Propiedades de las Mezclas Asfálticas
+5.408.3 PROCEDIMIENTOS DE TRABAJO
+5.408.301 Preparación de la Superficie
+5.408.302 Producción de las Mezclas
+5.408.303 Transporte y Colocación
+5.408.304 Tolerancias y Multas
+5.408.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.409.1 DESCRIPCIÓN Y ALCANCES
+5.409.2 MATERIALES
+5.409.201 Áridos
+5.409.202 Asfaltos
+5.409.203 Propiedades de las Mezclas Asfálticas
+5.409.3 PROCEDIMIENTOS DE TRABAJO
+5.409.301 Preparación de la Superficie
+5.409.302 Producción de las Mezclas
+5.409.303 Transporte y Colocación
+5.409.304 Controles
+5.409.305 Tolerancias y Multas
+5.409.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.410.1 DESCRIPCIÓN Y ALCANCES
+5.410.2 MATERIALES
+5.410.201 Hormigón
+5.410.202 Compuestos de Curado
+5.410.203 Acero
+5.410.204 Sellantes
+5.410.205 Moldes
+5.410.206 Desmoldantes
+5.410.207 Retardadores de Evaporación
+5.410.3 PROCEDIMIENTOS DE TRABAJO
+5.410.301 Equipos
+5.410.302 Dosificación
+5.410.303 Fabricación
+5.410.304 Transporte
+5.410.305 Preparación de la Capa Subyacente
+5.410.306 Colocación, Esparcido y Compactación
+5.410.307 Terminaciones
+5.410.308 Curado y Protección del Hormigón
+5.410.309 Hormigonado en Casos Especiales de Exposición
+5.410.310 Juntas
+5.410.311 Sellado de Juntas
+5.410.312 Protección del Pavimento y Apertura al Tránsito
+5.410.313 Reparaciones
+5.410.314 Controles del Hormigón
+5.410.315 Tolerancia y Multas
+5.410.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.411.1 DESCRIPCIÓN Y ALCANCES
+5.411.2 MATERIALES
+5.411.201 Capas de Rodadura de Concreto Asfáltico
+5.411.202 Capas de Rodadura de Hormigón
+5.411.3 PROCEDIMIENTOS DE TRABAJO
+5.411.301 Capas de Rodadura de Concreto Asfáltico
+5.411.302 Capas de Rodadura de Hormigón
+5.411.303 Valores de Multas
+5.411.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.412.1 DESCRIPCIÓN Y ALCANCES
+5.412.2 MATERIALES
+5.412.3 PROCEDIMIENTOS DE TRABAJO
+5.412.301 Actuaciones Iniciales, Previo a la Instalación del Sistema de Impermeabilización
+5.412.302 Preparación de la Superficie a Impermeabilizar
+5.412.303 Aplicación de la Impermeabilización
+5.412.304 Inspección Visual de la Impermeabilización
+5.412.305 Evaluación de la Conformidad
+5.412.306 Medidas de Seguridad y de Protección Ambiental
+5.412.307 Procedimiento de Trabajo para Hormigón Estructural en Contacto con Rellenos de Tierra
+5.412.4 PARTIDA DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.413.1 DESCRIPCIÓN Y ALCANCES
+5.413.2 MATERIALES
+5.413.201 Materiales Granulares
+5.413.202 Aditivo
+5.413.203 Asfalto
+5.413.204 Agua
+5.413.205 Propiedades de la Mezcla
+5.413.3 PROCEDIMIENTOS DE TRABAJO
+5.413.301 Equipos
+5.413.302 Proceso Constructivo
+5.413.303 Protección y Mantención de la Capa de Material Estabilizado
+5.413.304 Limitaciones Meteorológicas
+5.413.305 Control de la Obra
+5.413.306 Consideraciones Ambientales y de Seguridad
+5.413.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.414.1 DESCRIPCIÓN Y ALCANCES
+5.414.2 MATERIALES
+5.414.201 Áridos
+5.414.202 Asfalto
+5.414.203 Riego de Liga
+5.414.204 Propiedades de las Mezclas Asfálticas
+5.414.205 Cancha de Prueba
+5.414.3 PROCEDIMIENTOS DE TRABAJO
+5.414.301 Preparación de la Superficie Existente
+5.414.302 Producción de las Mezclas
+5.414.303 Transporte y Colocación
+5.414.304 Saneamiento
+5.414.305 Tolerancias y Multas
+5.414.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.415.1 DESCRIPCIÓN Y ALCANCES
+5.415.2 MATERIALES
+5.415.201 Áridos
+5.415.202 Fibras Celulósicas en Pellets
+5.415.203 Filler
+5.415.204 Asfalto
+5.415.205 Riego de Liga
+5.415.206 Propiedades de la Mezcla SMA
+5.415.3 PROCEDIMIENTOS DE TRABAJO
+5.415.301 Preparación de la Superficie
+5.415.302 Producción de las Mezclas
+5.415.303 Transporte y Colocación
+5.415.304 Macrotextura Superficial y Coeficiente de Fricción
+5.415.305 Tolerancias y Multas
+5.415.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.416.1 DESCRIPCIÓN Y ALCANCES
+5.416.2 MATERIALES
+5.416.201 Áridos
+5.416.202 Asfalto
+5.416.203 Aditivos
+5.416.204 Propiedades de las Mezclas Asfálticas
+5.416.3 PROCEDIMIENTOS DE TRABAJO
+5.416.301 Preparación de la Superficie
+5.416.302 Producción de las Mezclas
+5.416.303 Transporte y Colocación
+5.416.304 Tolerancias y Multas
+5.416.4 PARTIDA DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.417.1 DESCRIPCIÓN Y ALCANCES
+5.417.2 MATERIALES
+5.417.3 PROCEDIMIENTOS DE TRABAJO
+5.417.301 Aspectos Generales
+5.417.302 Construcción
+5.417.303 Limpieza
+5.417.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.418.1 DESCRIPCIÓN Y ALCANCES
+5.418.2 MATERIALES
+5.418.3 PROCEDIMIENTOS DE TRABAJO
+5.418.301 Aspectos Generales
+5.418.302 Base Granular
+5.418.303 Preparación de la Superficie
+5.418.304 Producción de las Mezclas
+5.418.305 Transporte y Colocación
+5.418.306 Tolerancias y Multas
+5.418.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.419.1 DESCRIPCIÓN Y ALCANCES
+5.419.2 MATERIALES
+5.419.201 Microaglomerado en Frío
+5.419.202 Riego de Liga
+5.419.3 PROCEDIMIENTOS DE TRABAJO
+5.419.301 Propiedades de la Mezcla
+5.419.302 Preparación de la Superficie
+5.419.303 Preparación y Colocación del Microaglomerado en Frío
+5.419.304 Medidas de Seguridad
+5.419.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.420.1 DESCRIPCIÓN Y ALCANCES
+5.420.2 MATERIALES
+5.420.201 Áridos
+5.420.202 Asfalto
+5.420.203 Polvo de Caucho
+5.420.3 PROCEDIMIENTOS DE TRABAJO
+5.420.301 Dosificación
+5.420.302 Propiedades de la Mezcla
+5.420.303 Preparación de la Mezcla
+5.420.304 Preparación de la Superficie
+5.420.305 Transporte y Colocación
+5.420.306 Apertura al Tránsito
+5.420.307 Tolerancias y Multas
+5.420.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.421.1 DESCRIPCIÓN Y ALCANCES
+5.421.2 MATERIALES
+5.419.201 Sello Bituminoso Premezclado
+5.419.202 Agua
+5.421.3 PROCEDIMIENTOS DE TRABAJO
+5.421.301 Preparación de la Superficie
+5.421.302 Limpieza de la Superficie
+5.421.303 Protección del Área de Trabajo
+5.421.304 Limitaciones Climáticas
+5.421.305 Programación
+5.421.306 Aplicación
+5.421.307 Curado
+5.421.308 Tiempo de Curado y Apertura al Tránsito
+5.421.309 Otros Requisitos
+5.421.310 Medidas de Seguridad
+5.421.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.422.1 DESCRIPCIÓN Y ALCANCES
+5.422.2 MATERIALES
+5.422.3 PROCEDIMIENTOS DE TRABAJO
+5.422.301 Actuaciones Iniciales, Previo a la Instalación del Sello
+5.422.302 Preparación de la Superficie
+5.422.303 Aplicación del Sello
+5.422.304 Inspección Visual
+5.422.305 Evaluación de la Conformidad
+5.422.306 Medidas de Seguridad y de Protección Ambiental
+5.422.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.423.1 DESCRIPCIÓN Y ALCANCES
+5.423.2 MATERIALES
+5.423.201 Áridos
+5.423.202 Asfalto Nuevo a Incorporar en la Mezcla
+5.423.203 Material Recuperado (RAP)
+5.423.204 Propiedades de las Mezclas Asfálticas con RAP
+5.423.3 PROCEDIMIENTO DE TRABAJO
+5.423.301 Preparación de la Superficie
+5.423.302 Producción de la Mezcla
+5.423.303 Transporte y Colocación
+5.423.304 Tolerancias y Multas
+5.423.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.424.1 DESCRIPCIÓN Y ALCANCES
+5.424.2 MATERIALES
+5.424.201 Áridos
+5.424.202 Asfalto
+5.424.203 Aditivo Químico
+5.424.204 Zeolita Natural o Sintética
+5.424.205 Propiedades de las mezclas asfálticas tibias
+5.424.206 Procedimiento de Dosificación
+5.424.3 PROCEDIMIENTO DE TRABAJO
+5.424.301 Preparación de la Superficie
+5.424.302 Producción de la Mezcla
+5.424.303 Transporte y Colocación
+5.424.304 Tolerancias y Multas
+5.424.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.401.1 DESCRIPCIÓN Y ALCANCES
+5.401.2 MATERIALES
+5.401.201 Asfaltos
+5.401.202 Arenas
+5.401.3 PROCEDIMIENTOS DE TRABAJO
+5.401.301 Instalaciones y Equipos
+5.401.302 Limitaciones Meteorológicas
+5.401.303 Preparación de la Superficie a Imprimar
+5.401.304 Aplicación del Asfalto
+5.401.305 Imprimación Reforzada
+5.401.201 de esta Sección.
+5.401.306 Medidas de Seguridad
+5.401.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.401.401 Bases Generales de Medición
+5.401.402 Partidas del Presupuesto
+5.402.1 DESCRIPCIÓN Y ALCANCES
+5.402.2 MATERIALES
+5.402.201 Asfaltos
+5.402.3 PROCEDIMIENTOS DE TRABAJO
+5.402.301 Instalaciones y Equipos
+5.402.302 Limitaciones Meteorológicas
+5.402.303 Preparación de la Superficie a Regar
+5.402.304 Aplicación del Asfalto
+5.402.305 Medidas de Seguridad
+5.402.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.403.1 DESCRIPCIÓN Y ALCANCES
+5.403.2 MATERIALES
+5.403.201 Asfaltos
+5.403.3 PROCEDIMIENTOS DE TRABAJO
+5.403.301 Instalaciones y Equipo
+5.403.302 Limitaciones Meteorológicas
+5.403.303 Preparación de la Superficie a Regar
+5.403.304 Aplicación del Material
+5.403.305 Medidas de Seguridad
+5.404.1 DESCRIPCIÓN Y ALCANCES
+5.404.2 MATERIALES
+5.404.201 Áridos
+5.404.202 Asfaltos
+5.404.203 Filler
+5.404.204 Agua
+5.404.3 PROCEDIMIENTOS DE TRABAJO
+5.404.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.405.1 DESCRIPCIÓN Y ALCANCES
+5.405.2 MATERIALES
+5.405.201 Asfalto
+5.405.202 Áridos
+5.405.3 PROCEDIMIENTOS DE TRABAJO
+5.405.301 Instalaciones y Equipo
+5.405.302 Limitaciones Meteorológicas
+5.405.303 Preparación de la Superficie
+5.405.304 Dosificación del Asfalto, Áridos y Aplicación del Material Ligante
+5.405.305 Transporte, Esparcido del Árido, Compactación y Terminaciones
+5.405.306 Mantención y Apertura al Tránsito
+5.405.307 Medidas de Seguridad
+5.406.1 DESCRIPCIÓN Y ALCANCES
+5.406.2 MATERIALES
+5.406.201 Lechada
+5.406.202 Riego de Liga
+5.406.3 PROCEDIMIENTOS DE TRABAJO
+5.406.301 Propiedades de la Mezcla
+5.406.302 Preparación de la Superficie
+5.406.303 Preparación y Colocación de la Lechada Asfáltica
+5.406.304 Medidas de Seguridad
+5.406.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.407.1 DESCRIPCIÓN Y ALCANCES
+5.407.2 MATERIALES
+5.407.201 Asfaltos
+5.407.202 Áridos
+5.407.3 PROCEDIMIENTOS DE TRABAJO
+5.407.301 Instalaciones y Equipos
+5.407.302 Limitaciones Meteorológicas
+5.407.303 Preparación de la Superficie
+5.407.304 Dosificación del Asfalto, Áridos y Aplicación del Material Ligante
+5.407.305 Transporte, Esparcido del Árido, Rodillado y Terminaciones
+5.407.306 Mantención y Apertura al Tránsito
+5.407.307 Medidas de Seguridad
+5.407.308 Control de Rugosidad (IRI)
+5.407.309 Macrotextura, Resistencia al Deslizamiento
+5.407.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.408.1 DESCRIPCIÓN Y ALCANCES
+5.408.2 MATERIALES
+5.408.201 Áridos
+5.408.202 Asfalto
+5.408.203 Propiedades de las Mezclas Asfálticas
+5.408.3 PROCEDIMIENTOS DE TRABAJO
+5.408.301 Preparación de la Superficie
+5.408.302 Producción de las Mezclas
+5.408.303 Transporte y Colocación
+5.408.304 Tolerancias y Multas
+5.408.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.409.1 DESCRIPCIÓN Y ALCANCES
+5.409.2 MATERIALES
+5.409.201 Áridos
+5.409.202 Asfaltos
+5.409.203 Propiedades de las Mezclas Asfálticas
+5.409.3 PROCEDIMIENTOS DE TRABAJO
+5.409.301 Preparación de la Superficie
+5.409.302 Producción de las Mezclas
+5.409.303 Transporte y Colocación
+5.409.304 Controles
+5.409.305 Tolerancias y Multas
+5.409.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.410.1 DESCRIPCIÓN Y ALCANCES
+5.410.2 MATERIALES
+5.410.201 Hormigón
+5.410.202 Compuestos de Curado
+5.410.203 Acero
+5.410.204 Sellantes
+5.410.205 Moldes
+5.410.206 Desmoldantes
+5.410.207 Retardadores de Evaporación
+5.410.3 PROCEDIMIENTOS DE TRABAJO
+5.410.301 Equipos
+5.410.302 Dosificación
+5.410.303 Fabricación
+5.410.304 Transporte
+5.410.305 Preparación de la Capa Subyacente
+5.410.306 Colocación, Esparcido y Compactación
+5.410.205 y 5.410.305, respectivamente.
+5.410.307 Terminaciones
+5.410.308 Curado y Protección del Hormigón
+5.410.309 Hormigonado en Casos Especiales de Exposición
+5.410.310 Juntas
+5.410.311 Sellado de Juntas
+5.410.312 Protección del Pavimento y Apertura al Tránsito
+5.410.313 Reparaciones
+5.410.314 Controles del Hormigón
+5.410.315 Tolerancia y Multas
+5.410.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.411.1 DESCRIPCIÓN Y ALCANCES
+5.411.2 MATERIALES
+5.411.201 Capas de Rodadura de Concreto Asfáltico
+5.411.202 Capas de Rodadura de Hormigón
+5.411.3 PROCEDIMIENTOS DE TRABAJO
+5.411.301 Capas de Rodadura de Concreto Asfáltico
+5.411.302 Capas de Rodadura de Hormigón
+5.411.303 Valores de Multas
+5.411.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.412.1 DESCRIPCIÓN Y ALCANCES
+5.412.2 MATERIALES
+5.412.3 PROCEDIMIENTOS DE TRABAJO
+5.412.301 Actuaciones Iniciales, Previo a la Instalación del Sistema de Impermeabilización.
+5.412.302 Preparación de la Superficie a Impermeabilizar
+5.412.303 Aplicación de la Impermeabilización.
+5.412.304 Inspección Visual de la Impermeabilización
+5.412.305 Evaluación de la Conformidad
+5.412.306 Medidas de Seguridad y de Protección Ambiental.
+5.412.307 Procedimiento de Trabajo para Hormigón Estructural en Contacto con Rellenos de Tierra
+5.412.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.413.1 DESCRIPCIÓN Y ALCANCES
+5.413.2 MATERIALES
+5.413.201 Materiales Granulares
+5.413.202 Aditivo
+5.413.203 Asfalto
+5.413.204 Agua
+5.413.205 Propiedades de la Mezcla
+5.413.205 (3) Cancha de Prueba
+5.413.3 PROCEDIMIENTOS DE TRABAJO
+5.413.301 Equipos
+5.413.302 Proceso Constructivo
+5.413.303 Protección y Mantención de la Capa de Material Estabilizado
+5.413.304 Limitaciones Meteorológicas
+5.413.305 Control de la Obra
+5.413.306 Consideraciones Ambientales y de Seguridad
+5.413.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.414.1 DESCRIPCIÓN Y ALCANCES
+5.414.2 MATERIALES
+5.414.201 Áridos
+5.414.202 Asfalto
+5.414.203 Riego de Liga
+5.414.204 Propiedades de las Mezclas Asfálticas
+5.414.205 Cancha de Prueba
+5.414.3 PROCEDIMIENTOS DE TRABAJO
+5.414.301 Preparación de la Superficie Existente
+5.414.302 Producción de las Mezclas
+5.408 Mezclas Asfálticas en Caliente, salvo que la temperatura de los áridos a la salida del secador deberá ser
+5.414.303 Transporte y Colocación
+5.414.304 Saneamiento
+5.414.305 Tolerancias y Multas
+5.414.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.415.1 DESCRIPCIÓN YALCANCES
+5.415.2 MATERIALES
+5.415.201 Áridos
+5.415.202 Fibras Celulósicas en Pellets
+5.415.203 Filler
+5.415.204 Asfalto
+5.415.205 Riego de Liga
+5.415.206 Propiedades de la Mezcla SMA
+5.415.3 PROCEDIMIENTO DETRABAJO
+5.415.301 Preparación de la Superficie
+5.415.302 Producción de las Mezclas
+5.415.303 Transporte y Colocación
+5.415.304 Macrotextura Superficial y Coeficiente de Fricción
+5.415.305 Tolerancias y Multas
+5.415.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.416.1 DESCRIPCIÓN Y ALCANCES
+5.416.2 MATERIALES
+5.416.201 Áridos
+5.416.201 (4) Granulometrías
+5.416.202 Asfalto
+5.416.203 Aditivos
+5.416.204 Propiedades de las Mezclas Asfálticas
+5.416.3 PROCEDIMIENTOS DETRABAJO
+5.416.301 Preparación de la Superficie
+5.416.302 Producción de las Mezclas
+5.416.303 Transporte y Colocación
+5.416.304 Tolerancias y Multas
+5.416.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.417.1 DESCRIPCIÓN Y ALCANCES
+5.417.2 MATERIALES
+5.417.3 PROCEDIMIENTOS DE TRABAJO
+5.417.301 Aspectos Generales
+5.417.302 Construcción
+5.417.303 Limpieza
+5.417.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.418.1 DESCRIPCIÓN Y ALCANCES
+5.418.2 MATERIALES
+5.408.2 de la Sección 5.408 Mezclas Asfálticas en Caliente en lo que no se contraponga con lo indicado en
+5.418.3 PROCEDIMIENTOS DE TRABAJO
+5.418.301 Aspectos Generales
+5.418.302 Base Granular
+5.418.303 Preparación de la Superficie
+5.418.304 Producción de las Mezclas
+5.418.305 Transporte y Colocación
+5.418.306 Tolerancias y Multas
+5.419.1 DESCRIPCIÓN Y ALCANCES
+5.419.2 MATERIALES
+5.419.201 Microaglomerado en Frío
+5.419.202 Riego de Liga
+5.419.3 PROCEDIMIENTOS DE TRABAJO
+5.419.301 Propiedades de la Mezcla
+5.419.302 Preparación de la Superficie
+5.419.303 Preparación y Colocación del Microaglomerado en Frío
+5.419.304 Medidas de Seguridad
+5.419.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.420.1 DESCRIPCIÓN Y ALCANCES
+5.420.2 MATERIALES
+5.420.201 Áridos
+5.420.202 Asfalto
+5.420.203 Polvo de Caucho
+5.420.3 PROCEDIMIENTOS DE TRABAJO
+5.420.301 Dosificación
+5.420.302 Propiedades de la Mezcla
+5.420.303 Preparación de la Mezcla
+5.420.304 Preparación de la Superficie
+5.420.305 Transporte y Colocación
+5.420.306 Apertura al Tránsito
+5.420.307 Tolerancias y Multas
+5.420.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.421.1 DESCRIPCIÓN Y ALCANCES
+5.421.2 MATERIALES
+5.421.201 Sello Bituminoso Premezclado
+5.421.202 Agua
+5.421.3 PROCEDIMIENTOS DE TRABAJO
+5.421.301 Preparación de la Superficie
+5.421.302 Limpieza de la Superficie
+5.421.303 Protección del Área de Trabajo
+5.421.304 Limitaciones climáticas
+5.421.305 Programación
+5.421.306 Aplicación
+5.421.307 Curado
+5.421.308 Tiempo de Curado y Apertura al Tránsito
+5.421.309 Otros Requisitos
+5.421.310 Medidas de seguridad
+5.421.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.422.1 DESCRIPCIÓN Y ALCANCES
+5.422.2 MATERIALES
+5.422.3 PROCEDIMIENTOS DE TRABAJO
+5.422.301 Actuaciones Iniciales, Previo a la Instalación del Sello
+5.422.302 Preparación de la Superficie
+5.422.303 Aplicación del Sello
+5.422.304 Inspección Visual
+5.422.305 Evaluación de la Conformidad
+5.422.306 Medidas de Seguridad y de Protección Ambiental
+5.422.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.423.1 DESCRIPCIÓN Y ALCANCES
+5.423.2 MATERIALES
+5.423.201 Áridos
+5.423.202 Asfalto nuevo a incorporar en la mezcla
+5.423.203 Material Recuperado (RAP)
+5.423.204 Propiedades de las mezclas asfálticas con RAP
+5.423.3 PROCEDIMIENTO DE TRABAJO
+5.423.301 Preparación de la Superficie
+5.423.302 Producción de la Mezcla
+5.423.303 Transporte y Colocación
+5.423.304 Tolerancias y Multas
+5.423.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN
+5.424.1 DESCRIPCIÓN Y ALCANCES
+5.424.2 MATERIALES
+5.424.201 Áridos
+5.424.202 Asfalto
+5.424.203 Aditivo Químico
+5.424.204 Zeolita Natural o Sintética.
+5.424.205 Propiedades de las mezclas asfálticas tibias
+5.424.206 Procedimiento de dosificación
+5.408 o 5.423, se debe agregar al ligante según las instrucciones del fabricante.
+5.424.3 PROCEDIMIENTO DE TRABAJO
+5.424.301 Preparación de la Superficie
+5.424.302 Producción de la Mezclas
+5.424.303 Transporte y Colocación
+5.424.304 TOLERANCIAS Y MULTAS
+5.424.4 PARTIDAS DEL PRESUPUESTO Y BASES DE MEDICIÓN

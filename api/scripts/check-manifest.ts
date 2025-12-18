@@ -1,36 +1,32 @@
 
 import * as dotenv from 'dotenv';
-import * as path from 'path';
-// Load env vars immediately
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config();
 
 import { modelDerivativeService } from '../src/services/aps/model-derivative.service';
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-const RAW_URN = 'urn:adsk.objects:os.object:dom-bim-platform-us-test-001/1764554140148-mock-result.ifc';
-const URN = Buffer.from(RAW_URN).toString('base64').replace(/=/g, '');
 
-async function checkManifest() {
+const TARGET_URN = 'dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6aWRvbS1iaW0tcGxhdGZvcm0tdXMtdGVzdC0wMDEvMTc2NTMyNTQ1OTkxNy1DTUEtSURPLUlELUVMWC1YLVgtMTktMDAwMC0wMC5ydnQ';
+
+async function main() {
+    console.log('📊 Checking Manifest for CMA File...');
+    console.log(`📂 URN: ${TARGET_URN}`);
+
     try {
-        // const file = await prisma.file.findUnique({ where: { id: FILE_ID } });
-        // if (!file || !file.apsUrn) {
-        //     console.log('File not found or URN is missing');
-        //     return;
-        // }
-        console.log(`Checking manifest for URN: ${URN}`);
-        try {
-            const manifest = await modelDerivativeService.getManifest(URN);
-            console.log('Manifest Status:', manifest.status);
-            console.log('\nFull Manifest:');
-            console.log(JSON.stringify(manifest, null, 2));
-        } catch (e: any) {
-            console.error('Error getting manifest:', e.response?.data || e.message);
+        console.log('\n--- Getting Manifest ---');
+        const manifest = await modelDerivativeService.getManifest(TARGET_URN);
+        console.log('✅ Manifest retrieved:');
+        console.log(JSON.stringify(manifest, null, 2));
+
+        console.log('\n--- Getting Metadata ---');
+        const metadata = await modelDerivativeService.getMetadata(TARGET_URN);
+        console.log('✅ Metadata retrieved:');
+        console.log(JSON.stringify(metadata, null, 2));
+
+    } catch (error: any) {
+        console.error('❌ Error:', error.message);
+        if (error.response?.data) {
+            console.error('APS Response:', JSON.stringify(error.response.data, null, 2));
         }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        await prisma.$disconnect();
     }
 }
 
-checkManifest();
+main();

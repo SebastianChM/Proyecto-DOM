@@ -6,8 +6,12 @@ import { apsDataManagementService } from '../services/aps/data-management.servic
 import { apsOssService } from '../services/aps/oss.service';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
 import { apsAuthService } from '../services/aps/auth.service';
+import { fileService } from '../services/files.service';
+import { APP_CONFIG } from '../config/constants';
 import axios from 'axios';
 import archiver from 'archiver';
+
+import { cacheService, RedisKeys } from '../lib/redis';
 
 const router = Router();
 const upload = multer({ dest: 'uploads/' });
@@ -51,7 +55,8 @@ function getFileType(mimetype: string, filename: string) {
  *         description: Server error
  */
 // Upload file endpoint
-router.post('/upload', upload.single('file'), async (req, res) => {
+// Upload file endpoint
+router.post('/upload', upload.single('file'), async (req, res, next) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
@@ -65,7 +70,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         }
 
         // Server-side validation
-        const allowedExtensions = ['rvt', 'dwg', 'pdf', 'ifc', 'nwc', 'dwf'];
+        const allowedExtensions = APP_CONFIG.UPLOAD.ALLOWED_EXTENSIONS;
         const fileExt = req.file.originalname.split('.').pop()?.toLowerCase();
 
         if (!fileExt || !allowedExtensions.includes(fileExt)) {
@@ -79,117 +84,33 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             });
         }
 
-        console.log(`Processing upload: ${req.file.originalname} for project ${projectId} (Force Local: ${forceLocal})`);
+        const result = await fileService.handleFileUpload(req.file, projectId, forceLocal);
 
-        // Get or create temporary user
-        let user = await prisma.user.findFirst();
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                    email: 'temp@dom.com',
-                    name: 'Temporary User',
-                    apsUserId: 'temp-user-id'
-                }
-            });
-        }
+        // NOTE: File cleanup is now handled in the background upload process
+        // Do NOT delete the file here - it's needed for the async APS upload
 
-        // 1. Upload to APS OSS (Try/Catch to allow partial success)
-        let apsUrn = null;
-        let uploadWarning = null;
-        let fileStatus = 'UPLOADED';
-
-        try {
-            if (forceLocal) {
-                throw new Error('Forced Local Mode by client');
-            }
-            const apsObject = await apsOssService.uploadFile(req.file);
-            // Convert to URL-safe Base64 (replace + with -, / with _, remove =)
-            apsUrn = Buffer.from((apsObject as any).objectId).toString('base64')
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=/g, '');
-            console.log('✅ APS Upload successful, URN:', apsUrn);
-        } catch (apsError: any) {
-            console.error('⚠️ APS Upload failed (using LOCAL_ONLY mode):', apsError.message);
-            uploadWarning = 'APS Upload failed: ' + (apsError.response?.body?.reason || apsError.message || 'Unknown error');
-            fileStatus = 'LOCAL_ONLY';
-            // In LOCAL_ONLY mode, create a mock URN for testing
-            apsUrn = `local-${Date.now()}-${Buffer.from(req.file.originalname).toString('base64').replace(/=/g, '')}`;
-            console.log('🔧 Using LOCAL_ONLY mode with mock URN:', apsUrn);
-        }
-
-        // 2. Upload to S3 (Placeholder - skipping for now as we don't have AWS creds)
-        const s3Key = `files/${projectId}/${Date.now()}-${req.file.originalname}`;
-
-        // 3. Create DB record
-        const dbFile = await prisma.file.create({
-            data: {
-                name: req.file.originalname,
-                originalName: req.file.originalname,
-                type: getFileType(req.file.mimetype, req.file.originalname),
-                size: req.file.size,
-                s3Key,
-                apsUrn: apsUrn || 'PENDING_APS_UPLOAD',
-                projectId,
-                userId: user.id,
-                status: fileStatus
-            }
-        });
-
-        // 4. If LOCAL_ONLY mode, simulate translation after 1 second
-        if (fileStatus === 'LOCAL_ONLY' && (dbFile.type === 'RVT' || dbFile.type === 'DWG' || dbFile.type === 'IFC')) {
-            console.log(`🔄 Simulating translation for ${dbFile.name} in LOCAL_ONLY mode...`);
-            setTimeout(async () => {
-                try {
-                    await prisma.file.update({
-                        where: { id: dbFile.id },
-                        data: { status: 'READY' }
-                    });
-                    console.log(`✅ Mock translation complete for ${dbFile.name} - status: READY`);
-                } catch (e) {
-                    console.error('Failed to update mock translation status:', e);
-                }
-            }, 1000); // 1 second delay to simulate translation
-        }
-        // 5. If APS upload succeeded, trigger translation
-        else if (fileStatus === 'UPLOADED' && apsUrn && !apsUrn.startsWith('local-')) {
-            try {
-                await modelDerivativeService.translateToSVF2(apsUrn);
-                await prisma.file.update({
-                    where: { id: dbFile.id },
-                    data: { status: 'TRANSLATING' }
-                });
-                console.log('🚀 Translation job started for:', dbFile.name);
-            } catch (translateError: any) {
-                console.error('Translation start failed:', translateError);
-                uploadWarning = (uploadWarning ? uploadWarning + '; ' : '') + 'Translation failed to start';
-            }
-        }
-
-        // Clean up local file
-        if (fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
+        // Invalidate caches
+        await Promise.all([
+            cacheService.del(RedisKeys.projectDetail(projectId)),
+            cacheService.invalidatePattern('cache:dashboard:stats:*'),
+            cacheService.invalidatePattern('cache:files:recent:*') // Invalidate recent files cache
+        ]);
 
         res.json({
             success: true,
-            file: dbFile,
-            urn: apsUrn,
-            warning: uploadWarning,
-            mode: fileStatus === 'LOCAL_ONLY' ? 'LOCAL_ONLY (APS unavailable - using mock data)' : 'APS'
+            file: result.dbFile,
+            urn: result.apsUrn,
+            warning: result.uploadWarning,
+            mode: result.fileStatus === 'UPLOADING' ? 'UPLOADING (background upload in progress)' : 'APS',
+            message: result.message
         });
 
     } catch (error: any) {
-        console.error('Upload error:', error);
         // Clean up local file if it exists
         if (req.file && fs.existsSync(req.file.path)) {
             fs.unlinkSync(req.file.path);
         }
-        res.status(500).json({
-            error: 'Upload failed',
-            details: error.message,
-            apsError: error.response?.data || 'No APS response data'
-        });
+        next(error);
     }
 });
 
@@ -305,7 +226,7 @@ router.post('/batch-download', async (req, res) => {
                 // Decode URN to get object key
                 const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
                 const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
-                let objectKey = file.s3Key;
+                let objectKey = file.s3Key || 'unknown_key';
                 if (match) {
                     objectKey = match[1];
                 }
@@ -392,27 +313,107 @@ router.get('/:id/download', async (req, res) => {
         }
 
         try {
-            // Decode URN to get object key
-            const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
-            // Check if it matches the pattern urn:adsk.objects:os.object:bucketKey/objectName
-            const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+            let signedUrl: string | null = null;
 
-            let objectKey = file.s3Key;
+            // Check if file is from ACC/BIM360 (imported file)
+            if (file.s3Key === 'IMPORTED_FROM_APS') {
+                // For ACC/BIM360 files, we need to get download URL via Data Management API
+                const userToken = (req.session as any)?.user?.apsAccessToken;
 
-            if (match) {
-                objectKey = match[1];
+                // Method 1: Use Data Management API with apsProjectId and apsItemId
+                if (file.apsProjectId && file.apsItemId && userToken) {
+                    try {
+                        signedUrl = await apsDataManagementService.getItemDownloadUrl(
+                            file.apsProjectId,
+                            file.apsItemId,
+                            userToken
+                        );
+                    } catch (err) {
+                        console.warn('Failed to get download URL via Data Management API:', err);
+                    }
+                }
+
+                // Method 2: Try with apsStorageId if available
+                if (!signedUrl && file.apsStorageId) {
+                    const storageId = file.apsStorageId;
+
+                    if (storageId.startsWith('https://')) {
+                        // Direct HTTPS download URL
+                        signedUrl = storageId;
+                    } else if (storageId.startsWith('urn:adsk.objects:') || storageId.startsWith('urn:adsk.wipprod:')) {
+                        // Try to extract object key and get signed URL
+                        const storageMatch = storageId.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+                        if (storageMatch) {
+                            try {
+                                signedUrl = await apsOssService.getSignedUrl(storageMatch[1]);
+                            } catch (err) {
+                                console.warn('Failed to get signed URL from OSS:', err);
+                            }
+                        }
+                    }
+                }
+
+                // If still no URL, return appropriate error
+                if (!signedUrl) {
+                    if (!userToken) {
+                        return res.status(401).json({
+                            error: 'Authentication required',
+                            details: 'Please log in with your Autodesk account to view files from ACC/BIM360.'
+                        });
+                    }
+                    return res.status(400).json({
+                        error: 'Cannot download ACC file',
+                        details: 'Unable to retrieve download URL. The file may no longer be accessible in ACC/BIM360.'
+                    });
+                }
+            } else {
+                // Regular OSS file - use existing logic
+                const decodedUrn = Buffer.from(file.apsUrn, 'base64').toString('utf-8');
+                console.log(`[Download Debug] File ID: ${file.id}, Decoded URN: ${decodedUrn}`);
+
+                const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+
+                let objectKey: string;
+
+                if (match) {
+                    objectKey = match[1];
+                    console.log(`[Download Debug] Extracted objectKey from URN: ${objectKey}`);
+                } else {
+                    // If URN doesn't match pattern, the file might have been uploaded with a different format
+                    // Try using the s3Key as the object key (remove the 'files/' prefix if present)
+                    if (file.s3Key && file.s3Key !== 'unknown_key') {
+                        // Extract just the filename portion which is what OSS uses
+                        const s3KeyParts = file.s3Key.split('/');
+                        objectKey = s3KeyParts[s3KeyParts.length - 1]; // Get last part (filename)
+                        console.log(`[Download Debug] Using s3Key filename as objectKey: ${objectKey}`);
+                    } else {
+                        console.error(`[Download Debug] Cannot determine objectKey. URN: ${decodedUrn}, s3Key: ${file.s3Key}`);
+                        return res.status(400).json({
+                            error: 'Cannot download file',
+                            details: 'Unable to determine file location in storage.'
+                        });
+                    }
+                }
+
+                signedUrl = await apsOssService.getSignedUrl(objectKey);
             }
-
-            // Get signed URL
-            const signedUrl = await apsOssService.getSignedUrl(objectKey);
 
             if (!signedUrl) {
                 return res.status(500).json({ error: 'Failed to generate signed URL' });
             }
 
             // Proxy the file download to set correct headers for browser viewing
+            const userToken = (req.session as any)?.user?.apsAccessToken;
+            const headers: Record<string, string> = {};
+
+            // Add authorization for ACC URLs that require it
+            if (file.s3Key === 'IMPORTED_FROM_APS' && userToken) {
+                headers['Authorization'] = `Bearer ${userToken}`;
+            }
+
             const response = await axios.get(signedUrl, {
-                responseType: 'stream'
+                responseType: 'stream',
+                headers
             });
 
             // Set headers
@@ -430,9 +431,19 @@ router.get('/:id/download', async (req, res) => {
             // Pipe the stream
             response.data.pipe(res);
 
-        } catch (e) {
+        } catch (e: any) {
             console.error('Download error:', e);
-            res.status(500).json({ error: 'Failed to process download' });
+
+            // Check if the error is due to file not found in OSS (404)
+            if (e.message?.includes('404') || e.response?.status === 404 || e.statusCode === 404) {
+                return res.status(404).json({
+                    error: 'El archivo ya no está disponible',
+                    details: 'El archivo ha expirado en el almacenamiento de Autodesk (política transient de 24 horas). Por favor, vuelve a subir el archivo.',
+                    code: 'FILE_EXPIRED'
+                });
+            }
+
+            res.status(500).json({ error: 'Failed to process download', details: e.message });
         }
 
     } catch (error: any) {
@@ -550,7 +561,6 @@ router.post('/import-aps', async (req, res) => {
                 apsFolderId: apsFolderId || null,
                 apsStorageId: apsStorageId || null,
                 projectId,
-                userId: user.id,
                 status: 'READY' // Assumed ready since it's from APS
             } as any // Cast to any to avoid type errors until Prisma Client is regenerated
         });
@@ -563,6 +573,122 @@ router.post('/import-aps', async (req, res) => {
     } catch (error: any) {
         console.error('Import error:', error);
         res.status(500).json({ error: 'Import failed', details: error.message });
+    }
+});
+
+/**
+ * @swagger
+ * /files/sync-status:
+ *   post:
+ *     summary: Sync status of specific files with APS
+ *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fileIds
+ *             properties:
+ *               fileIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Updated file statuses
+ *       500:
+ *         description: Server error
+ */
+// Sync file status
+router.post('/sync-status', async (req, res) => {
+    try {
+        const { fileIds } = req.body;
+
+        if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+            return res.status(400).json({ error: 'No file IDs provided' });
+        }
+
+        const files = await prisma.file.findMany({
+            where: { id: { in: fileIds } }
+        });
+
+        const updates: any[] = [];
+        const allFiles: any[] = [];
+
+        await Promise.all(files.map(async (file) => {
+            let newStatus = file.status;
+            let progress = 0;
+
+            // Calculate progress for all files
+            if (file.status === 'TRANSLATING' || file.status === 'PROCESSING' || file.status === 'PENDING') {
+                const elapsed = Date.now() - new Date(file.updatedAt).getTime();
+                const isLocal = file.apsUrn && file.apsUrn.startsWith('local-');
+                const duration = isLocal ? 5000 : 120000; // 5s for local, 120s for real APS translation
+                progress = Math.max(10, Math.min(99, Math.floor((elapsed / duration) * 100)));
+
+                // Check APS manifest for actual status
+                if (file.apsUrn && !file.apsUrn.startsWith('local-')) {
+                    try {
+                        const manifest = await modelDerivativeService.getManifest(file.apsUrn);
+
+                        if (manifest.status === 'success') {
+                            newStatus = 'READY';
+                            progress = 100;
+                        } else if (manifest.status === 'failed') {
+                            newStatus = 'FAILED';
+                            progress = 0;
+                        } else if (manifest.progress) {
+                            // Use actual progress from APS if available
+                            const apsProgress = parseInt(manifest.progress.replace('%', ''));
+                            if (!isNaN(apsProgress)) {
+                                progress = apsProgress;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Failed to check manifest for ${file.id}:`, e);
+                    }
+                }
+
+                // Update DB if status changed
+                if (newStatus !== file.status) {
+                    await prisma.file.update({
+                        where: { id: file.id },
+                        data: { status: newStatus }
+                    });
+                    updates.push({ id: file.id, status: newStatus, progress });
+                }
+            } else if (file.status === 'READY') {
+                progress = 100;
+            }
+
+            // Include all files with current status and progress
+            allFiles.push({
+                id: file.id,
+                status: newStatus,
+                progress
+            });
+        }));
+
+        if (updates.length > 0) {
+            // Invalidate caches if there were updates
+            const projectIds = [...new Set(files.map(f => f.projectId))];
+            await Promise.all(projectIds.map(pid => cacheService.del(RedisKeys.projectDetail(pid))));
+            await cacheService.invalidatePattern('cache:dashboard:stats:*');
+            await cacheService.invalidatePattern('cache:files:recent:*');
+        }
+
+        res.json({
+            success: true,
+            updatedCount: updates.length,
+            updates,
+            files: allFiles // Include all files with their current progress
+        });
+
+    } catch (error: any) {
+        console.error('Sync status error:', error);
+        res.status(500).json({ error: 'Failed to sync status', details: error.message });
     }
 });
 
@@ -600,6 +726,66 @@ router.post('/import-aps', async (req, res) => {
  *       500:
  *         description: Server error
  */
+/**
+ * @swagger
+ * /files/recent:
+ *   get:
+ *     summary: Get recent files for dashboard
+ *     tags: [Files]
+ *     responses:
+ *       200:
+ *         description: List of recent files
+ *       500:
+ *         description: Server error
+ */
+router.get('/recent', async (req, res) => {
+    try {
+        const userId = req.session?.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        const cacheKey = `cache:files:recent:${userId}`;
+
+        // Cache for 5 minutes
+        const files = await cacheService.getOrSet(
+            cacheKey,
+            async () => {
+                return await prisma.file.findMany({
+                    where: {
+                        project: {
+                            OR: [
+                                { ownerId: userId },
+                                { members: { some: { userId } } }
+                            ]
+                        },
+                        status: 'READY',
+                        type: { in: ['RVT', 'IFC', 'NWC', 'DWG'] }
+                    },
+                    take: 6,
+                    orderBy: { updatedAt: 'desc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        type: true,
+                        status: true,
+                        apsUrn: true,
+                        updatedAt: true,
+                        project: {
+                            select: { name: true }
+                        }
+                    }
+                });
+            },
+            300
+        );
+
+        res.json(files);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // List files for a project
 router.get('/project/:projectId', async (req, res) => {
     try {
@@ -783,40 +969,149 @@ router.get('/:id/bom', async (req, res) => {
             ]);
         }
 
-        // 1. Get Metadata (Hierarchy)
+        // Helper function to find a property value by trying multiple keys
+        const findProperty = (props: any, ...keys: string[]): any => {
+            if (!props) return undefined;
+            for (const key of keys) {
+                // Try direct access
+                if (props[key] !== undefined) return props[key];
+                // Try nested in groups
+                for (const group of Object.values(props)) {
+                    if (typeof group === 'object' && group !== null) {
+                        if ((group as any)[key] !== undefined) return (group as any)[key];
+                    }
+                }
+            }
+            return undefined;
+        };
+
+        // Helper to parse numeric values (Revit sometimes returns strings with units)
+        const parseNumeric = (value: any): number => {
+            if (value === undefined || value === null) return 0;
+            if (typeof value === 'number') return value;
+            if (typeof value === 'string') {
+                const cleaned = value.replace(/[^0-9.-]/g, '');
+                return parseFloat(cleaned) || 0;
+            }
+            return 0;
+        };
+
+        // 1. Get Metadata (list of available views)
         const metadata = await modelDerivativeService.getMetadata(file.apsUrn);
 
         if (!metadata.data || !metadata.data.metadata || metadata.data.metadata.length === 0) {
             return res.status(404).json({ error: 'No metadata found for this file' });
         }
 
-        const guid = metadata.data.metadata[0].guid; // Get first view (usually 3D)
+        // Find 3D view (preferred) or first available
+        const viewGeometry = metadata.data.metadata.find((m: any) => m.role === '3d' && m.isMasterView)
+            || metadata.data.metadata.find((m: any) => m.role === '3d')
+            || metadata.data.metadata[0];
+
+        const guid = viewGeometry.guid;
+        console.log(`🔍 BOM: Using view guid: ${guid}, role: ${viewGeometry.role}`);
 
         // 2. Get Properties
         const properties = await modelDerivativeService.getProperties(file.apsUrn, guid);
 
         if (!properties || !properties.data || !properties.data.collection) {
             console.warn('BOM Extraction: No properties collection found for URN:', file.apsUrn);
-            return res.json([]); // Return empty BOM instead of crashing
+            return res.json([]);
         }
 
-        // 3. Process into BOM (flat list of components with properties)
+        console.log(`📦 BOM: Found ${properties.data.collection.length} elements in properties`);
+
+        // 3. Process into BOM with improved property extraction
         const bom = properties.data.collection.map((item: any) => {
+            const props = item.properties || {};
+
+            // Try multiple property paths for Revit elements
+            const category = findProperty(props,
+                'Category',
+                'Categoría',  // Spanish
+                'category'
+            ) || findProperty(props['Identity Data'], 'Category')
+                || findProperty(props['Datos de identidad'], 'Categoría')
+                || 'Uncategorized';
+
+            const family = findProperty(props,
+                'Family',
+                'Familia',
+                'Family Name',
+                'Nombre de familia',
+                'family'
+            ) || findProperty(props['Identity Data'], 'Family', 'Type', 'Family Name')
+                || '';
+
+            const typeName = findProperty(props,
+                'Type',
+                'Tipo',
+                'Type Name',
+                'Nombre de tipo',
+                'type'
+            ) || findProperty(props['Identity Data'], 'Type', 'Type Name')
+                || item.name || '';
+
+            const material = findProperty(props,
+                'Material',
+                'Structural Material',
+                'Material estructural',
+                'Material Name'
+            ) || findProperty(props['Materials'], 'Material', 'Name')
+                || findProperty(props['Materiales'], 'Material', 'Nombre')
+                || '';
+
+            // Try dimension properties
+            const volume = parseNumeric(findProperty(props,
+                'Volume',
+                'Volumen',
+                'Host Volume',
+                'Gross Volume'
+            ) || findProperty(props['Dimensions'], 'Volume', 'Gross Volume')
+                || findProperty(props['Dimensiones'], 'Volumen')
+                || 0);
+
+            const area = parseNumeric(findProperty(props,
+                'Area',
+                'Área',
+                'Surface Area',
+                'Gross Area',
+                'Host Area'
+            ) || findProperty(props['Dimensions'], 'Area', 'Surface Area')
+                || findProperty(props['Dimensiones'], 'Área')
+                || 0);
+
+            const length = parseNumeric(findProperty(props,
+                'Length',
+                'Longitud',
+                'Curve Length'
+            ) || findProperty(props['Dimensions'], 'Length')
+                || findProperty(props['Dimensiones'], 'Longitud')
+                || 0);
+
             return {
                 id: item.objectid,
+                externalId: item.externalId,
                 name: item.name,
-                category: item.properties?.Item?.Category || 'Uncategorized',
-                family: item.properties?.Item?.Family || item.properties?.Item?.['Family Name'] || '',
-                type: item.properties?.Item?.Type || item.properties?.Item?.['Type Name'] || '',
-                material: item.properties?.Materials?.Material || item.properties?.Materials?.['Material Name'] || '',
-                mass: item.properties?.Mechanical?.Mass,
-                volume: item.properties?.Dimensions?.Volume || 0,
-                area: item.properties?.Dimensions?.Area || 0,
-                length: item.properties?.Dimensions?.Length || 0,
+                category: category,
+                family: family,
+                type: typeName,
+                material: material,
+                volume: volume,
+                area: area,
+                length: length,
                 count: 1,
-                allProperties: item.properties
+                // Include raw properties for debugging (remove in production)
+                // allProperties: props
             };
         }).filter((item: any) => item.name && !item.name.startsWith('Non-Revit'));
+
+        console.log(`✅ BOM: Processed ${bom.length} elements`);
+
+        // Log sample item for debugging
+        if (bom.length > 0) {
+            console.log('📋 BOM Sample item:', JSON.stringify(bom[0], null, 2));
+        }
 
         res.json(bom);
     } catch (error: any) {

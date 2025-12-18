@@ -15,6 +15,30 @@ export class APSModelDerivativeService {
     }
 
     /**
+     * Delete manifest to allow re-translation
+     * This is needed when a previous translation failed
+     */
+    async deleteManifest(urn: string): Promise<boolean> {
+        try {
+            const token = await apsAuthService.getInternalToken();
+            await axios.delete(
+                `https://developer.api.autodesk.com/modelderivative/v2/designdata/${encodeURIComponent(urn)}/manifest`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            console.log('🗑️ Deleted old manifest successfully');
+            return true;
+        } catch (error: any) {
+            // 404 means no manifest exists, which is fine
+            if (error.response?.status === 404) {
+                console.log('ℹ️ No manifest to delete');
+                return true;
+            }
+            console.warn('⚠️ Could not delete manifest:', error.response?.data || error.message);
+            return false;
+        }
+    }
+
+    /**
      * Get supported formats (Cached)
      */
     async getFormats() {
@@ -27,11 +51,11 @@ export class APSModelDerivativeService {
         const token = await apsAuthService.getInternalToken();
         try {
             console.log('🌐 Fetching formats from Autodesk...');
-            
+
             const headers: any = {
                 'Authorization': `Bearer ${token}`
             };
-            
+
             if (this.lastModified) {
                 headers['If-Modified-Since'] = this.lastModified;
             }
@@ -40,12 +64,12 @@ export class APSModelDerivativeService {
                 'https://developer.api.autodesk.com/modelderivative/v2/designdata/formats',
                 { headers }
             );
-            
+
             // Update cache
             this.formatsCache = response.data;
             this.lastCacheTime = Date.now();
             this.lastModified = response.headers['last-modified'] || null;
-            
+
             return response.data;
         } catch (error: any) {
             // Handle 304 Not Modified
@@ -91,51 +115,72 @@ export class APSModelDerivativeService {
     async translateToPDF(urn: string, sheets?: string[]) {
         const token = await apsAuthService.getInternalToken();
 
-        // Use SVF2 translation with advanced 2dviews parameter
-        // This generates PDF views during SVF2 translation (works for DWG/RVT)
-        const job = {
-            input: {
-                urn: urn
-            },
+        /**
+         * Strategy for DWG to PDF:
+         * 1. Try direct PDF translation first (works for most files)
+         * 2. If that fails, fall back to SVF2 + 2dviews:pdf
+         */
+
+        // Strategy 1: Direct PDF translation (most compatible)
+        const jobDirectPdf = {
+            input: { urn },
             output: {
-                destination: {
-                    region: 'us'
-                },
+                destination: { region: 'us' },
                 formats: [{
-                    type: 'svf2',
-                    views: ['2d', '3d'],
-                    advanced: {
-                        '2dviews': 'pdf'
-                    }
+                    type: 'pdf'
                 }]
             }
         };
 
-        console.log('📤 Sending SVF2 translation job with 2D PDF views...');
-        console.log('Job payload:', JSON.stringify(job, null, 2));
+        console.log('📤 [Strategy 1] Direct PDF translation...');
+        console.log('📝 Request body:', JSON.stringify(jobDirectPdf, null, 2));
 
         try {
             const response = await axios.post(
                 'https://developer.api.autodesk.com/modelderivative/v2/designdata/job',
-                job,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'x-ads-force': 'true'
-                    }
-                }
+                jobDirectPdf,
+                { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'x-ads-force': 'true' } }
             );
-            console.log('✅ Translation job started:', response.data);
+            console.log('✅ Translation job started (Direct PDF):', response.data);
             return response.data;
+
         } catch (error: any) {
-            console.error('❌ PDF translation error:', error.response?.data || error.message);
-            if (error.response?.data?.diagnostic) {
-                console.error('Diagnostic:', error.response.data.diagnostic);
+            const errorMsg = error.response?.data?.diagnostic || error.message;
+            console.warn('⚠️ Strategy 1 (Direct PDF) failed:', errorMsg);
+
+            // Strategy 2: SVF2 with 2dviews: pdf (for DWG 2022+)
+            console.log('🔄 [Strategy 2] SVF2 with 2dviews: pdf...');
+
+            const jobSvf2Pdf = {
+                input: { urn },
+                output: {
+                    destination: { region: 'us' },
+                    formats: [{
+                        type: 'svf2',
+                        views: ['2d'],
+                        advanced: {
+                            '2dviews': 'pdf'
+                        }
+                    }]
+                }
+            };
+
+            try {
+                const response = await axios.post(
+                    'https://developer.api.autodesk.com/modelderivative/v2/designdata/job',
+                    jobSvf2Pdf,
+                    { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'x-ads-force': 'true' } }
+                );
+                console.log('✅ Translation job started (SVF2 + 2dviews:pdf):', response.data);
+                return response.data;
+
+            } catch (fallbackError: any) {
+                console.error('❌ Strategy 2 (SVF2+2dviews) also failed:', fallbackError.response?.data || fallbackError.message);
+                throw new Error(`PDF conversion failed for URN: ${urn}. Both direct PDF and SVF2 methods failed.`);
             }
-            throw error;
         }
     }
+
 
     /**
      * Translate to IFC
@@ -185,6 +230,36 @@ export class APSModelDerivativeService {
     }
 
     /**
+     * Get object tree (hierarchy) for a specific view/guid
+     * This returns the hierarchical structure with categories and families
+     */
+    async getObjectTree(urn: string, guid: string) {
+        const token = await apsAuthService.getInternalToken();
+        try {
+            const result = await this.api.getModelviewMetadata(urn, guid, {}, null, { access_token: token });
+            return result.body;
+        } catch (error: any) {
+            console.error('Failed to get object tree:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all properties for the default 3D view of the model
+     */
+    async getAllModelProperties(urn: string) {
+        const metadata = await this.getMetadata(urn);
+        const viewGeometry = metadata.data.metadata.find((m: any) => m.role === '3d' && m.isMasterView)
+            || metadata.data.metadata.find((m: any) => m.role === '3d');
+
+        if (!viewGeometry) {
+            throw new Error('No 3D view found in model metadata');
+        }
+
+        return this.getProperties(urn, viewGeometry.guid);
+    }
+
+    /**
      * Get download URL and cookies for a derivative using signed cookies
      */
     async getDerivativeDownloadInfo(urn: string, derivativeUrn: string): Promise<{ url: string, headers: any }> {
@@ -203,7 +278,7 @@ export class APSModelDerivativeService {
 
             // The response can contain 'url' or 'downloadUrl' depending on the API version/state
             const downloadUrl = response.data.url || response.data.downloadUrl;
-            
+
             if (!downloadUrl) {
                 throw new Error('No download URL found in signedcookies response');
             }
@@ -211,7 +286,7 @@ export class APSModelDerivativeService {
             // Extract cookies from Set-Cookie header
             const setCookie = response.headers['set-cookie'];
             const headers: any = {};
-            
+
             if (setCookie) {
                 headers['Cookie'] = setCookie.map((c: string) => c.split(';')[0]).join('; ');
             }

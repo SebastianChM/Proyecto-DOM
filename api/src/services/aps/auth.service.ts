@@ -2,20 +2,6 @@
 import { AuthClientTwoLegged, AuthClientThreeLegged, UserProfileApi } from 'forge-apis';
 import axios from 'axios';
 
-import fs from 'fs';
-import path from 'path';
-
-const LOG_FILE = path.join(process.cwd(), 'auth_callback_debug.txt');
-
-function logDebug(message: string) {
-    try {
-        const timestamp = new Date().toISOString();
-        fs.appendFileSync(LOG_FILE, `[${timestamp}] [SERVICE] ${message}\n`);
-    } catch (e) {
-        console.error('Failed to write to log file:', e);
-    }
-}
-
 export class APSAuthService {
     private twoLeggedClient: any;
     private threeLeggedClient: any;
@@ -87,32 +73,27 @@ export class APSAuthService {
      * Get User Profile from Autodesk
      */
     async getUserProfile(accessToken: string) {
-        logDebug(`Getting user profile with token: ${accessToken.substring(0, 10)}...`);
-        
         // Method 1: Try SDK first (Standard way)
         try {
-            logDebug('Attempting SDK call...');
             const api = new UserProfileApi();
             const response = await api.getUserProfile(this.threeLeggedClient, { access_token: accessToken });
-            logDebug(`SDK Response Body Keys: ${Object.keys(response.body || {}).join(', ')}`);
             return response.body;
         } catch (sdkError: any) {
-            logDebug(`SDK call failed: ${sdkError.message}`);
+            console.warn('SDK getUserProfile failed, trying direct API call:', sdkError.message);
             
             // Method 2: Try Direct Axios call (Fallback)
             try {
-                logDebug('Attempting Direct Axios call...');
                 const response = await axios.get('https://api.userprofile.autodesk.com/user/v1/users/@me', {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
                     }
                 });
-                logDebug(`Axios Response Data Keys: ${Object.keys(response.data || {}).join(', ')}`);
                 return response.data;
             } catch (axiosError: any) {
-                const errorMsg = `Direct call also failed: ${axiosError.response?.data ? JSON.stringify(axiosError.response.data) : axiosError.message}`;
-                logDebug(errorMsg);
-                // Throw the original SDK error to keep context, or a combined error
+                console.error('Both SDK and direct API calls failed:', {
+                    sdk: sdkError.message,
+                    axios: axiosError.message
+                });
                 throw new Error(`Both SDK and Direct calls failed. SDK: ${sdkError.message}. Axios: ${axiosError.message}`);
             }
         }

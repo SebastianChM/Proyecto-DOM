@@ -1,0 +1,13 @@
+# ESPECIFICACIÓN TÉCNICA SIMPLIFICADA - DEMO
+# Para pruebas rápidas del validador
+
+Material: Concrete C30
+Thickness: 200mm
+Fire Rating: 120 mins
+Width: 450mm
+Height: 3000mm
+Reinforcement: 4Ø16
+Cover: 25mm
+Density: 2500 kg/m³
+Compressive Strength: 30 MPa
+Thermal Conductivity: 1.7 W/mK

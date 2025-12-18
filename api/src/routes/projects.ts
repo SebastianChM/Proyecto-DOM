@@ -1,8 +1,38 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
+import { cacheService, RedisKeys } from '../lib/redis';
+import { requirePermission, requireProjectAccess } from '../middleware/authorization';
+import { authorizationService } from '../services/authorization.service';
+import { z } from 'zod';
+import { APP_CONFIG } from '../config/constants';
+import { apsWebhooksService } from '../services/aps/webhooks.service';
 
 const router = Router();
+
+// Validation Schemas
+const createProjectSchema = z.object({
+    name: z.string()
+        .min(APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH, `Name must be at least ${APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH} characters`)
+        .max(APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH, `Name must be at most ${APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH} characters`),
+    description: z.string().optional(),
+    status: z.string().optional(),
+    clientName: z.string().optional(),
+    location: z.string().optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    discipline: z.string().optional()
+}).refine(data => {
+    if (data.startDate && data.endDate) {
+        return new Date(data.startDate) < new Date(data.endDate);
+    }
+    return true;
+}, {
+    message: "End date must be after start date",
+    path: ["endDate"]
+});
+
+const updateProjectSchema = createProjectSchema.partial();
 
 /**
  * @swagger
@@ -48,21 +78,34 @@ const router = Router();
 // Create project
 router.post('/', async (req, res) => {
     try {
-        const { name, description, status, clientName, location, startDate, endDate, discipline } = req.body;
+        // Validate input
+        const validation = createProjectSchema.safeParse(req.body);
+        console.log('POST /projects validation:', JSON.stringify(validation, null, 2));
 
-        if (!name) {
-            return res.status(400).json({ error: 'Project name is required' });
+        if (!validation.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: (validation.error as any).issues.map((e: any) => ({ path: e.path.join('.'), message: e.message }))
+            });
         }
 
-        // Get or create temporary user (replace with actual auth later)
-        let user = await prisma.user.findFirst();
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                    email: 'temp@example.com',
-                    name: 'Temporary User',
-                    apsUserId: 'temp-user-id'
-                }
+        const { name, description, status, clientName, location, startDate, endDate, discipline } = validation.data;
+
+        // Usuario autenticado es el owner
+        const userId = req.session?.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        // Check Project Limit
+        const projectCount = await prisma.project.count({
+            where: { ownerId: userId }
+        });
+
+        if (projectCount >= APP_CONFIG.LIMITS.MAX_PROJECTS_PER_USER) {
+            return res.status(400).json({
+                error: 'Project limit reached',
+                message: `You cannot create more than ${APP_CONFIG.LIMITS.MAX_PROJECTS_PER_USER} projects.`
             });
         }
 
@@ -76,7 +119,8 @@ router.post('/', async (req, res) => {
                 startDate: startDate ? new Date(startDate) : undefined,
                 endDate: endDate ? new Date(endDate) : undefined,
                 discipline,
-                userId: user.id
+                ownerId: userId, // Owner es quien crea el proyecto
+                isFromAutodesk: false // Proyecto local
             },
             include: {
                 _count: {
@@ -85,7 +129,30 @@ router.post('/', async (req, res) => {
             }
         });
 
-        res.json(project);
+        // Crear entrada en ProjectMember como OWNER
+        await prisma.projectMember.create({
+            data: {
+                projectId: project.id,
+                userId: userId,
+                role: 'OWNER',
+                acceptedAt: new Date() // Auto-aceptado
+            }
+        });
+
+        // Subscribing to Autodesk Webhooks if this is an Autodesk project
+        if (project.isFromAutodesk && project.apsOwnerId) {
+            // apsOwnerId in this context is likely storing the folder/project ID for external projects?
+            // Actually currently 'create project' is local. When we IMPORT/LINK from Autodesk, that's where we need to hook.
+            // But wait, user said "synchronize projects of autodesk".
+            // We need to find where we LINK/IMPORT projects.
+            // If this route creates basic projects, we might need to look for an 'import' route or similar.
+            // Searching for import logic...
+        }
+
+        // Invalidate cache after creating project
+        await cacheService.invalidatePattern('cache:projects:list:*').catch(() => { });
+
+        res.status(201).json(project);
     } catch (error: any) {
         console.error('Failed to create project:', error);
         res.status(500).json({ error: 'Failed to create project', details: error.message });
@@ -117,20 +184,60 @@ router.post('/', async (req, res) => {
  *       500:
  *         description: Server error
  */
-// List projects
+// List projects (with cache) - Solo proyectos donde el usuario tiene acceso
 router.get('/', async (req, res) => {
     try {
-        const projects = await prisma.project.findMany({
-            orderBy: { updatedAt: 'desc' },
-            include: {
-                files: true,
-                _count: {
-                    select: { files: true }
-                }
-            }
-        });
+        const userId = req.session?.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        const cacheKey = RedisKeys.projectsList(userId);
+
+        // Cache for 1 minute
+        const projects = await cacheService.getOrSet(
+            cacheKey,
+            async () => {
+                // Obtener proyectos donde el usuario es owner o miembro
+                const userProjects = await prisma.project.findMany({
+                    where: {
+                        OR: [
+                            { ownerId: userId }, // Owner directo
+                            {
+                                members: {
+                                    some: {
+                                        userId: userId,
+                                        acceptedAt: { not: null } // Solo miembros que aceptaron
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    orderBy: { updatedAt: 'desc' },
+                    include: {
+                        files: true,
+                        _count: {
+                            select: {
+                                files: true,
+                                members: true
+                            }
+                        },
+                        owner: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true
+                            }
+                        }
+                    }
+                });
+                return userProjects;
+            },
+            60
+        );
         res.json(projects);
     } catch (error: any) {
+        console.error('Error fetching projects:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -156,55 +263,39 @@ router.get('/', async (req, res) => {
  *       500:
  *         description: Server error
  */
-// Get project by ID
-router.get('/:id', async (req, res) => {
+// Get project by ID - Requiere permiso de lectura
+router.get('/:id', requireProjectAccess, async (req, res) => {
     try {
-        const project = await prisma.project.findUnique({
-            where: { id: req.params.id },
-            include: {
-                files: {
-                    orderBy: { createdAt: 'desc' },
+        const cacheKey = RedisKeys.projectDetail(req.params.id);
+
+        // Cache for 1 minute
+        const project = await cacheService.getOrSet(
+            cacheKey,
+            async () => {
+                return await prisma.project.findUnique({
+                    where: { id: req.params.id },
                     include: {
-                        versions: true,
-                        conversions: true
+                        files: {
+                            orderBy: { createdAt: 'desc' },
+                            include: {
+                                versions: true,
+                                conversions: true
+                            }
+                        },
+                        comparisons: true
                     }
-                },
-                comparisons: true
-            }
-        });
+                });
+            },
+            60
+        );
 
         if (!project) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        // Check status for translating files
-        const updatedFiles = await Promise.all(project.files.map(async (file) => {
-            // If file is translating and is NOT a local mock, check APS status
-            if (file.status === 'TRANSLATING' && file.apsUrn && !file.apsUrn.startsWith('local-')) {
-                try {
-                    const manifest = await modelDerivativeService.getManifest(file.apsUrn);
-
-                    if (manifest.status === 'success') {
-                        console.log(`✅ Translation completed for ${file.name}`);
-                        await prisma.file.update({
-                            where: { id: file.id },
-                            data: { status: 'READY' }
-                        });
-                        return { ...file, status: 'READY' };
-                    } else if (manifest.status === 'failed') {
-                        console.log(`❌ Translation failed for ${file.name}`);
-                        await prisma.file.update({
-                            where: { id: file.id },
-                            data: { status: 'FAILED' }
-                        });
-                        return { ...file, status: 'FAILED' };
-                    }
-                } catch (e) {
-                    console.error(`Failed to check manifest for ${file.name}:`, e);
-                }
-            }
-            return file;
-        }));
+        // Check status for translating files - REMOVED FOR PERFORMANCE
+        // Status checks are now handled via /api/files/sync-status endpoint called by frontend
+        const updatedFiles = project.files;
 
         // Add progress estimation to files
         const filesWithProgress = updatedFiles.map(file => {
@@ -259,10 +350,20 @@ router.get('/:id', async (req, res) => {
  *       500:
  *         description: Server error
  */
-// Update project
-router.put('/:id', async (req, res) => {
+// Update project - Requiere permiso de edición
+router.put('/:id', requirePermission('project:update'), async (req, res) => {
     try {
-        const { name, description, status, clientName, location, startDate, endDate, discipline } = req.body;
+        const validation = updateProjectSchema.safeParse(req.body);
+        console.log('PUT /projects/:id validation:', JSON.stringify(validation, null, 2));
+
+        if (!validation.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: (validation.error as any).issues.map((e: any) => ({ path: e.path.join('.'), message: e.message }))
+            });
+        }
+
+        const { name, description, status, clientName, location, startDate, endDate, discipline } = validation.data;
         const project = await prisma.project.update({
             where: { id: req.params.id },
             data: {
@@ -276,6 +377,14 @@ router.put('/:id', async (req, res) => {
                 discipline
             }
         });
+
+        // Invalidate caches
+        await Promise.all([
+            cacheService.del(RedisKeys.projectDetail(req.params.id)),
+            cacheService.invalidatePattern('cache:projects:list:*'),
+            cacheService.invalidatePattern('cache:dashboard:stats:*')
+        ]);
+
         res.json(project);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -301,15 +410,103 @@ router.put('/:id', async (req, res) => {
  *       500:
  *         description: Server error
  */
-// Delete project
-router.delete('/:id', async (req, res) => {
+// Delete project - Requiere permiso de eliminación
+router.delete('/:id', requirePermission('project:delete'), async (req, res) => {
     try {
         await prisma.project.delete({
             where: { id: req.params.id }
         });
+
+        // Invalidate caches
+        await Promise.all([
+            cacheService.del(RedisKeys.projectDetail(req.params.id)),
+            cacheService.invalidatePattern('cache:projects:list:*'),
+            cacheService.invalidatePattern('cache:dashboard:stats:*')
+        ]);
+
         res.json({ success: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+const importApsProjectSchema = z.object({
+    name: z.string(),
+    apsProjectId: z.string(), // b.xxxx (Hub Project ID)
+    apsFolderId: z.string(), // Root folder ID to watch
+    hubId: z.string(),
+    description: z.string().optional(),
+    location: z.string().optional(),
+    clientName: z.string().optional()
+});
+
+/**
+ * @swagger
+ * /projects/import-aps:
+ *   post:
+ *     summary: Import/Link an Autodesk Project
+ *     tags: [Projects]
+ */
+// Import Autodesk Project & Auto-Subscribe to Webhooks
+router.post('/import-aps', async (req, res) => {
+    try {
+        const userId = req.session?.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+        const validation = importApsProjectSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ error: 'Invalid input', details: validation.error });
+        }
+
+        const { name, apsProjectId, apsFolderId, hubId, description, location, clientName } = validation.data;
+
+        // 1. Create Local Project Record
+        console.log(`🔗 Importing Autodesk Project: ${name} (${apsProjectId})`);
+
+        const project = await prisma.project.create({
+            data: {
+                name,
+                description,
+                status: 'Active',
+                clientName: clientName || 'Autodesk Import',
+                location,
+                ownerId: userId,
+                isFromAutodesk: true,
+                apsOwnerId: apsProjectId // Using apsOwnerId to store the APS Project ID
+            }
+        });
+
+        // 2. Add Owner
+        await prisma.projectMember.create({
+            data: { projectId: project.id, userId, role: 'OWNER', acceptedAt: new Date() }
+        });
+
+        // 3. Subscribe to Webhooks for this Project's Folder
+        try {
+            console.log(`🎣 Subscribing to folder updates: ${apsFolderId}`);
+            // We pass workflowAttribute so we know WHICH local project this belongs to when event fires
+            await apsWebhooksService.createWebhook('data', 'dm.version.added', {
+                folder: apsFolderId,
+                workflowAttribute: {
+                    projectId: project.id,
+                    userId: userId,
+                    apsProjectId: apsProjectId
+                }
+            });
+            console.log(`✅ Webhook subscription active for project ${project.id}`);
+
+        } catch (hookError: any) {
+            console.error('⚠️ Failed to subscribe to webhooks:', hookError.message);
+            // Don't fail the import, just warn
+        }
+
+        await cacheService.invalidatePattern('cache:projects:list:*').catch(() => { });
+
+        res.status(201).json(project);
+
+    } catch (error: any) {
+        console.error('Import failed:', error);
+        res.status(500).json({ error: 'Failed to import project', details: error.message });
     }
 });
 

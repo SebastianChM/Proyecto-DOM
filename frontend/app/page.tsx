@@ -1,10 +1,31 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Building2 } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Building2, User, ArrowRight } from "lucide-react"
+
+interface LastUser {
+  name: string
+  email: string
+  picture?: string
+}
 
 export default function LoginPage() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+  const [lastUser, setLastUser] = useState<LastUser | null>(null)
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('dom_last_user')
+    if (storedUser) {
+      try {
+        setLastUser(JSON.parse(storedUser))
+      } catch (e) {
+        console.error("Failed to parse last user", e)
+      }
+    }
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dom-blue-dark via-[#0d0d40] to-black p-4 relative overflow-hidden">
@@ -56,25 +77,62 @@ export default function LoginPage() {
         {/* Login Card */}
         <Card className="w-full shadow-2xl border-white/10 bg-white/95 backdrop-blur-xl stagger-2 animate-fade-in">
           <CardHeader className="text-center space-y-2 pt-8">
-            <CardTitle className="text-2xl font-bold text-dom-black">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl font-bold text-dom-black">
+              {lastUser ? `Welcome back, ${lastUser.name.split(' ')[0]}` : 'Welcome Back'}
+            </CardTitle>
             <CardDescription className="text-base text-gray-500">
-              Sign in to access your projects
+              {lastUser ? 'Continue with your previous account or switch' : 'Sign in to access your projects'}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6 pb-8">
-            <div className="bg-dom-blue/5 border-l-4 border-dom-blue p-4 rounded-r-md">
-              <p className="font-semibold text-dom-blue-dark text-sm mb-1">Secure Access</p>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Authenticated via Autodesk Platform Services for enterprise-grade security.
-              </p>
-            </div>
+            {lastUser ? (
+              <div className="space-y-4">
+                {/* Last User Profile Card */}
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                    <AvatarImage src={lastUser.picture} alt={lastUser.name} />
+                    <AvatarFallback className="bg-dom-blue/10 text-dom-blue">
+                      <User className="w-6 h-6" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{lastUser.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{lastUser.email}</p>
+                  </div>
+                </div>
 
-            <Button className="w-full h-14 text-base font-semibold bg-dom-blue hover:bg-dom-blue-dark text-white shadow-lg shadow-dom-blue/20 transition-all hover:scale-[1.02]" size="lg" asChild>
-              <Link href={`${API_URL}/api/auth/login`}>
-                Sign In with Autodesk
-              </Link>
-            </Button>
+                <div className="grid gap-3">
+                  <Button className="w-full h-12 bg-dom-blue hover:bg-dom-blue-dark text-white shadow-md transition-all" asChild>
+                    <a href="/api/auth/login" className="flex items-center justify-center gap-2">
+                      Continue as {lastUser.name.split(' ')[0]}
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </a>
+                  </Button>
+
+                  <Button variant="outline" className="w-full h-12 border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-colors" asChild>
+                    <a href="/api/auth/login?prompt=login">
+                      Sign in with different account
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="bg-dom-blue/5 border-l-4 border-dom-blue p-4 rounded-r-md">
+                  <p className="font-semibold text-dom-blue-dark text-sm mb-1">Secure Access</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    Authenticated via Autodesk Platform Services for enterprise-grade security.
+                  </p>
+                </div>
+
+                <Button className="w-full h-14 text-base font-semibold bg-dom-blue hover:bg-dom-blue-dark text-white shadow-lg shadow-dom-blue/20 transition-all hover:scale-[1.02]" size="lg" asChild>
+                  <a href="/api/auth/login">
+                    Sign In with Autodesk
+                  </a>
+                </Button>
+              </>
+            )}
           </CardContent>
 
           <CardFooter className="flex justify-center border-t border-gray-100 py-6">

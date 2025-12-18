@@ -41,7 +41,7 @@ export function LocationPicker({ value, onChange, className }: LocationPickerPro
           )
           setPredictions(response.data)
         } catch (error) {
-          console.error("Failed to fetch locations", error)
+          console.warn("Failed to fetch locations", error)
         } finally {
           setLoading(false)
         }
@@ -71,50 +71,52 @@ export function LocationPicker({ value, onChange, className }: LocationPickerPro
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-gray-800 shadow-2xl">
-        <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Search location..." 
-            value={query}
-            onValueChange={setQuery}
-          />
-          <CommandList>
+        <div className="flex flex-col">
+          <div className="flex items-center border-b px-3">
+            <MapPin className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <input
+              className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Search location..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="max-h-[300px] overflow-y-auto overflow-x-hidden">
             {loading && <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>}
             {!loading && predictions.length === 0 && query.length > 2 && (
-              <CommandEmpty>No location found.</CommandEmpty>
+              <div className="py-6 text-center text-sm text-muted-foreground">No location found.</div>
             )}
             {!loading && predictions.length === 0 && query.length <= 2 && (
-               <div className="py-6 text-center text-sm text-muted-foreground">Type to search...</div>
+              <div className="py-6 text-center text-sm text-muted-foreground">Type to search...</div>
             )}
-            <CommandGroup>
-              {predictions.map((prediction) => (
-                <CommandItem
-                  key={prediction.place_id}
-                  value={prediction.place_id.toString()}
-                  onSelect={() => {
-                    onChange(prediction.display_name)
-                    setOpen(false)
-                  }}
-                  onPointerDown={(e) => {
-                    // Prevent default to avoid focus loss which might close the popover before selection
-                    e.preventDefault()
-                    onChange(prediction.display_name)
-                    setOpen(false)
-                  }}
-                  className="cursor-pointer"
-                >
-                  <MapPin className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                  <span className="truncate">{prediction.display_name}</span>
-                  <Check
+            {predictions.length > 0 && (
+              <ul className="p-1">
+                {predictions.map((prediction) => (
+                  <li
+                    key={prediction.place_id}
+                    onClick={() => {
+                      onChange(prediction.display_name)
+                      setOpen(false)
+                    }}
                     className={cn(
-                      "ml-auto h-4 w-4",
-                      value === prediction.display_name ? "opacity-100" : "opacity-0"
+                      "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                      value === prediction.display_name && "bg-accent text-accent-foreground"
                     )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+                  >
+                    <MapPin className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                    <span className="truncate">{prediction.display_name}</span>
+                    <Check
+                      className={cn(
+                        "ml-auto h-4 w-4",
+                        value === prediction.display_name ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   )

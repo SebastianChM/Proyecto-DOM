@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import { apsAuthService } from '../services/aps/auth.service';
 import prisma from '../lib/prisma';
-import fs from 'fs';
-import path from 'path';
 
 const router = Router();
 
@@ -19,8 +17,25 @@ const router = Router();
  */
 // Login endpoint - Redirects to APS login
 router.get('/login', (req, res) => {
-    const url = apsAuthService.getAuthorizationUrl();
-    res.redirect(url);
+    try {
+        let url = apsAuthService.getAuthorizationUrl();
+
+        // Check if force login is requested (to switch accounts)
+        if (req.query.prompt === 'login' || req.query.force === 'true') {
+            url += '&prompt=login';
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Redirecting to Autodesk Login URL:', url);
+        }
+        res.redirect(url);
+    } catch (error: any) {
+        console.error('Failed to generate Autodesk login URL:', error);
+
+        const frontendUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        // Redirect to our new error page
+        res.redirect(`${frontendUrl}/auth/error?error=generation_failed&details=${encodeURIComponent(error.message)}`);
+    }
 });
 
 /**
@@ -44,31 +59,41 @@ router.get('/login', (req, res) => {
  */
 // Callback endpoint - Handles APS response
 router.get('/callback', async (req, res) => {
-    const debugLogPath = path.join(process.cwd(), 'auth_callback_debug.txt');
-    fs.appendFileSync(debugLogPath, `[${new Date().toISOString()}] Callback hit with code: ${req.query.code ? 'YES' : 'NO'}\n`);
-
     try {
+        const error = req.query.error;
         const code = req.query.code as string;
+
+        // Handle errors or user cancellation
+        if (error) {
+            console.warn('Auth callback error:', error, req.query.error_description);
+            // If user cancelled (access_denied), redirect gracefully
+            const redirectUrl = process.env.NEXTAUTH_URL
+                ? `${process.env.NEXTAUTH_URL}/api/auth/login?error=${error}`
+                : (process.env.NODE_ENV !== 'production' ? `http://localhost:3000/api/auth/login?error=${error}` : '/');
+
+            // Ideally redirect to a frontend page that shows the error, typically /login
+            // But we don't have a dedicated /login page on frontend (it redirects to API login).
+            // We should redirect to the ROOT page with an error query param if possible?
+            // User requested: "Cancel" -> "allow trying another account".
+            // So we redirect them to the "authorize" page again? Or a page where they can click "Login" again.
+            // Since our /login endpoint REDIRECTS to Autodesk, redirecting to /login creates a loop if we are not careful.
+
+            // Redirect to Frontend Root
+            const frontendUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+            return res.redirect(`${frontendUrl}?error=auth_cancelled`);
+        }
+
         if (!code) {
-            throw new Error('No code provided');
+            const frontendUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+            return res.redirect(`${frontendUrl}?error=no_code`);
         }
 
         const credentials = await apsAuthService.getPublicToken(code);
-
-        const debugPath = path.join(process.cwd(), 'auth_callback_debug.txt');
-        fs.appendFileSync(debugPath, `[${new Date().toISOString()}] Token received. Scope: ${credentials.scope}\n`);
 
         // Try to get user profile, but don't fail if it returns 403
         let profile: any = null;
         try {
             profile = await apsAuthService.getUserProfile(credentials.access_token);
-
-            // DEBUG: Capture the exact profile data to a file for inspection
-            try {
-                fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] Profile received: ${JSON.stringify(profile)}\n`);
-            } catch (err) {
-                console.error('Failed to write debug profile:', err);
-            }
 
             // Validate profile structure
             // Note: Autodesk User Profile API v1 returns 'emailId', but OIDC compliant endpoints return 'email'
@@ -76,7 +101,6 @@ router.get('/callback', async (req, res) => {
             const email = profile.email || profile.emailId;
 
             if (!profile || !email) {
-                fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] WARNING: Profile incomplete (missing email)\n`);
                 console.warn('Received incomplete profile:', JSON.stringify(profile));
                 throw new Error('Profile missing email');
             }
@@ -88,15 +112,19 @@ router.get('/callback', async (req, res) => {
             profile.userId = profile.sub || profile.userId; // 'sub' is the standard OIDC user ID
 
         } catch (profileError: any) {
-            fs.appendFileSync(debugPath, `[${new Date().toISOString()}] [ROUTE] ERROR fetching profile: ${JSON.stringify(profileError)}\n`);
             console.error('CRITICAL: Could not fetch user profile. Error details:', profileError);
 
-            // Fallback
+            // In production, fail authentication if profile cannot be fetched
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('Authentication failed: Unable to retrieve user profile');
+            }
+
+            // Only use fallback in development for testing
             profile = {
-                emailId: 'user@autodesk.com',
-                firstName: 'Autodesk',
+                emailId: 'dev-user@localhost.com',
+                firstName: 'Dev',
                 lastName: 'User',
-                userId: 'aps-user-' + Date.now()
+                userId: 'dev-user-' + Date.now()
             };
         }
 
@@ -105,18 +133,23 @@ router.get('/callback', async (req, res) => {
         const lastName = profile.lastName || profile.familyName || 'User';
         const fullName = `${firstName} ${lastName}`;
 
+        // Determinar rol basado en lista de admins
+        const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+        const isAdmin = adminEmails.includes(profile.emailId.toLowerCase());
+
         // Create or update user in local DB
         const user = await prisma.user.upsert({
             where: { email: profile.emailId },
             update: {
                 name: fullName,
                 apsUserId: profile.userId || 'unknown',
+                role: isAdmin ? 'ADMIN' : 'USER' // Actualizar rol si cambió
             },
             create: {
                 email: profile.emailId,
                 name: fullName,
                 apsUserId: profile.userId || 'unknown',
-                role: 'USER'
+                role: isAdmin ? 'ADMIN' : 'USER'
             }
         });
 
@@ -143,12 +176,24 @@ router.get('/callback', async (req, res) => {
                 role: user.role,
                 picture: pictureUrl
             };
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('[DEBUG] Auth Callback: Session saved', {
+                    user: req.session.user.email,
+                    hasToken: !!req.session.token
+                });
+            }
         }
 
-        res.redirect('http://localhost:3000/dashboard'); // Redirect to frontend dashboard
+        const redirectUrl = process.env.NEXTAUTH_URL
+            ? `${process.env.NEXTAUTH_URL}/dashboard`
+            : (process.env.NODE_ENV !== 'production' ? 'http://localhost:3000/dashboard' : '/dashboard');
+        res.redirect(redirectUrl);
     } catch (error: any) {
         console.error('Callback error:', error);
-        res.status(500).json({ error: 'Authentication failed', details: error.message });
+        // Redirect to frontend with error message
+        const frontendUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        res.redirect(`${frontendUrl}?error=auth_failed&details=${encodeURIComponent(error.message)}`);
     }
 });
 
@@ -287,6 +332,28 @@ router.get('/me', async (req, res) => {
     } catch (error) {
         res.status(401).json({ error: 'Invalid session' });
     }
+});
+
+// Dev login endpoint - Bypass for debugging
+router.get('/dev-login', (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).send('Not Found');
+    }
+
+    if (req.session) {
+        req.session.token = 'mock-token';
+        req.session.refreshToken = 'mock-refresh-token';
+        req.session.expiresAt = Date.now() + 3600000;
+        req.session.user = {
+            id: 'cf2dd72f-7e84-45f2-b225-876510a57b10', // Real Admin ID from DB
+            name: 'Sebastián Chirino',
+            email: 'sebastian.chirino@dom.com',
+            role: 'ADMIN',
+            picture: ''
+        };
+    }
+    const redirectUrl = process.env.NEXTAUTH_URL ? `${process.env.NEXTAUTH_URL}/dashboard` : 'http://localhost:3000/dashboard';
+    res.redirect(redirectUrl);
 });
 
 export default router;

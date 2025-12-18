@@ -3,15 +3,13 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import axios from "axios"
+import apiClient from "@/lib/axios-config"
 import { ArrowLeft, Clock, GitCompare, Eye, CheckSquare, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useUser } from "@/context/UserContext"
 import { showError } from "@/lib/error-handler"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 interface FileVersion {
     id: string
@@ -49,7 +47,7 @@ export default function FileHistoryPage() {
     useEffect(() => {
         const fetchFileHistory = async () => {
             try {
-                const response = await axios.get<VersionsResponse>(`${API_URL}/api/files/${fileId}/versions`)
+                const response = await apiClient.get<VersionsResponse>(`/api/files/${fileId}/versions`)
                 setData(response.data)
             } catch (error) {
                 showError(error, user?.role, "Failed to fetch file history")

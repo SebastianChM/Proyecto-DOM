@@ -1,16 +1,27 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { HubsApi, ProjectsApi, FoldersApi } from 'forge-apis';
 import { apsAuthService } from '../services/aps/auth.service';
 import { modelDerivativeService } from '../services/aps/model-derivative.service';
+import { apsDataManagementService } from '../services/aps/data-management.service';
 
 const router = Router();
+const isDev = process.env.NODE_ENV !== 'production';
 
 // Helper to get 3-legged token from session
-const getPublicToken = (req: any) => {
-    if (!req.session || !req.session.token) {
-        throw new Error('Unauthorized: No session token');
+const getPublicToken = (req: Request) => {
+    if (isDev) {
+        console.log('[DEBUG] Session check:', {
+            hasSession: !!req.session,
+            hasToken: !!(req.session as any)?.token
+        });
     }
-    return { access_token: req.session.token };
+
+    if (!req.session || !(req.session as any).token) {
+        const error: any = new Error('Unauthorized: No session token');
+        error.statusCode = 401;
+        throw error;
+    }
+    return { access_token: (req.session as any).token };
 };
 
 /**
@@ -104,9 +115,8 @@ router.get('/derivative/:urn/:derivativeUrn', async (req, res) => {
 router.get('/hubs', async (req, res) => {
     try {
         const token = getPublicToken(req);
-        const hubsApi = new HubsApi();
-        const response = await hubsApi.getHubs(null, token, token);
-        res.json(response.body.data);
+        const hubs = await apsDataManagementService.getHubs(token.access_token);
+        res.json(hubs);
     } catch (error: any) {
         console.error('Failed to list hubs:', error);
         res.status(error.statusCode || 500).json({ error: 'Failed to list hubs', details: error.message });
@@ -140,10 +150,9 @@ router.get('/hubs', async (req, res) => {
 router.get('/hubs/:hubId/projects', async (req, res) => {
     try {
         const token = getPublicToken(req);
-        const projectsApi = new ProjectsApi();
         const { hubId } = req.params;
-        const response = await projectsApi.getHubProjects(hubId, null, token, token);
-        res.json(response.body.data);
+        const projects = await apsDataManagementService.getProjects(hubId, token.access_token);
+        res.json(projects);
     } catch (error: any) {
         console.error(`Failed to list projects for hub ${req.params.hubId}:`, error);
         res.status(error.statusCode || 500).json({ error: 'Failed to list projects', details: error.message });
@@ -226,10 +235,9 @@ router.get('/hubs/:hubId/projects/:projectId/topFolders', async (req, res) => {
 router.get('/projects/:projectId/folders/:folderId/contents', async (req, res) => {
     try {
         const token = getPublicToken(req);
-        const foldersApi = new FoldersApi();
         const { projectId, folderId } = req.params;
-        const response = await foldersApi.getFolderContents(projectId, folderId, null, token, token);
-        res.json(response.body.data);
+        const contents = await apsDataManagementService.getFolderContents(projectId, folderId, token.access_token);
+        res.json(contents);
     } catch (error: any) {
         console.error(`Failed to list folder contents for ${req.params.folderId}:`, error);
         res.status(error.statusCode || 500).json({ error: 'Failed to list folder contents', details: error.message });

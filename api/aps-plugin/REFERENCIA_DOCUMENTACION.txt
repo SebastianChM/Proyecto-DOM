@@ -1,0 +1,87 @@
+========================================
+DESIGN AUTOMATION FOR REVIT - DOCUMENTACION DE REFERENCIA
+========================================
+
+Este archivo documenta las fuentes oficiales y la informacion necesaria 
+para compilar y desplegar el plugin de conversion RVT a PDF.
+
+========================================
+URLs DE DOCUMENTACION OFICIAL
+========================================
+
+REVIT API (para el codigo C#):
+- Revit API 2024 Docs: https://www.revitapidocs.com/2024/
+- ExportPDFSettings Class: https://www.revitapidocs.com/2024/0fff94e4-9626-0d90-ecb2-871f1165623c.htm
+- PDFExportOptions Class: Buscar "PDFExportOptions" en revitapidocs.com/2024
+
+AUTODESK PLATFORM SERVICES (APS):
+- Design Automation Overview: https://aps.autodesk.com/en/docs/design-automation/v3/
+- DA for Revit Tutorial: https://aps.autodesk.com/en/docs/design-automation/v3/tutorials/revit/
+
+PORTAL DE DESARROLLADOR:
+- APS Developer Portal: https://aps.autodesk.com/
+- Mis Aplicaciones: https://aps.autodesk.com/myapps/
+
+========================================
+CLASES REVIT API UTILIZADAS
+========================================
+
+1. PDFExportOptions (usada en Command.cs)
+   Namespace: Autodesk.Revit.DB
+   
+   Propiedades principales:
+   - FileName: Nombre del archivo PDF de salida
+   - Combine: Si true, combina todas las laminas en un solo PDF
+   - StopOnError: Detener en caso de error
+   - ExportQuality: Calidad de exportacion (PDFExportQualityType.PdfHigh)
+   - AlwaysUseRasterizer: Usar rasterizacion
+
+2. ExportPDFSettings
+   Namespace: Autodesk.Revit.DB
+   
+   Metodos principales:
+   - Create(): Crea nuevo elemento de configuracion
+   - FindByName(): Busca configuracion por nombre
+   - GetOptions(): Obtiene copia de opciones de exportacion
+   - SetOptions(): Establece opciones de exportacion
+   - GetActivePredefinedSettings(): Obtiene configuracion activa
+   - ListNames(): Lista nombres de configuraciones
+
+========================================
+REQUISITOS DE COMPILACION
+========================================
+
+1. Visual Studio 2022 Community (gratuito)
+   - Workload: ".NET desktop development"
+
+2. Referencias DLL de Revit 2024
+   - RevitAPI.dll (C:\Program Files\Autodesk\Revit 2024\)
+   - RevitAPIUI.dll (C:\Program Files\Autodesk\Revit 2024\)
+
+3. NuGet Package
+   - Autodesk.Forge.DesignAutomation.Revit v2024.0.2
+
+========================================
+FLUJO DE DESIGN AUTOMATION
+========================================
+
+1. Compilar plugin -> RevitToPdf.dll
+2. Empaquetar en estructura .bundle con PackageContents.xml
+3. Comprimir a RevitToPdfApp.zip
+4. Subir AppBundle a APS via API
+5. Crear Activity que vincule el AppBundle
+6. Enviar WorkItems para procesar archivos RVT
+7. Descargar PDFs generados desde OSS
+
+========================================
+NOTAS IMPORTANTES
+========================================
+
+- La exportacion a PDF directa esta disponible desde Revit 2022+
+- El plugin corre en servidores headless de Autodesk (sin UI)
+- Por eso se usa IExternalDBApplication en lugar de IExternalApplication
+- No se puede usar RevitAPIUI.dll para funciones de UI
+
+========================================
+Ultima actualizacion: 2025-12-13
+========================================

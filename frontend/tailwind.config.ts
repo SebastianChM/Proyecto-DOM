@@ -51,9 +51,9 @@ const config: Config = {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
-                'dom-blue': '#005EB8', // DOM Corporate Blue
-                'dom-blue-dark': '#003366',
-                'dom-blue-light': '#4D94DB',
+                'dom-blue': '#10069f', // DOM Corporate Blue (Updated)
+                'dom-blue-dark': '#0d0580', // Darker shade of new blue
+                'dom-blue-light': '#4d46ff', // Lighter shade
                 'dom-black': '#1A1A1D',
             },
             borderRadius: {
@@ -78,6 +78,14 @@ const config: Config = {
                     '0%': { transform: 'translateY(20px)', opacity: '0' },
                     '100%': { transform: 'translateY(0)', opacity: '1' },
                 },
+                'slide-in-right': {
+                    '0%': { transform: 'translateX(20px)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' },
+                },
+                'scale-in': {
+                    '0%': { transform: 'scale(0.95)', opacity: '0' },
+                    '100%': { transform: 'scale(1)', opacity: '1' },
+                },
                 'pulse-blue': {
                     '0%, 100%': { opacity: '1' },
                     '50%': { opacity: '0.7' },
@@ -97,7 +105,17 @@ const config: Config = {
             }
         },
     },
-    plugins: [tailwindcssAnimate],
+    plugins: [
+        tailwindcssAnimate,
+        function ({ addBase }: { addBase: any }) {
+            addBase({
+                'html, :host': {
+                    '-webkit-text-size-adjust': '100%',
+                    'text-size-adjust': '100%',
+                },
+            });
+        },
+    ],
 };
 
 export default config;

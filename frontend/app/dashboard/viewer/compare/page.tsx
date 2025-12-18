@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import apiClient from "@/lib/axios-config"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, RefreshCw } from "lucide-react"
 import { useUser } from "@/context/UserContext"
 import { showError } from "@/lib/error-handler"
+import { VersionSelector, Version } from "@/components/viewer/VersionSelector"
 
 declare global {
     interface Window {
@@ -21,35 +23,88 @@ function CompareViewerContent() {
     const router = useRouter()
     const { user } = useUser()
 
-    const primaryUrn = searchParams.get('primary')
-    const diffUrn = searchParams.get('diff')
+    // URL Params
+    const urlPrimaryUrn = searchParams.get('primary')
+    const urlDiffUrn = searchParams.get('diff')
     const fileId = searchParams.get('file')
     const type = searchParams.get('type') || '3d' // '2d' or '3d'
 
-    const [loading, setLoading] = useState(true)
+    // State
+    const [versions, setVersions] = useState<Version[]>([])
+    const [primaryUrn, setPrimaryUrn] = useState<string>(urlPrimaryUrn || '')
+    const [diffUrn, setDiffUrn] = useState<string>(urlDiffUrn || '')
+
+    const [loading, setLoading] = useState(false)
+    const [viewerReady, setViewerReady] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // 1. Fetch Versions if fileId matches a real file project
     useEffect(() => {
-        if (!primaryUrn || !diffUrn || !viewerRef.current) {
-            const msg = 'Missing required parameters'
-            setError(msg)
-            showError(new Error(msg), user?.role, "Comparison Error")
-            setLoading(false)
-            return
+        if (!fileId) return
+
+        const fetchVersions = async () => {
+            try {
+                // Mock versions for now if API not ready, or implement endpoint
+                // Ideally: await apiClient.get(`/api/files/${fileId}/versions`)
+                // Fallback to mock for Demo purposes or use current URNs
+                const mockVersions: Version[] = [
+                    { id: urlPrimaryUrn || 'urn:1', versionNumber: 2, timestamp: new Date().toISOString() },
+                    { id: urlDiffUrn || 'urn:2', versionNumber: 1, timestamp: new Date(Date.now() - 86400000).toISOString() }
+                ]
+
+                // If real endpoint existed:
+                // const res = await apiClient.get(`/api/files/${fileId}/versions`)
+                // setVersions(res.data)
+
+                setVersions(mockVersions)
+
+                // Auto-select if not set
+                if (!primaryUrn && mockVersions[0]) setPrimaryUrn(mockVersions[0].id)
+                if (!diffUrn && mockVersions[1]) setDiffUrn(mockVersions[1].id)
+
+            } catch (err) {
+                console.error("Failed to fetch versions", err)
+            }
+        }
+        fetchVersions()
+    }, [fileId, urlPrimaryUrn, urlDiffUrn])
+
+    // Update URL when state changes (optional, distinct from internal state)
+    const handleVersionChange = (newUrn: string, isPrimary: boolean) => {
+        if (isPrimary) setPrimaryUrn(newUrn)
+        else setDiffUrn(newUrn)
+
+        // Reload viewer is handled by effect dependence on urns
+    }
+
+    // 2. Initialize Viewer
+    useEffect(() => {
+        if (!primaryUrn || !diffUrn || !viewerRef.current) return
+
+        let mounted = true
+        setLoading(true)
+        setError(null)
+
+        const cleanup = () => {
+            if (viewerInstanceRef.current) {
+                viewerInstanceRef.current.finish()
+                viewerInstanceRef.current = null
+                setViewerReady(false)
+            }
         }
 
         const initViewer = async () => {
             try {
-                // Load Autodesk Viewer scripts if not already loaded
+                cleanup() // Ensure clean slate
+
+                // Load Autodesk Viewer scripts
                 if (!window.Autodesk) {
                     await loadViewerScripts()
                 }
 
-                // Fetch token first
-                const res = await fetch('http://localhost:8080/api/viewer/token')
-                if (!res.ok) throw new Error('Failed to fetch viewer token')
-                const tokenData = await res.json()
-                const token = tokenData.access_token
+                // Fetch token
+                const res = await apiClient.get('/api/auth/token')
+                const token = res.data.access_token
 
                 const options = {
                     env: "AutodeskProduction",
@@ -57,128 +112,102 @@ function CompareViewerContent() {
                     isAEC: true
                 }
 
+                if (!mounted) return
+
                 window.Autodesk.Viewing.Initializer(options, async () => {
                     try {
                         const viewer = new window.Autodesk.Viewing.GuiViewer3D(viewerRef.current!)
                         viewerInstanceRef.current = viewer
 
+                        // Disable default toolbar to avoid clutter? Or keep it.
                         const startedCode = viewer.start()
                         if (startedCode > 0) {
-                            const msg = 'Failed to create a Viewer: WebGL not supported.'
-                            setError('WebGL is not supported in your browser')
-                            showError(new Error(msg), user?.role, "Viewer Initialization Error")
-                            return
+                            throw new Error('WebGL not supported')
                         }
 
-                        // console.log(`Viewer initialized, mode: ${type}`)
+                        setViewerReady(true)
 
+                        // Load Models
                         const formatUrn = (urn: string) => urn.startsWith('urn:') ? urn : `urn:${urn}`;
                         const documentId1 = formatUrn(primaryUrn);
                         const documentId2 = formatUrn(diffUrn);
 
-                        // Load both models first
-                        const loadModel = (urn: string, options: any = {}) => {
+                        const loadModel = (urn: string, opts: any = {}) => {
                             return new Promise((resolve, reject) => {
-                                window.Autodesk.Viewing.Document.load(
-                                    urn,
+                                window.Autodesk.Viewing.Document.load(urn,
                                     (doc: any) => {
                                         const defaultModel = doc.getRoot().getDefaultGeometry()
-                                        viewer.loadDocumentNode(doc, defaultModel, options)
-                                            .then((model: any) => resolve(model))
-                                            .catch((err: any) => reject(err))
+                                        viewer.loadDocumentNode(doc, defaultModel, opts)
+                                            .then(resolve)
+                                            .catch(reject)
                                     },
-                                    (errorCode: any) => reject(errorCode)
+                                    reject
                                 )
                             })
                         }
 
-                        try {
-                            // console.log('Loading primary model...')
-                            const model1 = await loadModel(documentId1)
-                            
-                            // console.log('Loading secondary model...')
-                            const model2 = await loadModel(documentId2, { 
-                                keepCurrentModels: true, 
-                                placementTransform: (new window.THREE.Matrix4()).identity() 
-                            })
+                        // Load Primary
+                        const model1 = await loadModel(documentId1)
 
-                            // console.log('Both models loaded. Initializing comparison...')
+                        // Load Secondary (Diff) with identity transform to overlay
+                        const model2 = await loadModel(documentId2, {
+                            keepCurrentModels: true,
+                            placementTransform: (new window.THREE.Matrix4()).identity()
+                        })
 
-                            // Wait a bit for geometry to settle
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        // Wait for geometry
+                        await new Promise(r => setTimeout(r, 800));
 
-                            if (type === '2d') {
-                                // Use PixelCompare for 2D sheets (PDFs)
-                                // console.log('Loading PixelCompare extension...')
-                                const pixelCompare = await viewer.loadExtension("Autodesk.Viewing.PixelCompare")
-                                if (pixelCompare) {
-                                    pixelCompare.compareTwoModels(model1, model2)
-                                    setLoading(false)
-                                } else {
-                                    throw new Error("Failed to load PixelCompare extension")
-                                }
-                            } else {
-                                // Use DiffTool for 3D and complex 2D (DWG)
-                                // console.log('Loading DiffTool extension...')
-                                const diffConfig = {
-                                    primaryModels: [model1],
-                                    diffModels: [model2],
-                                    versionA: "2",
-                                    versionB: "1",
-                                    mimeType: "application/vnd.autodesk.autocad.dwg", // Adjust based on actual file type if needed
-                                    diffMode: "overlay"
-                                }
-                                
-                                const diffTool = await viewer.loadExtension("Autodesk.DiffTool", diffConfig)
-                                if (diffTool) {
-                                    // console.log('DiffTool loaded, activating...')
-                                    diffTool.activate()
-                                    setLoading(false)
-                                } else {
-                                    throw new Error("Failed to load DiffTool extension")
-                                }
+                        // Activate Extension based on Type
+                        if (type === '2d') {
+                            const pixelCompare = await viewer.loadExtension("Autodesk.Viewing.PixelCompare")
+                            if (pixelCompare) pixelCompare.compareTwoModels(model1, model2)
+                        } else {
+                            // 3D Diff
+                            const diffConfig = {
+                                primaryModels: [model1],
+                                diffModels: [model2],
+                                versionA: "2", // Labels
+                                versionB: "1",
+                                mimeType: "application/vnd.autodesk.autocad.dwg",
+                                diffMode: "overlay"
                             }
-
-                        } catch (loadErr) {
-                            handleLoadError(loadErr, 'models')
+                            const diffTool = await viewer.loadExtension("Autodesk.DiffTool", diffConfig)
+                            if (diffTool) diffTool.activate()
                         }
 
-                    } catch (error) {
-                        setError('Failed to initialize 3D viewer')
-                        showError(error, user?.role, "Viewer Initialization Error")
-                        setLoading(false)
+                        if (mounted) setLoading(false)
+
+                    } catch (err: any) {
+                        if (mounted) {
+                            console.error(err)
+                            const msg = err.message || 'Failed to initialize comparison'
+                            setError(msg)
+                            setLoading(false)
+                        }
                     }
                 })
-            } catch (error) {
-                setError('Failed to load viewer scripts')
-                showError(error, user?.role, "Script Loading Error")
-                setLoading(false)
+
+            } catch (err: any) {
+                if (mounted) {
+                    setError('Failed to load viewer dependencies')
+                    setLoading(false)
+                }
             }
         }
 
         initViewer()
 
         return () => {
-            if (viewerInstanceRef.current) {
-                viewerInstanceRef.current.finish()
-                viewerInstanceRef.current = null
-            }
+            mounted = false
+            cleanup()
         }
-    }, [primaryUrn, diffUrn, type, user?.role])
-
-    const handleLoadError = (errorCode: any, model: string) => {
-        const msg = errorCode === 7 ? 'Model not found or invalid URN' : `Failed to load ${model} model (Error ${errorCode})`
-        setError(msg)
-        showError(new Error(msg), user?.role, "Model Loading Error")
-        setLoading(false)
-    }
+    }, [primaryUrn, diffUrn, type]) // Re-run when URNs change
 
     const loadViewerScripts = () => {
         return new Promise((resolve, reject) => {
-            if (window.Autodesk) {
-                resolve(true)
-                return
-            }
+            if (window.Autodesk) return resolve(true)
+
             const link = document.createElement('link')
             link.rel = 'stylesheet'
             link.href = 'https://developer.api.autodesk.com/modelderivative/v2/viewers/7.97/style.min.css'
@@ -193,11 +222,8 @@ function CompareViewerContent() {
     }
 
     const handleBack = () => {
-        if (fileId) {
-            router.push(`/dashboard/files/${fileId}`)
-        } else {
-            router.back()
-        }
+        if (fileId) router.push(`/dashboard/files/${fileId}`)
+        else router.back()
     }
 
     if (error) {
@@ -205,56 +231,73 @@ function CompareViewerContent() {
             <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
                 <div className="text-center">
                     <p className="text-red-500 text-xl font-semibold mb-4">{error}</p>
-                    <Button onClick={handleBack}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Go Back
-                    </Button>
+                    <Button onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="h-screen flex flex-col">
-            <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                    <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="h-screen flex flex-col bg-background">
+            {/* Header / Toolbar */}
+            <div className="bg-background border-b border-border p-3 flex items-center justify-between shadow-sm z-10">
+                <div className="flex items-center space-x-6">
+                    <Button variant="ghost" size="icon" onClick={handleBack} className="text-foreground hover:bg-secondary">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <div>
-                        <h1 className="text-xl font-bold dark:text-white">
-                            {type === '2d' ? 'PDF Comparison' : 'Model Comparison'}
+
+                    <div className="flex flex-col">
+                        <h1 className="text-lg font-bold text-foreground leading-tight">
+                            Comparison View
                         </h1>
-                        <p className="text-sm dark:text-gray-400 text-gray-600">
-                            {type === '2d'
-                                ? 'Comparing PDF versions using PixelCompare'
-                                : 'Comparing 3D models using DiffTool'}
-                        </p>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold text-dom-blue">
+                            {type === '2d' ? 'Pixel Compare' : 'Geometric Diff'}
+                        </span>
+                    </div>
+
+                    {/* Version Selectors */}
+                    <div className="flex items-center gap-4 pl-6 border-l border-border">
+                        <VersionSelector
+                            label="Primary Version (V2)"
+                            versions={versions}
+                            selectedUrn={primaryUrn}
+                            onChange={(u) => handleVersionChange(u, true)}
+                            disabled={loading}
+                        />
+                        <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+                        <VersionSelector
+                            label="Compare Against (V1)"
+                            versions={versions}
+                            selectedUrn={diffUrn}
+                            onChange={(u) => handleVersionChange(u, false)}
+                            disabled={loading}
+                        />
                     </div>
                 </div>
 
                 {loading && (
-                    <div className="flex items-center space-x-2 text-sm dark:text-gray-400">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Loading comparison...</span>
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground bg-secondary px-3 py-1 rounded-full">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-xs font-mono">PROCESSING DIFFERENCES...</span>
                     </div>
                 )}
             </div>
-            <div ref={viewerRef} className="flex-1 w-full" />
+
+            {/* Viewer Canvas */}
+            <div ref={viewerRef} className="flex-1 w-full relative bg-secondary/20">
+                {!viewerReady && !loading && !error && (
+                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                        Initialize comparison to view results.
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
 
 export default function CompareViewerPage() {
     return (
-        <Suspense fallback={
-            <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-                <div className="flex items-center space-x-2 text-sm dark:text-gray-400">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                    <span>Loading viewer...</span>
-                </div>
-            </div>
-        }>
+        <Suspense fallback={<div className="h-screen bg-background" />}>
             <CompareViewerContent />
         </Suspense>
     )

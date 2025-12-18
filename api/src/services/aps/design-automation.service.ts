@@ -1,4 +1,5 @@
 import { apsAuthService } from './auth.service';
+import { apsOssService } from './oss.service';
 import axios from 'axios';
 
 const DA_BASE_URL = 'https://developer.api.autodesk.com/da/us-east/v3';
@@ -95,7 +96,7 @@ export class APSDesignAutomationService {
                     localName: 'output.pdf'
                 }
             },
-            engine: 'Autodesk.AutoCAD+24', // AutoCAD 2024
+            engine: 'Autodesk.AutoCAD+24_3', // AutoCAD 2024.3 (supported until 2027)
             description: 'Converts DWG to high-quality PDF',
             settings: {
                 script: {
@@ -131,39 +132,41 @@ export class APSDesignAutomationService {
     /**
      * Convert DWG to PDF using Design Automation
      */
-    async convertDwgToPdf(inputObjectId: string, outputObjectId: string, bucketKey: string): Promise<string> {
+    async convertDwgToPdf(inputObjectId: string, outputObjectId: string, bucketKey: string, webhookUrl?: string): Promise<string> {
         const headers = await this.getAuthHeader();
         const token = await apsAuthService.getInternalToken();
 
         // Ensure the activity exists
         const activityId = await this.ensureDwgToPdfActivity();
 
-        // Create signed URLs for input/output
-        // Note: For OSS, we need to use the specific endpoint to get a signed URL or use the token in the header if supported by the engine.
-        // Design Automation for AutoCAD supports passing the Authorization header in the arguments for HTTP downloads/uploads.
+        // Create SIGNED URLs for input/output (required by Design Automation)
+        // Bearer token headers are NOT supported - must use signed URLs
+        console.log(`🔐 Getting signed URLs for input: ${inputObjectId}`);
+        const inputSignedUrl = await apsOssService.getSignedUrl(inputObjectId);
+        const outputSignedUrl = await apsOssService.getSignedWriteUrl(outputObjectId);
 
-        const inputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${inputObjectId}`;
-        const outputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${outputObjectId}`;
+        console.log(`✅ Got signed URLs`);
 
-        const workItem = {
+        const workItem: any = {
             activityId: activityId,
             arguments: {
                 inputFile: {
-                    url: inputUrl,
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                    url: inputSignedUrl
                 },
                 outputPdf: {
-                    url: outputUrl,
-                    verb: 'put',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/pdf'
-                    }
+                    url: outputSignedUrl,
+                    verb: 'put'
                 }
             }
         };
+
+        if (webhookUrl) {
+            console.log(`🔗 Attaching webhook to WorkItem: ${webhookUrl}`);
+            workItem.arguments.onComplete = {
+                verb: 'post',
+                url: webhookUrl
+            };
+        }
 
         console.log(`📤 Creating work item for DWG to PDF conversion...`);
         console.log(`   Activity: ${activityId}`);
@@ -249,6 +252,99 @@ export class APSDesignAutomationService {
     async deleteWorkItem(id: string) {
         const headers = await this.getAuthHeader();
         await axios.delete(`${DA_BASE_URL}/workitems/${id}`, { headers });
+    }
+    /**
+     * Ensure Revit to PDF Activity exists
+     */
+    async ensureRevitToPdfActivity(): Promise<string> {
+        const activityId = `${NICKNAME}.RevitToPdfActivity+prod`;
+        const headers = await this.getAuthHeader();
+
+        try {
+            await axios.get(`${DA_BASE_URL}/activities/${activityId}`, { headers });
+            console.log(`✅ Revit Activity exists: ${activityId}`);
+            return activityId;
+        } catch (error: any) {
+            if (error.response?.status !== 404) throw error;
+        }
+
+        console.log(`📝 Creating Revit to PDF activity...`);
+        await this.setupNickname();
+
+        const activity = {
+            id: 'RevitToPdfActivity',
+            commandLine: [
+                `$(engine.path)\\\\revitcoreconsole.exe /i "$(args[inputFile].path)" /al "$(appbundles[RevitToPdfApp].path)"`
+            ],
+            parameters: {
+                inputFile: {
+                    verb: 'get',
+                    description: 'Input Revit File',
+                    required: true,
+                    localName: '$(inputFile)'
+                },
+                outputPdf: {
+                    verb: 'put',
+                    description: 'Output PDF File',
+                    required: true,
+                    localName: 'output.pdf'
+                }
+            },
+            engine: 'Autodesk.Revit+2024',
+            appbundles: [`${NICKNAME}.RevitToPdfApp+prod`],
+            description: 'Exports Revit sheets to PDF using custom AppBundle'
+        };
+
+        try {
+            const response = await axios.post(`${DA_BASE_URL}/activities`, activity, { headers });
+            console.log(`✅ Revit Activity created: ${response.data.id}`);
+
+            // Create alias
+            await axios.post(`${DA_BASE_URL}/activities/${activity.id}/aliases`,
+                { id: 'prod', version: 1 },
+                { headers }
+            );
+            return activityId;
+        } catch (error: any) {
+            console.error('Failed to create Revit Activity:', error.response?.data);
+            if (error.response?.status === 409) return activityId;
+            throw error;
+        }
+    }
+
+    /**
+     * Create WorkItem for Revit to PDF
+     */
+    async convertRevitToPdf(inputObjectId: string, outputObjectId: string, bucketKey: string, webhookUrl?: string): Promise<string> {
+        const headers = await this.getAuthHeader();
+        const token = await apsAuthService.getInternalToken();
+        const activityId = await this.ensureRevitToPdfActivity();
+
+        const inputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${inputObjectId}`;
+        const outputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${outputObjectId}`;
+
+        const workItem = {
+            activityId: activityId,
+            arguments: {
+                inputFile: {
+                    url: inputUrl,
+                    headers: { Authorization: `Bearer ${token}` }
+                },
+                outputPdf: {
+                    url: outputUrl,
+                    verb: 'put',
+                    headers: { Authorization: `Bearer ${token}` }
+                },
+                onComplete: webhookUrl ? {
+                    verb: 'post',
+                    url: webhookUrl
+                } : undefined
+            }
+        };
+
+        console.log(`📤 Submitting Revit WorkItem...`);
+        const response = await axios.post(`${DA_BASE_URL}/workitems`, workItem, { headers });
+        return response.data.id;
     }
 }
 

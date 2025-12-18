@@ -34,7 +34,8 @@ async function main() {
       startDate: new Date('2024-01-15'),
       endDate: new Date('2026-12-20'),
       discipline: 'Architecture & Structural',
-      userId: user.id,
+      ownerId: user.id,
+      isFromAutodesk: false,
       files: {
         create: [
           {
@@ -43,8 +44,7 @@ async function main() {
             type: 'RVT',
             size: 450000000, // 450MB
             s3Key: 'demo/arch_v12.rvt',
-            status: 'READY',
-            userId: user.id,
+            status: 'READY'
           },
           {
             name: 'Structure_Podium_v08.rvt',
@@ -52,8 +52,7 @@ async function main() {
             type: 'RVT',
             size: 125000000, // 125MB
             s3Key: 'demo/struct_v08.rvt',
-            status: 'READY',
-            userId: user.id,
+            status: 'READY'
           },
           {
             name: 'MEP_HVAC_L1-L10.ifc',
@@ -61,8 +60,7 @@ async function main() {
             type: 'IFC',
             size: 85000000, // 85MB
             s3Key: 'demo/mep_hvac.ifc',
-            status: 'TRANSLATING',
-            userId: user.id,
+            status: 'TRANSLATING'
           }
         ]
       }

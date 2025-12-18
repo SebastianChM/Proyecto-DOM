@@ -1,0 +1,135 @@
+# ESPECIFICACIÓN TÉCNICA - PROYECTO HOSPITAL ZONA NORTE
+# Documento de Control: ET-2024-001
+# Fecha: 2024-12-04
+# Revisión: Rev. 3
+
+================================================================================
+SECCIÓN 1: ESTRUCTURA - MUROS Y COLUMNAS
+================================================================================
+
+## 1.1 Muros Estructurales
+
+Material: Hormigón Armado HA-30/B/20/IIa
+Espesor: 300mm
+Recubrimiento mínimo: 35mm
+Resistencia característica: 30 MPa
+Fire Rating: 120 min
+Densidad: 2400 kg/m³
+
+## 1.2 Columnas Principales
+
+Sección: 600x600mm
+Material: Hormigón HA-35
+Armadura longitudinal: 8Ø25
+Armadura transversal: Ø10 c/150mm
+Recubrimiento: 40mm
+
+================================================================================
+SECCIÓN 2: INSTALACIONES MECÁNICAS
+================================================================================
+
+## 2.1 Bombas de Agua
+
+| Tag       | Tipo          | Caudal (m³/h) | Presión (bar) | Potencia (kW) |
+|-----------|---------------|---------------|---------------|---------------|
+| P-101     | Centrífuga    | 45            | 6.5           | 15            |
+| P-102     | Centrífuga    | 45            | 6.5           | 15            |
+| P-201     | Sumergible    | 120           | 4.0           | 22            |
+| P-301     | Contra Incendios | 180        | 10.0          | 55            |
+
+## 2.2 Válvulas de Control
+
+| Tag       | Tipo          | Diámetro (mm) | Presión Nominal | Material      |
+|-----------|---------------|---------------|-----------------|---------------|
+| V-101     | Mariposa      | 150           | PN16            | Acero Inox    |
+| V-102     | Compuerta     | 200           | PN10            | Hierro Dúctil |
+| V-201     | Check         | 100           | PN25            | Bronce        |
+| V-301     | Seguridad     | 80            | PN40            | Acero         |
+
+## 2.3 Intercambiadores de Calor
+
+HX-101:
+  - Tipo: Placas
+  - Capacidad: 850 kW
+  - Fluido primario: Agua caliente (80°C entrada, 60°C salida)
+  - Fluido secundario: Agua fría (45°C entrada, 65°C salida)
+  - Pérdida de carga máxima: 0.5 bar
+
+================================================================================
+SECCIÓN 3: INSTALACIONES ELÉCTRICAS
+================================================================================
+
+## 3.1 Cuadros Eléctricos
+
+CGD-01 (Cuadro General de Distribución):
+  Tensión nominal: 400V / 230V
+  Intensidad nominal: 2500A
+  Poder de corte: 50kA
+  Grado de protección: IP54
+  Ubicación: Sala Eléctrica Planta Baja
+
+## 3.2 Transformadores
+
+TR-01:
+  Potencia: 1600 kVA
+  Relación: 20kV / 400V
+  Grupo de conexión: Dyn11
+  Refrigeración: ONAN
+  Impedancia: 6%
+
+================================================================================
+SECCIÓN 4: HVAC
+================================================================================
+
+## 4.1 Unidades de Tratamiento de Aire (UTA)
+
+UTA-01:
+  Caudal de aire: 15000 m³/h
+  Presión estática disponible: 600 Pa
+  Potencia frigorífica: 120 kW
+  Potencia calorífica: 85 kW
+  Filtración: F7 + H13 (HEPA)
+  Nivel sonoro: <65 dB(A)
+
+UTA-02:
+  Caudal de aire: 8500 m³/h
+  Presión estática disponible: 450 Pa
+  Potencia frigorífica: 65 kW
+  Potencia calorífica: 45 kW
+  Filtración: F7
+  Nivel sonoro: <60 dB(A)
+
+## 4.2 Conductos
+
+Conducto principal CD-01:
+  Sección: 1200x600mm
+  Material: Chapa galvanizada
+  Espesor chapa: 1.0mm
+  Aislamiento: 25mm lana mineral
+  Velocidad máxima: 8 m/s
+
+================================================================================
+SECCIÓN 5: PROTECCIÓN CONTRA INCENDIOS
+================================================================================
+
+## 5.1 Rociadores
+
+Sistema de rociadores automáticos:
+  Tipo: Montante
+  Factor K: 80
+  Temperatura de activación: 68°C
+  Cobertura máxima: 12 m²
+  Densidad de diseño: 5.0 mm/min
+
+## 5.2 Extintores
+
+| Ubicación         | Tipo    | Capacidad | Eficacia |
+|-------------------|---------|-----------|----------|
+| Pasillo P1        | CO2     | 5 kg      | 89B      |
+| Sala Servidores   | CO2     | 5 kg      | 89B      |
+| Cocina            | Polvo   | 6 kg      | 27A 183B |
+| Almacén General   | Agua    | 9 L       | 21A      |
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================

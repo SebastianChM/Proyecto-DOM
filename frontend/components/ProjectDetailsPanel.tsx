@@ -6,6 +6,7 @@ import { Pencil, Save } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { LocationPicker } from "@/components/LocationPicker";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface ProjectDetailsPanelProps {
     projectType: string;
@@ -84,12 +85,31 @@ export function ProjectDetailsPanel({
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+
+
     const handleDateChange = (field: string, date: Date | undefined) => {
-        if (date) {
-            setFormData(prev => ({ ...prev, [field]: format(date, 'yyyy-MM-dd') }));
-        } else {
+        if (!date) {
             setFormData(prev => ({ ...prev, [field]: '' }));
+            return;
         }
+
+        const newDateStr = format(date, 'yyyy-MM-dd');
+
+        if (field === 'startDate' && formData.endDate) {
+            if (newDateStr > formData.endDate) {
+                toast.error("Start date cannot be after end date");
+                return;
+            }
+        }
+
+        if (field === 'endDate' && formData.startDate) {
+            if (newDateStr < formData.startDate) {
+                toast.error("End date cannot be before start date");
+                return;
+            }
+        }
+
+        setFormData(prev => ({ ...prev, [field]: newDateStr }));
     };
 
     return (
@@ -101,48 +121,48 @@ export function ProjectDetailsPanel({
                     </Button>
                 </div>
             )}
-            
+
             <CardContent className="p-6">
                 {isEditing ? (
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             <EditItem label="Project Type">
-                                <Input 
-                                    value={formData.projectType} 
+                                <Input
+                                    value={formData.projectType}
                                     onChange={(e) => handleChange('projectType', e.target.value)}
                                     className="h-8"
                                 />
                             </EditItem>
                             <EditItem label="Discipline">
-                                <Input 
-                                    value={formData.discipline} 
+                                <Input
+                                    value={formData.discipline}
                                     onChange={(e) => handleChange('discipline', e.target.value)}
                                     className="h-8"
                                 />
                             </EditItem>
                             <EditItem label="Owner">
-                                <Input 
-                                    value={formData.ownerName} 
+                                <Input
+                                    value={formData.ownerName}
                                     onChange={(e) => handleChange('ownerName', e.target.value)}
                                     className="h-8"
                                 />
                             </EditItem>
                             <EditItem label="Location">
-                                <LocationPicker 
-                                    value={formData.location} 
+                                <LocationPicker
+                                    value={formData.location}
                                     onChange={(v) => handleChange('location', v)}
                                     className="h-8"
                                 />
                             </EditItem>
                             <EditItem label="Start Date">
-                                <DatePicker 
+                                <DatePicker
                                     date={formData.startDate ? new Date(formData.startDate) : undefined}
                                     setDate={(d) => handleDateChange('startDate', d)}
                                     className="h-8"
                                 />
                             </EditItem>
                             <EditItem label="End Date">
-                                <DatePicker 
+                                <DatePicker
                                     date={formData.endDate ? new Date(formData.endDate) : undefined}
                                     setDate={(d) => handleDateChange('endDate', d)}
                                     className="h-8"

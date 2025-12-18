@@ -4,6 +4,11 @@
 # Dependencies
 node_modules/
 
+# Build output (compiled TypeScript)
+dist/
+api/dist/
+frontend/.next/
+
 # Environment variables
 .env
 .env.*
@@ -22,6 +27,17 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Debug and test files
+*debug*.txt
+*debug*.log
+*debug*.js
+test_*.txt
+test_*.js
+test-*.txt
+check-*.js
+upload_*.txt
+*_test.*
 
 # Gemini artifacts (optional - uncomment if you don't want to commit)
 # .gemini/
