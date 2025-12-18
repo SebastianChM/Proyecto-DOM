@@ -3,8 +3,8 @@
  * Uses Redis for distributed rate limiting with sliding window algorithm
  */
 
-import { Request, Response, NextFunction } from 'express';
-import { redis, RedisKeys } from '../lib/redis';
+import { Request, Response, NextFunction } from "express";
+import { redis, RedisKeys } from "../lib/redis";
 
 /**
  * Rate limiter profesional usando Redis
@@ -18,11 +18,11 @@ export class RateLimiterService {
     identifier: string,
     endpoint: string,
     maxRequests: number,
-    windowSeconds: number
+    windowSeconds: number,
   ): Promise<RateLimitResult> {
     const key = RedisKeys.rateLimit(identifier, endpoint);
     const now = Date.now();
-    const windowStart = now - (windowSeconds * 1000);
+    const windowStart = now - windowSeconds * 1000;
 
     try {
       // Pipeline para operaciones atómicas (evita race conditions)
@@ -43,7 +43,7 @@ export class RateLimiterService {
       const results = await pipeline.exec();
 
       if (!results) {
-        throw new Error('Redis pipeline execution failed');
+        throw new Error("Redis pipeline execution failed");
       }
 
       // Obtener conteo de requests (antes de agregar el actual)
@@ -52,18 +52,19 @@ export class RateLimiterService {
       const remaining = Math.max(0, maxRequests - currentCount - 1);
 
       // Calcular tiempo de reset (cuándo expira la request más antigua)
-      const oldestTimestamp = await redis.zrange(key, 0, 0, 'WITHSCORES');
-      const resetTime = oldestTimestamp.length > 0
-        ? parseInt(oldestTimestamp[1]) + (windowSeconds * 1000)
-        : now + (windowSeconds * 1000);
+      const oldestTimestamp = await redis.zrange(key, 0, 0, "WITHSCORES");
+      const resetTime =
+        oldestTimestamp.length > 0
+          ? parseInt(oldestTimestamp[1]) + windowSeconds * 1000
+          : now + windowSeconds * 1000;
 
       if (!isAllowed) {
-        console.warn('⚠️  Rate limit exceeded', {
+        console.warn("⚠️  Rate limit exceeded", {
           identifier,
           endpoint,
           currentCount,
           maxRequests,
-          window: `${windowSeconds}s`
+          window: `${windowSeconds}s`,
         });
       }
 
@@ -72,11 +73,13 @@ export class RateLimiterService {
         limit: maxRequests,
         remaining,
         resetTime: new Date(resetTime),
-        retryAfter: Math.ceil((resetTime - now) / 1000)
+        retryAfter: Math.ceil((resetTime - now) / 1000),
       };
-
     } catch (error: any) {
-      console.error('❌ Rate limiter error:', error.message, { identifier, endpoint });
+      console.error("❌ Rate limiter error:", error.message, {
+        identifier,
+        endpoint,
+      });
       // Fail open: en caso de error de Redis, permitir request
       // (Preferible a bloquear todo el servicio)
       return {
@@ -84,7 +87,7 @@ export class RateLimiterService {
         limit: maxRequests,
         remaining: maxRequests,
         resetTime: new Date(now + windowSeconds * 1000),
-        retryAfter: windowSeconds
+        retryAfter: windowSeconds,
       };
     }
   }
@@ -96,40 +99,42 @@ export class RateLimiterService {
     return async (req: Request, res: Response, next: NextFunction) => {
       try {
         // Identificador: userId si está autenticado, sino IP
-        const identifier = req.user?.id || req.ip || 'anonymous';
+        const identifier = req.user?.id || req.ip || "anonymous";
 
         // Endpoint: normalizar para agrupar routes similares
-        const endpoint = config.endpoint ||
-          req.path.replace(/\/[0-9a-f-]{36}/gi, '/:id') // UUIDs
-            .replace(/\/\d+/g, '/:id');             // IDs numéricos
+        const endpoint =
+          config.endpoint ||
+          req.path
+            .replace(/\/[0-9a-f-]{36}/gi, "/:id") // UUIDs
+            .replace(/\/\d+/g, "/:id"); // IDs numéricos
 
         const result = await this.checkLimit(
           identifier,
           endpoint,
           config.maxRequests,
-          config.windowSeconds
+          config.windowSeconds,
         );
 
         // Headers estándar de rate limit (RFC 6585)
-        res.setHeader('X-RateLimit-Limit', result.limit);
-        res.setHeader('X-RateLimit-Remaining', result.remaining);
-        res.setHeader('X-RateLimit-Reset', result.resetTime.toISOString());
+        res.setHeader("X-RateLimit-Limit", result.limit);
+        res.setHeader("X-RateLimit-Remaining", result.remaining);
+        res.setHeader("X-RateLimit-Reset", result.resetTime.toISOString());
 
         if (!result.allowed) {
-          res.setHeader('Retry-After', result.retryAfter);
+          res.setHeader("Retry-After", result.retryAfter);
 
           return res.status(429).json({
-            error: 'Too many requests',
+            error: "Too many requests",
             message: `Rate limit exceeded. Try again in ${result.retryAfter} seconds.`,
             retryAfter: result.retryAfter,
             resetTime: result.resetTime.toISOString(),
-            limit: result.limit
+            limit: result.limit,
           });
         }
 
         next();
       } catch (error: any) {
-        console.error('❌ Rate limit middleware error:', error.message);
+        console.error("❌ Rate limit middleware error:", error.message);
         // En caso de error, permitir request (fail open)
         next();
       }
@@ -141,9 +146,9 @@ export class RateLimiterService {
    */
   authLimiter() {
     return this.createMiddleware({
-      endpoint: 'auth',
-      maxRequests: 50,  // Aumentado para desarrollo
-      windowSeconds: 5 * 60  // 5 minutos (más permisivo)
+      endpoint: "auth",
+      maxRequests: 50, // Aumentado para desarrollo
+      windowSeconds: 5 * 60, // 5 minutos (más permisivo)
     });
   }
 
@@ -153,7 +158,7 @@ export class RateLimiterService {
   apiLimiter() {
     return this.createMiddleware({
       maxRequests: 100,
-      windowSeconds: 60  // 1 minuto
+      windowSeconds: 60, // 1 minuto
     });
   }
 
@@ -162,9 +167,9 @@ export class RateLimiterService {
    */
   uploadLimiter() {
     return this.createMiddleware({
-      endpoint: 'upload',
+      endpoint: "upload",
       maxRequests: 100, // Increased from 10 for development
-      windowSeconds: 60 * 60  // 1 hour
+      windowSeconds: 60 * 60, // 1 hour
     });
   }
 
@@ -173,9 +178,9 @@ export class RateLimiterService {
    */
   heavyOperationLimiter() {
     return this.createMiddleware({
-      endpoint: 'heavy',
+      endpoint: "heavy",
       maxRequests: 10000, // Drastically increased for dev safety
-      windowSeconds: 60 * 60  // 1 hour
+      windowSeconds: 60 * 60, // 1 hour
     });
   }
 
@@ -186,10 +191,10 @@ export class RateLimiterService {
     try {
       const key = RedisKeys.rateLimit(identifier, endpoint);
       await redis.del(key);
-      console.log('✅ Rate limit reset', { identifier, endpoint });
+      console.log("✅ Rate limit reset", { identifier, endpoint });
       return true;
     } catch (error: any) {
-      console.error('❌ Rate limit reset error:', error.message);
+      console.error("❌ Rate limit reset error:", error.message);
       return false;
     }
   }
@@ -197,7 +202,10 @@ export class RateLimiterService {
   /**
    * Obtener estado actual de rate limit para un identificador
    */
-  async getStatus(identifier: string, endpoint: string): Promise<RateLimitStatus | null> {
+  async getStatus(
+    identifier: string,
+    endpoint: string,
+  ): Promise<RateLimitStatus | null> {
     try {
       const key = RedisKeys.rateLimit(identifier, endpoint);
       const count = await redis.zcard(key);
@@ -207,10 +215,10 @@ export class RateLimiterService {
 
       return {
         currentRequests: count,
-        expiresIn: ttl
+        expiresIn: ttl,
       };
     } catch (error: any) {
-      console.error('❌ Rate limit status error:', error.message);
+      console.error("❌ Rate limit status error:", error.message);
       return null;
     }
   }
@@ -241,6 +249,7 @@ export interface RateLimitStatus {
 
 // Extender Request type para incluir user
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: {

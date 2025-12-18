@@ -8,21 +8,47 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
-    "dev:webhook": "node scripts/dev-webhook.js",
-    "dev:api": "cd api && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
-    "build": "npm run build:api && npm run build:frontend",
-    "build:api": "cd api && npm run build",
-    "build:frontend": "cd frontend && npm run build",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "prisma:generate": "cd api && npx prisma generate",
-    "prisma:push": "cd api && npx prisma db push",
-    "prisma:studio": "cd api && npx prisma studio"
+    "dev:infra": "node scripts/infra.js up -d",
+    "dev:wait": "wait-on tcp:127.0.0.1:5432 tcp:127.0.0.1:6379",
+    "dev:sync": "node scripts/gen-frontend-env.js",
+    "dev:api": "node scripts/start-service.js API npm run dev --prefix api",
+    "dev:worker": "node scripts/start-service.js WRK npm run dev:worker --prefix api",
+    "dev:frontend": "node scripts/start-service.js WEB npm run dev --prefix frontend",
+    "dev": "npm run dev:infra && npm run dev:wait && npm run dev:sync && concurrently -k -n \"API,WRK,WEB\" \"npm run dev:api\" \"npm run dev:worker\" \"npm run dev:frontend\"",
+    "dev:stop": "node scripts/stop-dev.js",
+    "dev:reset": "node scripts/infra.js reset",
+    "infra:status": "node scripts/infra-status.js",
+    "db:generate": "npx prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "npx prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:studio": "npx prisma studio --schema=./prisma/schema.prisma",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "concurrently \"tsc --noEmit --project api/tsconfig.json\" \"tsc --noEmit --project frontend/tsconfig.json\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/cookie-session": "^2.0.49",
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "tree-kill": "^1.2.2",
+    "typescript-eslint": "^8.50.0",
+    "wait-on": "^9.0.3"
   },
   "dependencies": {
     "axios": "^1.13.2",
