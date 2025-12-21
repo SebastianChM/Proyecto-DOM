@@ -113,6 +113,9 @@ remote-access-info.txt
 # Gemini artifacts (optional - uncomment if you don't want to commit)
 # .gemini/
 
+# Temporary test directory (artifacts, hardcoded paths)
+temp_empty/
+
 # Documentation & Context exclusions (User requested to keep these private/local)
 docs/context/
 docs/hitos/

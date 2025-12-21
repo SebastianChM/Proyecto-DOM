@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Revit" ProductType="Application" Name="RevitToPdfApp" AppVersion="1.0.0" Description="Exports Revit Sheets to PDF" Author="DOM Platform">
-  <CompanyDetails Name="DOM" Url="https://dom.com" Email="support@dom.com"/>
-  <Components Description="RevitToPdf Plugin">
-    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
-    <ComponentEntry LoadOnRevitStartup="True" LoadOnCommandInvocation="False" AppDescription="Revit To PDF Export" ModuleName="./RevitToPdf.dll" AppName="RevitToPdf.Command">
-    </ComponentEntry>
-  </Components>
-</ApplicationPackage>
