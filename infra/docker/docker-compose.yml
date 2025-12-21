@@ -1,0 +1,65 @@
+﻿version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dom-bim-db
+    environment:
+      POSTGRES_DB: dom_bim
+      POSTGRES_USER: dom
+      POSTGRES_PASSWORD: dom_secure_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dom-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dom-bim-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dom-network
+
+  api:
+    build: ./api
+    container_name: dom-bim-api
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgresql://dom:dom_secure_2024@postgres:5432/dom_bim
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dom-network
+
+  worker:
+    build: ./api
+    container_name: dom-bim-worker
+    command: npm run start:worker
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://dom:dom_secure_2024@postgres:5432/dom_bim
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+      - api
+    networks:
+      - dom-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  dom-network:
+    driver: bridge

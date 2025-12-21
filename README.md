@@ -4,11 +4,12 @@
 
 ## 🏗️ Arquitectura
 
-```
+```text
 ├── api/              # Express + TypeScript backend
 ├── frontend/         # Next.js 14 frontend (por crear)
 ├── prisma/           # Database schema
 ├── docker/           # Docker configs
+├── docs/             # Project documentation and context
 └── docker-compose.yml
 ```
 
@@ -40,12 +41,13 @@ npm run prisma:push
 npm run dev
 ```
 
-- **API**: http://localhost:8080
-- **Frontend**: http://localhost:3000 (próximamente)
+- **API**: <http://localhost:8080>
+- **Frontend**: <http://localhost:3000> (próximamente)
 
 ## 📦 Features Implementadas
 
 ### Core
+
 - ✅ PostgreSQL + Prisma ORM
 - ✅ Express API con TypeScript
 - ✅ Docker setup (PostgreSQL + Redis)
@@ -54,6 +56,7 @@ npm run dev
 - ✅ Error handling
 
 ### Por Implementar
+
 - ⏳ APS Authentication (OAuth)
 - ⏳ File upload (S3 + APS OSS)
 - ⏳ Model Derivative integration
@@ -67,6 +70,7 @@ npm run dev
 ## 🔧 Tecnologías
 
 **Backend**:
+
 - Node.js + TypeScript
 - Express.js
 - Prisma + PostgreSQL
@@ -74,11 +78,13 @@ npm run dev
 - APS SDK
 
 **Frontend** (próximo):
+
 - Next.js 14
 - shadcn/ui + Tailwind
 - APS Viewer SDK
 
 **DevOps**:
+
 - Docker + Docker Compose
 - AWS S3
 
@@ -113,6 +119,7 @@ Credenciales APS ya configuradas del proyecto anterior.
 ## 🆘 Troubleshooting
 
 ### Base de datos no conecta
+
 ```bash
 docker-compose down
 docker-compose up -d
@@ -120,6 +127,7 @@ npm run prisma:push
 ```
 
 ### Puerto 8080 en uso
+
 Cambiar `API_PORT` en `.env`
 
 ---

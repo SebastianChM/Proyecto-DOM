@@ -1,49 +1,127 @@
 # Root level gitignore
-# Specific ignores are in /api and /frontend subdirectories
+# Reorganized for apps/, packages/, tools/, reports/, storage/ structure
 
 # Dependencies
 node_modules/
+.pnp
+.pnp.js
 
-# Build output (compiled TypeScript)
+# Build outputs
 dist/
-api/dist/
-frontend/.next/
+build/
+*.tsbuildinfo
+apps/api/dist/
+apps/web/.next/
+apps/web/out/
 
-# Environment variables
-# Environment variables
+# Testing
+coverage/
+.nyc_output
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+apps/api/logs/
+storage/logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+apps/api/test.db
+packages/database/prisma/dev.db
+packages/database/prisma/*.db
+storage/*.db
+
+# Environment files
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.env
+.env.*.local
 !.env.example
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
 *~
+.DS_Store
 
 # OS
-.DS_Store
 Thumbs.db
+Desktop.ini
 
-# Logs
-*.log
-
-# Debug and test files
+# Temporary folders
+tmp/
+temp/
+.tmp/
 .dev/
+
+# Reports (generated)
+reports/
+eslint-report.json
+eslint-detailed-report.json
+lint-full.txt
+lint-output.txt
+lint_errors.txt
+task_report.html
+
+# Storage (runtime data)
+storage/
+apps/api/downloads/
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+
+# Prisma backups
+packages/database/prisma/backups/
+backups/
+
+# Docker
+.docker/
+
+# Debug and test artifacts
 *debug*.txt
 *debug*.log
-*debug*.js
 test_*.txt
-test_*.js
-test-*.txt
-check-*.js
+test_output.log
 upload_*.txt
-*_test.*
+
+# Sensitive documentation (moved to external secure location)
+SECURITY_DOCUMENTATION.md
+remote-access-info.txt
+
+# Misc
+*.tgz
+.npm
+.eslintcache
+.cache/
 
 # Gemini artifacts (optional - uncomment if you don't want to commit)
 # .gemini/
+
+# Documentation & Context exclusions (User requested to keep these private/local)
+docs/context/
+docs/hitos/
+docs/guides/
+docs/*_CONTEXT.md
+docs/*_EVIDENCE.md
+docs/*_ADMIN*.md
+docs/SOLUCION_FINAL_ENV.md
+docs/INSTRUCCIONES_FINALES_CONFIDENCIAL.md
+docs/LISTA_COMPLETA_ARCHIVOS.csv
+docs/TODO.md
+docs/TREE_COMPLETO.txt

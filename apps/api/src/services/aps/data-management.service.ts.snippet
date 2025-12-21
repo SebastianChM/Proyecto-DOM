@@ -1,0 +1,26 @@
+
+    /**
+     * Copy an object within the same bucket or to another bucket
+     */
+    async copyObject(objectName: string, newObjectName: string) {
+        await this.ensureBucketExists();
+        const token = await apsAuthService.getInternalToken();
+        
+        console.log(`Copying object ${objectName} to ${newObjectName} in bucket ${this.bucketKey}...`);
+
+        try {
+            const url = `https://developer.api.autodesk.com/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}/copyto/${encodeURIComponent(newObjectName)}`;
+            
+            const response = await axios.put(url, {}, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            console.log('Copy successful:', response.data);
+            return response.data;
+        } catch (error: any) {
+            console.error('Copy failed:', error.response?.data || error.message);
+            throw error;
+        }
+    }

@@ -1,31 +1,78 @@
-# Guía Simple de Acceso Remoto
+# Guía de Acceso Remoto Seguro
 
-## Pasos a Seguir
+## Requisitos de Seguridad
 
-### 1. Descargar ngrok
-1. Ve a: https://ngrok.com/download
-2. Descarga la versión para Windows
-3. Descomprime el archivo `ngrok.exe` en esta carpeta del proyecto
+Esta aplicación utiliza **autenticación OAuth de Autodesk** y **control de acceso basado en roles**. No hay credenciales compartidas ni Basic Auth.
 
-### 2. Ejecutar el servidor
-Abre una terminal y ejecuta:
+## Pasos para Acceso Remoto
+
+### 1. Preparar el Entorno Local
+
+Configura las variables de entorno de seguridad en `.env`:
+
+```env
+# CORS: Agregar la URL del túnel
+CORS_ORIGINS=http://localhost:3000,https://tu-tunel.ngrok-free.app
+
+# Emails administradores autorizados
+ADMIN_EMAILS=tu-email@empresa.com
+
+# Rate limiting habilitado
+RATE_LIMIT_STORE=redis
+```
+
+### 2. Ejecutar el Servidor Localmente
+
 ```bash
 npm run dev
 ```
 
-### 3. Crear el túnel
-En OTRA terminal, ejecuta:
+### 3. Crear Túnel Seguro
+
+Opción A - **ngrok** (recomendado):
+
 ```bash
+# Descargar de: https://ngrok.com/download
 ngrok http 3000
 ```
 
-### 4. Copiar el link
-Ngrok te mostrará una URL como: `https://xxxx-xxxx.ngrok-free.app`
+Opción B - **localtunnel**:
 
-### 5. Acceder desde tu equipo de empresa
-1. Abre esa URL en el navegador
-2. Usuario: `admin`
-3. Contraseña: `dom-secure-2024`
+```bash
+npx localtunnel --port 3000
+```
 
-## ¡Listo!
-La aplicación ya está protegida con contraseña gracias al middleware que agregamos.
+### 4. Actualizar CORS
+
+Copia la URL del túnel (ej: `https://xxxx.ngrok-free.app`) y agrégala a `CORS_ORIGINS` en `.env`:
+
+```env
+CORS_ORIGINS=https://xxxx.ngrok-free.app
+```
+
+Reinicia el servidor.
+
+### 5. Acceder desde Equipo Remoto
+
+1. Abre la URL del túnel en el navegador
+2. Haz clic en "Login with Autodesk"
+3. Autentícate con tu cuenta Autodesk
+4. Tu email debe estar en `ADMIN_EMAILS` para acceso administrativo
+
+## Controles de Seguridad Activos
+
+- ✅ **OAuth Autodesk**: Autenticación delegada, sin contraseñas compartidas
+- ✅ **CORS Allowlist**: Solo orígenes autorizados pueden hacer requests
+- ✅ **Rate Limiting**: Protección contra abuso (ver `/api/auth/login`)
+- ✅ **ADMIN_EMAILS**: Control de acceso basado en allowlist de emails
+- ✅ **Session Security**: Cookies con httpOnly, sameSite, secure
+
+## Troubleshooting
+
+**Error CORS**: Verifica que la URL del túnel esté en `CORS_ORIGINS`
+
+**401 Unauthorized**: Debes autenticarte con OAuth Autodesk
+
+**403 Forbidden**: Tu email no está en `ADMIN_EMAILS`
+
+**429 Too Many Requests**: Rate limit activado, espera 15 minutos
