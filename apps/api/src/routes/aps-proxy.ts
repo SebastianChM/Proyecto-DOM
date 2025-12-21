@@ -1,129 +1,97 @@
-import { Router, Request } from "express";
-import { apsDataManagementService } from "../services/aps/data-management.service";
-import { apsAuthService } from "../services/aps/auth.service";
+/**
+ * APS Proxy Router
+ * Clean interface to APS services through central integration
+ * 
+ * Hito 2: Centralized APS integration with standardized error handling
+ */
+
+import { Router, Request, Response } from "express";
+import { apsIntegrationService } from "../services/aps/aps-integration.service";
+import { ApsError } from "../services/aps/aps-error";
 
 const router = Router();
-const isDev = process.env.NODE_ENV !== "production";
 
-// Middleware to get access token (3-legged preferred, 2-legged fallback)
-const getAccessToken = async (req: Request) => {
-  // Log session state only in development
-  if (isDev) {
-    const sessionData = req.session as
-      | { token?: string; expiresAt?: number }
-      | undefined;
-    console.log("[DEBUG] Session check:", {
-      hasSession: !!req.session,
-      hasToken: !!sessionData?.token,
-      expiresAt: sessionData?.expiresAt
-        ? new Date(sessionData.expiresAt).toISOString()
-        : "N/A",
-      now: new Date().toISOString(),
-      expired: sessionData?.expiresAt
-        ? Date.now() > sessionData.expiresAt
-        : "unknown",
+/**
+ * Common error handler for APS routes
+ * Returns standardized JSON format
+ */
+function handleApsError(error: unknown, req: Request, res: Response): void {
+  const requestId = req.headers["x-request-id"] as string | undefined;
+
+  if (error instanceof ApsError) {
+    // Standardized APS error response
+    res.status(error.status).json({
+      error: "APS_ERROR",
+      code: error.code,
+      message: error.message,
+      requestId,
+      status: error.status,
+      ...(error.details && {
+        apsRequestId: error.details.apsRequestId,
+        apsErrorId: error.details.apsErrorId,
+      }),
     });
+    return;
   }
 
-  if (req.session && req.session.token) {
-    // Check if token needs refresh
-    if (req.session.expiresAt && Date.now() > req.session.expiresAt) {
-      console.log("⚠️ Token expired, attempting refresh...");
+  // Unknown error
+  console.error("[APS_PROXY] Unexpected error", {
+    error: error instanceof Error ? error.message : String(error),
+    requestId,
+    timestamp: new Date().toISOString(),
+  });
 
-      if (req.session.refreshToken) {
-        try {
-          const credentials = await apsAuthService.refreshPublicToken(
-            req.session.refreshToken,
-          );
+  res.status(500).json({
+    error: "APS_ERROR",
+    code: "APS_UPSTREAM",
+    message: "An unexpected error occurred",
+    requestId,
+    status: 500,
+  });
+}
 
-          // Update session
-          req.session.token = credentials.access_token;
-          req.session.refreshToken = credentials.refresh_token;
-          req.session.expiresAt = Date.now() + credentials.expires_in * 1000;
-
-          console.log("✅ Token refreshed successfully");
-          return credentials.access_token;
-        } catch (error) {
-          console.error("❌ Token refresh failed:", error);
-          req.session = null; // Clear invalid session
-          // Fall through to internal token? Or throw?
-          // If we need user context, we MUST throw. Falling back to internal (2-legged)
-          // usually results in 403 or empty data for Hubs.
-          // But let's verify connection matches old logic,
-          // which fell back to internal.
-        }
-      } else {
-        console.warn("⚠️ Token expired and no refresh token available.");
-      }
-    } else {
-      return req.session.token;
-    }
-  }
-
-  // Capture specific error for debugging
-  console.warn("⚠️ Session missing or expired, and refresh failed.");
-  const error = new Error("Unauthorized: Session required");
-  (error as { statusCode?: number }).statusCode = 401;
-  throw error;
-};
-
-// GET /api/aps/hubs
+/**
+ * GET /api/aps/hubs
+ * List hubs for the authenticated user
+ */
 router.get("/hubs", async (req, res) => {
   try {
-    const token = await getAccessToken(req);
-    const hubs = await apsDataManagementService.getHubs(token);
+    const hubs = await apsIntegrationService.getHubsForUser(req);
     res.json(hubs);
-  } catch (error: unknown) {
-    const err = error as {
-      message?: string;
-      statusCode?: number;
-      response?: { status?: number; data?: unknown };
-    };
-    console.error("Error in /hubs:", err.message);
-    const statusCode =
-      err.statusCode || (err.response ? err.response.status : undefined) || 500;
-    res.status(statusCode).json({
-      error: err.message || "Unknown error",
-      details: err.response?.data,
-    });
+  } catch (error) {
+    handleApsError(error, req, res);
   }
 });
 
-// GET /api/aps/hubs/:hubId/projects
+/**
+ * GET /api/aps/hubs/:hubId/projects
+ * List projects in a hub
+ */
 router.get("/hubs/:hubId/projects", async (req, res) => {
   try {
-    const token = await getAccessToken(req);
-    const projects = await apsDataManagementService.getProjects(
-      req.params.hubId,
-      token,
-    );
+    const { hubId } = req.params;
+    const projects = await apsIntegrationService.getProjectsForHub(req, hubId);
     res.json(projects);
-  } catch (error: unknown) {
-    const err = error as {
-      message?: string;
-      statusCode?: number;
-      response?: { status?: number };
-    };
-    const statusCode =
-      err.statusCode || (err.response ? err.response.status : undefined) || 500;
-    res.status(statusCode).json({ error: err.message || "Unknown error" });
+  } catch (error) {
+    handleApsError(error, req, res);
   }
 });
 
-// GET /api/aps/projects/:projectId/folders/:folderId
+/**
+ * GET /api/aps/projects/:projectId/folders/:folderId
+ * Get folder contents
+ */
 router.get("/projects/:projectId/folders/:folderId", async (req, res) => {
   try {
-    const token = await getAccessToken(req);
-    const contents = await apsDataManagementService.getFolderContents(
-      req.params.projectId,
-      req.params.folderId,
-      token,
+    const { projectId, folderId } = req.params;
+    const contents = await apsIntegrationService.getFolderContents(
+      req,
+      projectId,
+      folderId,
     );
     res.json(contents);
-  } catch (error: unknown) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch (error) {
+    handleApsError(error, req, res);
   }
 });
 

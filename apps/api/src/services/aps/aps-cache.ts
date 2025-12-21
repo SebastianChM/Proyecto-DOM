@@ -1,32 +1,141 @@
 /**
  * APS Cache Service
- * Redis cache-aside pattern for APS responses
+ * Redis cache-aside pattern with deduplication
  * 
- * Hito 2: Reduce APS API calls with TTL-based caching
+ * Hito 2: Reduce APS API calls with TTL-based caching and stampede prevention
  */
 
-import { redis, RedisKeys } from "../../lib/redis";
+import { redis } from "../../lib/redis";
 
 export interface ApsCacheOptions {
-    ttl?: number; // TTL in seconds, default 60
+    ttl?: number; // TTL in seconds
     skipCache?: boolean;
+    scope?: string; // OAuth scope for cache key
+    schemaVersion?: string; // Response schema version
 }
 
 /**
  * Generate cache key for APS operations
+ * Includes userId, scope, and schema version for proper isolation
  */
 export const ApsCacheKeys = {
-    hubs: (userId: string) => `aps:hubs:user:${userId}`,
-    projects: (userId: string, hubId: string) =>
-        `aps:projects:user:${userId}:hub:${hubId}`,
-    folderContents: (userId: string, projectId: string, folderId: string) =>
-        `aps:folder:user:${userId}:project:${projectId}:folder:${folderId}`,
-    notFound: (key: string) => `${key}:notfound`, // Separate key for 404s
+    hubs: (userId: string, scope: string, version = "v1") =>
+        `aps:${version}:${scope}:hubs:user:${userId}`,
+
+    projects: (userId: string, hubId: string, scope: string, version = "v1") =>
+        `aps:${version}:${scope}:projects:user:${userId}:hub:${hubId}`,
+
+    folderContents: (
+        userId: string,
+        projectId: string,
+        folderId: string,
+        scope: string,
+        version = "v1",
+    ) =>
+        `aps:${version}:${scope}:folder:user:${userId}:project:${projectId}:folder:${folderId}`,
+
+    notFound: (key: string) => `${key}:notfound`,
+    lock: (key: string) => `${key}:lock`,
+    inflight: (key: string) => `${key}:inflight`,
 };
 
 export class ApsCacheService {
     private readonly defaultTTL = 60; // 60 seconds default
     private readonly notFoundTTL = 30; // 30 seconds for 404s
+    private readonly lockTTL = 5; // 5 seconds for stampede prevention
+    private readonly lockRetryMs = 100; // 100ms between lock retries
+    private readonly maxLockRetries = 20; // Max 2 seconds waiting
+
+    /**
+     * Get cached value with deduplication
+     * Prevents cache stampede with Redis locks
+     */
+    async getOrFetch<T>(
+        key: string,
+        fetcher: () => Promise<T>,
+        options: ApsCacheOptions = {},
+    ): Promise<T> {
+        // 1. Try cache first
+        if (!options.skipCache) {
+            const cached = await this.get<T>(key);
+            if (cached) {
+                console.log("[APS_CACHE] Cache hit", {
+                    key: key.substring(0, 50),
+                    metric: "aps_cache_hit",
+                });
+                return cached;
+            }
+
+            // Check if marked as not found
+            if (await this.isNotFound(key)) {
+                console.log("[APS_CACHE] Cache hit (404)", {
+                    key: key.substring(0, 50),
+                    metric: "aps_cache_hit",
+                });
+                throw new Error("Resource not found (cached)");
+            }
+        }
+
+        console.log("[APS_CACHE] Cache miss", {
+            key: key.substring(0, 50),
+            metric: "aps_cache_miss",
+        });
+
+        // 2. Try to acquire lock for deduplication
+        const lockKey = ApsCacheKeys.lock(key);
+        const lockAcquired = await this.acquireLock(lockKey);
+
+        if (!lockAcquired) {
+            // Another request is fetching, wait and retry cache
+            console.log("[APS_CACHE] Lock held by another request, waiting", {
+                key: key.substring(0, 50),
+            });
+
+            for (let i = 0; i < this.maxLockRetries; i++) {
+                await this.sleep(this.lockRetryMs);
+
+                const cached = await this.get<T>(key);
+                if (cached) {
+                    console.log("[APS_CACHE] Cache hit after lock wait", {
+                        key: key.substring(0, 50),
+                        retries: i + 1,
+                        metric: "aps_cache_hit",
+                    });
+                    return cached;
+                }
+            }
+
+            // Lock released but no cache, fall through to fetch
+            console.warn("[APS_CACHE] Lock released but cache miss, fetching", {
+                key: key.substring(0, 50),
+            });
+        }
+
+        // 3. Fetch from upstream
+        try {
+            const value = await fetcher();
+
+            // 4. Store in cache
+            const ttl = options.ttl || this.defaultTTL;
+            await this.set(key, value, { ttl });
+
+            return value;
+        } catch (error) {
+            // Handle 404 specifically
+            if (
+                error instanceof Error &&
+                (error.message.includes("404") || error.message.includes("not found"))
+            ) {
+                await this.setNotFound(key);
+            }
+            throw error;
+        } finally {
+            // 5. Release lock
+            if (lockAcquired) {
+                await this.releaseLock(lockKey);
+            }
+        }
+    }
 
     /**
      * Get cached value
@@ -55,7 +164,7 @@ export class ApsCacheService {
         options: ApsCacheOptions = {},
     ): Promise<boolean> {
         try {
-            const ttl = options.t || this.defaultTTL;
+            const ttl = options.ttl || this.defaultTTL;
             await redis.setex(key, ttl, JSON.stringify(value));
             return true;
         } catch (error) {
@@ -92,9 +201,42 @@ export class ApsCacheService {
             const notFoundKey = ApsCacheKeys.notFound(key);
             const exists = await redis.exists(notFoundKey);
             return exists === 1;
-        } catch (error) {
+        } catch {
             return false;
         }
+    }
+
+    /**
+     * Acquire lock for cache stampede prevention
+     */
+    private async acquireLock(key: string): Promise<boolean> {
+        try {
+            const result = await redis.set(key, "1", "EX", this.lockTTL, "NX");
+            return result === "OK";
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Release lock
+     */
+    private async releaseLock(key: string): Promise<void> {
+        try {
+            await redis.del(key);
+        } catch (error) {
+            console.warn("[APS_CACHE] Lock release error", {
+                key: key.substring(0, 50),
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
+     * Sleep helper
+     */
+    private sleep(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**

@@ -3,15 +3,15 @@
  * Central service for all APS operations
  * 
  * Hito 2.1: Centralize APS integration with:
- * - Token management
+ * - Token management (with refresh)
  * - Rate limiting
- * - Redis caching
+ * - Redis caching (with stampede prevention)
  * - Normalized error handling
  */
 
 import { Request } from "express";
 import { apsDataManagementService } from "./data-management.service";
-import { getUserAccessToken } from "./token-resolver";
+import { tokenRefreshService } from "./token-refresh.service";
 import { apsOutboundRateLimiter } from "./aps-outbound-rate-limit";
 import {
     apsCacheService,
@@ -23,15 +23,16 @@ import { ApsError } from "./aps-error";
 export class ApsIntegrationService {
     /**
      * Get hubs for authenticated user
-     * Uses cache and rate limiting
+     * Uses cache, rate limiting, and token refresh
      */
     async getHubsForUser(
         req: Request,
         options: ApsCacheOptions = {},
     ): Promise<unknown> {
-        // 1. Get user token (throws if session invalid)
-        const token = await getUserAccessToken(req);
+        // 1. Ensure valid token (refresh if needed)
+        const token = await tokenRefreshService.ensureValidToken(req);
         const userId = req.session?.user?.id;
+        const requestId = req.headers["x-request-id"] as string | undefined;
 
         if (!userId) {
             throw new ApsError(
@@ -41,75 +42,47 @@ export class ApsIntegrationService {
             );
         }
 
-        // 2. Check cache
-        if (!options.skipCache) {
-            const cacheKey = ApsCacheKeys.hubs(userId);
+        // 2. Get scope for cache key
+        const scope = req.session.scope || "data:read";
 
-            // Check if marked as not found
-            if (await apsCacheService.isNotFound(cacheKey)) {
-                throw new ApsError(
-                    "APS_NOT_FOUND" as never,
-                    404,
-                    "Hubs not found (cached)",
-                );
-            }
+        // 3. Use cache with automatic deduplication
+        const cacheKey = ApsCacheKeys.hubs(userId, scope, "v1");
 
-            const cached = await apsCacheService.get(cacheKey);
-            if (cached) {
-                console.log("[APS_INTEGRATION] Cache hit: hubs", {
+        return await apsCacheService.getOrFetch(
+            cacheKey,
+            async () => {
+                // Rate limiting before APS call
+                await apsOutboundRateLimiter.checkUser(userId, requestId);
+                await apsOutboundRateLimiter.checkGlobal(requestId);
+
+                console.log("[APS_INTEGRATION] Fetching hubs from APS", {
                     userId: userId.substring(0, 8),
-                    requestId: req.headers["x-request-id"],
+                    requestId,
+                    timestamp: new Date().toISOString(),
                 });
-                return cached;
-            }
-        }
 
-        // 3. Apply rate limiting
-        await apsOutboundRateLimiter.checkUser(userId);
-        await apsOutboundRateLimiter.checkGlobal();
-
-        // 4. Call APS
-        try {
-            console.log("[APS_INTEGRATION] Fetching hubs from APS", {
-                userId: userId.substring(0, 8),
-                requestId: req.headers["x-request-id"],
-            });
-
-            const hubs = await apsDataManagementService.getHubs(token);
-
-            // 5. Cache successful response
-            const cacheKey = ApsCacheKeys.hubs(userId);
-            await apsCacheService.set(cacheKey, hubs, {
+                return await apsDataManagementService.getHubs(token);
+            },
+            {
                 ttl: options.ttl || 300, // 5 minutes default
-            });
-
-            return hubs;
-        } catch (error) {
-            // 6. Map to normalized error
-            const apsError = ApsError.fromUpstream(error);
-
-            // Cache 404s with short TTL
-            if (apsError.status === 404) {
-                const cacheKey = ApsCacheKeys.hubs(userId);
-                await apsCacheService.setNotFound(cacheKey);
-            }
-
-            throw apsError;
-        }
+                skipCache: options.skipCache,
+            },
+        );
     }
 
     /**
      * Get projects for a hub
-     * Uses cache and rate limiting
+     * Uses cache, rate limiting, and token refresh
      */
     async getProjectsForHub(
         req: Request,
         hubId: string,
         options: ApsCacheOptions = {},
     ): Promise<unknown> {
-        // 1. Get user token
-        const token = await getUserAccessToken(req);
+        // 1. Ensure valid token
+        const token = await tokenRefreshService.ensureValidToken(req);
         const userId = req.session?.user?.id;
+        const requestId = req.headers["x-request-id"] as string | undefined;
 
         if (!userId) {
             throw new ApsError(
@@ -119,68 +92,38 @@ export class ApsIntegrationService {
             );
         }
 
-        // 2. Check cache
-        if (!options.skipCache) {
-            const cacheKey = ApsCacheKeys.projects(userId, hubId);
+        // 2. Get scope for cache key
+        const scope = req.session.scope || "data:read";
 
-            if (await apsCacheService.isNotFound(cacheKey)) {
-                throw new ApsError(
-                    "APS_NOT_FOUND" as never,
-                    404,
-                    "Projects not found (cached)",
-                );
-            }
+        // 3. Use cache with automatic deduplication
+        const cacheKey = ApsCacheKeys.projects(userId, hubId, scope, "v1");
 
-            const cached = await apsCacheService.get(cacheKey);
-            if (cached) {
-                console.log("[APS_INTEGRATION] Cache hit: projects", {
+        return await apsCacheService.getOrFetch(
+            cacheKey,
+            async () => {
+                // Rate limiting before APS call
+                await apsOutboundRateLimiter.checkUser(userId, requestId);
+                await apsOutboundRateLimiter.checkGlobal(requestId);
+
+                console.log("[APS_INTEGRATION] Fetching projects from APS", {
                     userId: userId.substring(0, 8),
                     hubId: hubId.substring(0, 8),
-                    requestId: req.headers["x-request-id"],
+                    requestId,
+                    timestamp: new Date().toISOString(),
                 });
-                return cached;
-            }
-        }
 
-        // 3. Apply rate limiting
-        await apsOutboundRateLimiter.checkUser(userId);
-        await apsOutboundRateLimiter.checkGlobal();
-
-        // 4. Call APS
-        try {
-            console.log("[APS_INTEGRATION] Fetching projects from APS", {
-                userId: userId.substring(0, 8),
-                hubId: hubId.substring(0, 8),
-                requestId: req.headers["x-request-id"],
-            });
-
-            const projects = await apsDataManagementService.getProjects(
-                hubId,
-                token,
-            );
-
-            // 5. Cache successful response
-            const cacheKey = ApsCacheKeys.projects(userId, hubId);
-            await apsCacheService.set(cacheKey, projects, {
+                return await apsDataManagementService.getProjects(hubId, token);
+            },
+            {
                 ttl: options.ttl || 300,
-            });
-
-            return projects;
-        } catch (error) {
-            const apsError = ApsError.fromUpstream(error);
-
-            if (apsError.status === 404) {
-                const cacheKey = ApsCacheKeys.projects(userId, hubId);
-                await apsCacheService.setNotFound(cacheKey);
-            }
-
-            throw apsError;
-        }
+                skipCache: options.skipCache,
+            },
+        );
     }
 
     /**
      * Get folder contents
-     * Uses cache and rate limiting
+     * Uses cache, rate limiting, and token refresh
      */
     async getFolderContents(
         req: Request,
@@ -188,9 +131,10 @@ export class ApsIntegrationService {
         folderId: string,
         options: ApsCacheOptions = {},
     ): Promise<unknown> {
-        // 1. Get user token
-        const token = await getUserAccessToken(req);
+        // 1. Ensure valid token
+        const token = await tokenRefreshService.ensureValidToken(req);
         const userId = req.session?.user?.id;
+        const requestId = req.headers["x-request-id"] as string | undefined;
 
         if (!userId) {
             throw new ApsError(
@@ -200,79 +144,54 @@ export class ApsIntegrationService {
             );
         }
 
-        // 2. Check cache
-        if (!options.skipCache) {
-            const cacheKey = ApsCacheKeys.folderContents(userId, projectId, folderId);
+        // 2. Get scope for cache key
+        const scope = req.session.scope || "data:read";
 
-            if (await apsCacheService.isNotFound(cacheKey)) {
-                throw new ApsError(
-                    "APS_NOT_FOUND" as never,
-                    404,
-                    "Folder contents not found (cached)",
-                );
-            }
+        // 3. Use cache with automatic deduplication
+        const cacheKey = ApsCacheKeys.folderContents(
+            userId,
+            projectId,
+            folderId,
+            scope,
+            "v1",
+        );
 
-            const cached = await apsCacheService.get(cacheKey);
-            if (cached) {
-                console.log("[APS_INTEGRATION] Cache hit: folder", {
+        return await apsCacheService.getOrFetch(
+            cacheKey,
+            async () => {
+                // Rate limiting before APS call
+                await apsOutboundRateLimiter.checkUser(userId, requestId);
+                await apsOutboundRateLimiter.checkGlobal(requestId);
+
+                console.log("[APS_INTEGRATION] Fetching folder contents from APS", {
                     userId: userId.substring(0, 8),
                     projectId: projectId.substring(0, 8),
                     folderId: folderId.substring(0, 8),
-                    requestId: req.headers["x-request-id"],
+                    requestId,
+                    timestamp: new Date().toISOString(),
                 });
-                return cached;
-            }
-        }
 
-        // 3. Apply rate limiting
-        await apsOutboundRateLimiter.checkUser(userId);
-        await apsOutboundRateLimiter.checkGlobal();
-
-        // 4. Call APS
-        try {
-            console.log("[APS_INTEGRATION] Fetching folder contents from APS", {
-                userId: userId.substring(0, 8),
-                projectId: projectId.substring(0, 8),
-                folderId: folderId.substring(0, 8),
-                requestId: req.headers["x-request-id"],
-            });
-
-            const contents = await apsDataManagementService.getFolderContents(
-                projectId,
-                folderId,
-                token,
-            );
-
-            // 5. Cache successful response
-            const cacheKey = ApsCacheKeys.folderContents(userId, projectId, folderId);
-            await apsCacheService.set(cacheKey, contents, {
-                ttl: options.ttl || 60, // 1 minute for folder contents
-            });
-
-            return contents;
-        } catch (error) {
-            const apsError = ApsError.fromUpstream(error);
-
-            if (apsError.status === 404) {
-                const cacheKey = ApsCacheKeys.folderContents(
-                    userId,
+                return await apsDataManagementService.getFolderContents(
                     projectId,
                     folderId,
+                    token,
                 );
-                await apsCacheService.setNotFound(cacheKey);
-            }
-
-            throw apsError;
-        }
+            },
+            {
+                ttl: options.ttl || 60, // 1 minute for folder contents
+                skipCache: options.skipCache,
+            },
+        );
     }
 
     /**
      * Invalidate cache for a user
      */
     async invalidateUserCache(userId: string): Promise<void> {
-        await apsCacheService.invalidatePattern(`aps:*:user:${userId}:*`);
+        await apsCacheService.invalidatePattern(`aps:*:*:*:user:${userId}:*`);
         console.log("[APS_INTEGRATION] Cache invalidated for user", {
             userId: userId.substring(0, 8),
+            timestamp: new Date().toISOString(),
         });
     }
 }
