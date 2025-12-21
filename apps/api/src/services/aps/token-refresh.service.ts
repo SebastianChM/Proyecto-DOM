@@ -15,16 +15,7 @@ const LOCK_TTL_SECONDS = 15; // Lock expires after 15s
 const LOCK_RETRY_MS = 200; // Wait 200ms between retries
 const MAX_LOCK_RETRIES = 10; // Max 2 seconds waiting for lock
 
-/**
- * Session APS Contract
- */
-interface SessionAps {
-    token: string;
-    refreshToken: string;
-    expiresAt: number; // Epoch milliseconds
-    scope?: string;
-    tokenType?: string;
-}
+
 
 export class TokenRefreshService {
     /**
@@ -93,7 +84,7 @@ export class TokenRefreshService {
             );
         }
 
-        const refreshToken = req.session.refreshToken;
+        const refreshToken = req.session?.refreshToken;
         if (!refreshToken) {
             throw new ApsError(
                 ApsErrorCode.APS_REFRESH_REQUIRED,
@@ -116,7 +107,7 @@ export class TokenRefreshService {
                 await this.sleep(LOCK_RETRY_MS);
 
                 // Check if session was updated by the other request
-                const currentExpiry = req.session.expiresAt || 0;
+                const currentExpiry = req.session?.expiresAt || 0;
                 const timeUntilExpiry = currentExpiry - Date.now();
 
                 if (timeUntilExpiry > REFRESH_THRESHOLD_SECONDS * 1000) {
@@ -148,14 +139,14 @@ export class TokenRefreshService {
 
             const credentials = await apsAuthService.refreshPublicToken(refreshToken);
 
-            // Update session
-            req.session.token = credentials.access_token;
-            req.session.refreshToken = credentials.refresh_token;
-            req.session.expiresAt = Date.now() + credentials.expires_in * 1000;
+            //  Update session (safe after null checks above)
+            req.session!.token = credentials.access_token;
+            req.session!.refreshToken = credentials.refresh_token;
+            req.session!.expiresAt = Date.now() + credentials.expires_in * 1000;
 
             // Save session
             await new Promise<void>((resolve, reject) => {
-                req.session.save((err) => {
+                req.session!.save((err: Error | null) => {
                     if (err) reject(err);
                     else resolve();
                 });
@@ -183,10 +174,10 @@ export class TokenRefreshService {
                     event: "token_refresh_invalid_grant",
                 });
 
-                // Clear session
-                req.session.token = undefined;
-                req.session.refreshToken = undefined;
-                req.session.expiresAt = undefined;
+                // Clear session (safe after null checks)
+                req.session!.token = undefined;
+                req.session!.refreshToken = undefined;
+                req.session!.expilesAt = undefined;
 
                 throw new ApsError(
                     ApsErrorCode.APS_REFRESH_REQUIRED,

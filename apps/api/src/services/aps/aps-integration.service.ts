@@ -43,7 +43,7 @@ export class ApsIntegrationService {
         }
 
         // 2. Get scope for cache key
-        const scope = req.session.scope || "data:read";
+        const scope = req.session?.scope || "data:read";
 
         // 3. Use cache with automatic deduplication
         const cacheKey = ApsCacheKeys.hubs(userId, scope, "v1");
@@ -93,7 +93,7 @@ export class ApsIntegrationService {
         }
 
         // 2. Get scope for cache key
-        const scope = req.session.scope || "data:read";
+        const scope = req.session?.scope || "data:read";
 
         // 3. Use cache with automatic deduplication
         const cacheKey = ApsCacheKeys.projects(userId, hubId, scope, "v1");
@@ -145,7 +145,7 @@ export class ApsIntegrationService {
         }
 
         // 2. Get scope for cache key
-        const scope = req.session.scope || "data:read";
+        const scope = req.session?.scope || "data:read";
 
         // 3. Use cache with automatic deduplication
         const cacheKey = ApsCacheKeys.folderContents(
