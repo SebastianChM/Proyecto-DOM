@@ -3,6 +3,10 @@
   "version": "2.0.0",
   "description": "DOM BIM Platform - Enterprise solution for multi-format BIM management",
   "private": true,
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.0.0"
+  },
   "workspaces": [
     "apps/api",
     "apps/web",

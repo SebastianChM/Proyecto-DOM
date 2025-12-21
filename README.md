@@ -5,131 +5,220 @@
 ## 🏗️ Arquitectura
 
 ```text
-├── api/              # Express + TypeScript backend
-├── frontend/         # Next.js 14 frontend (por crear)
-├── prisma/           # Database schema
-├── docker/           # Docker configs
-├── docs/             # Project documentation and context
-└── docker-compose.yml
+├── apps/
+│   ├── api/              # Express + TypeScript backend
+│   └── web/              # Next.js 14 frontend
+├── packages/
+│   └── database/         # Prisma schema y migraciones
+├── infra/
+│   └── docker/           # Docker Compose configs
+├── tools/
+│   └── scripts/          # Utility scripts
+└── docs/                 # Project documentation
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start (3 Comandos)
 
-### 1. Instalar Dependencias
+### Requisitos
+
+- Node.js 20.11.0 (usa `nvm use` si tienes nvm)
+- Docker Desktop instalado y corriendo
+
+### Setup Inicial
 
 ```bash
+# 1. Instalar dependencias
 npm install
-cd api && npm install
+
+# 2. Levantar infraestructura (PostgreSQL + Redis) y generar Prisma
+npm run dev:infra && npm run dev:wait && npm run db:generate
+
+# 3. Correr migraciones e iniciar desarrollo
+npm run db:migrate && npm run dev
 ```
 
-### 2. Iniciar Base de Datos
-
-```bash
-docker-compose up -d
-```
-
-### 3. Setup Prisma
-
-```bash
-npm run prisma:generate
-npm run prisma:push
-```
-
-### 4. Iniciar Desarrollo
-
-```bash
-npm run dev
-```
+**¡Listo!**
 
 - **API**: <http://localhost:8080>
-- **Frontend**: <http://localhost:3000> (próximamente)
+- **Frontend**: <http://localhost:3000>
+- **Prisma Studio**: `npm run db:studio`
 
 ## 📦 Features Implementadas
 
 ### Core
 
 - ✅ PostgreSQL + Prisma ORM
+- ✅ Redis para cache, sesiones y rate limiting
 - ✅ Express API con TypeScript
-- ✅ Docker setup (PostgreSQL + Redis)
-- ✅ Rate limiting
-- ✅ Session management
-- ✅ Error handling
+- ✅ Next.js 14 Frontend con App Router
+- ✅ Docker setup completo
+- ✅ Rate limiting por endpoint
+- ✅ Session management con Redis
+- ✅ Error handling centralizado
+- ✅ CORS restrictivo y configurable
+- ✅ Validación de env al arranque
 
-### Por Implementar
+### Autodesk Platform Services (APS)
 
-- ⏳ APS Authentication (OAuth)
-- ⏳ File upload (S3 + APS OSS)
-- ⏳ Model Derivative integration
-- ⏳ Design Automation workflows
-- ⏳ Model comparison (RVT vs RVT)
-- ⏳ PDF vs RVT comparison
-- ⏳ BOM extraction
-- ⏳ Next.js frontend
-- ⏳ APS Viewer integration
+- ✅ OAuth 2.0 Authentication
+- ✅ File upload a APS OSS
+- ✅ Model Derivative (conversión)
+- ✅ Design Automation workflows
+- ✅ Webhooks de conversión
+- ✅ APS Viewer integrado
+
+### Advanced Features
+
+- ✅ Model comparison (RVT vs RVT)
+- ✅ PDF vs Model comparison
+- ✅ BOM extraction
+- ✅ Compliance validation
+- ✅ Workflow engine
+- ✅ Real-time notifications (Socket.IO)
 
 ## 🔧 Tecnologías
 
 **Backend**:
 
-- Node.js + TypeScript
+- Node.js 20 + TypeScript
 - Express.js
 - Prisma + PostgreSQL
 - Bull + Redis (queues)
 - APS SDK
+- Socket.IO
 
-**Frontend** (próximo):
+**Frontend**:
 
-- Next.js 14
-- shadcn/ui + Tailwind
+- Next.js 14 (App Router)
+- shadcn/ui + Tailwind CSS
 - APS Viewer SDK
+- React Query
 
 **DevOps**:
 
 - Docker + Docker Compose
-- AWS S3
+- PostgreSQL 15
+- Redis 7
 
 ## 📝 Scripts Disponibles
 
+### Desarrollo
+
 ```bash
-npm run dev              # Desarrollo (API + Frontend)
+npm run dev              # Inicia todo el stack (infra + API + worker + frontend)
 npm run dev:api          # Solo API
-npm run prisma:generate  # Generar Prisma client
-npm run prisma:push      # Push schema a DB
-npm run prisma:studio    # Abrir Prisma Studio
-npm run docker:up        # Iniciar Docker
-npm run docker:down      # Detener Docker
+npm run dev:worker       # Solo worker de conversiones
+npm run dev:frontend     # Solo frontend
+npm run dev:stop         # Detiene todos los servicios
+```
+
+### Base de Datos
+
+```bash
+npm run db:generate      # Genera Prisma client
+npm run db:migrate       # Corre migraciones pendientes
+npm run db:studio        # Abre Prisma Studio
+npm run db:reset         # Reset completo (⚠️ borra datos)
+```
+
+### Infraestructura
+
+```bash
+npm run dev:infra        # Levanta PostgreSQL + Redis
+npm run infra:up         # Alias de dev:infra
+npm run infra:down       # Detiene contenedores
+npm run infra:status     # Verifica estado de servicios
+```
+
+### Calidad de Código
+
+```bash
+npm run lint             # Ejecuta ESLint
+npm run format           # Formatea código con Prettier
+npm run typecheck        # Verifica tipos TypeScript
+npm run security:scan    # Escaneo de seguridad
 ```
 
 ## 🔐 Variables de Entorno
 
-Ver `.env` para configuración completa.
+Copia `.env.example` a `.env` y actualiza los valores:
 
-Credenciales APS ya configuradas del proyecto anterior.
+```bash
+cp .env.example .env
+```
 
-## 📚 Próximos Pasos
+### Variables Críticas (Requeridas)
 
-1. ✅ Estructura base creada
-2. ⏳ Implementar APS services
-3. ⏳ Crear frontend NextJS
-4. ⏳ Integrar Viewer
-5. ⏳ Implementar comparación
-6. ⏳ Testing
-7. ⏳ Deployment
+```env
+# Autodesk Platform Services
+APS_CLIENT_ID="your_client_id"
+APS_CLIENT_SECRET="your_client_secret"
+APS_CALLBACK_URL="http://localhost:8080/api/auth/callback"
+
+# Seguridad
+SESSION_SECRET="generate_random_32_chars_minimum"
+WEBHOOK_SECRET="generate_random_32_chars"
+
+# Base de Datos (auto-configurado si usas Docker)
+DATABASE_URL="postgresql://dom:password@localhost:5432/dom_bim"
+REDIS_HOST="localhost"
+REDIS_PORT="6379"
+```
+
+Ver `.env.example` para lista completa con descripciones.
 
 ## 🆘 Troubleshooting
 
 ### Base de datos no conecta
 
 ```bash
-docker-compose down
-docker-compose up -d
-npm run prisma:push
+npm run infra:down
+npm run infra:up
+npm run db:migrate
 ```
 
-### Puerto 8080 en uso
+### Puerto en uso
 
-Cambiar `API_PORT` en `.env`
+Cambiar `PORT` en `.env` (default: 8080 para API, 3000 para frontend)
+
+### Redis no disponible
+
+```bash
+docker ps  # Verificar que Redis está corriendo
+npm run infra:up
+```
+
+### Limpiar y reiniciar
+
+```bash
+npm run dev:stop        # Detiene servicios
+npm run infra:down      # Baja contenedores
+rm -rf node_modules     # Borra node_modules
+npm install             # Reinstala
+npm run dev:infra       # Levanta infra
+npm run db:generate     # Regenera Prisma
+npm run dev             # Inicia todo
+```
+
+## 📚 Documentación Adicional
+
+- `docs/setup/` - Guías de instalación y configuración
+- `docs/api/` - Documentación de API
+- `.env.example` - Referencia completa de variables
+
+## 🔒 Seguridad
+
+Este proyecto implementa:
+
+- ✅ Rate limiting por IP y usuario
+- ✅ CORS restrictivo (sin wildcards)
+- ✅ Validación de variables de entorno al arranque
+- ✅ Sesiones con Redis (no cookies vulnerables)
+- ✅ CSRF protection
+- ✅ Helmet.js headers de seguridad
+- ✅ Input validation con Zod
+- ✅ No hardcoded secrets
 
 ---
 
-**Desarrollado para Sebastian Chirino** | Versión 2.0.0
+**Desarrollado para Sebastian Chirino** | Versión 2.0.0 | Node.js 20.11.0
