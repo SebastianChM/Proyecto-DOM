@@ -32,10 +32,10 @@ export const getCorsOptions = (): CorsOptions => {
     origin: (origin, callback) => {
       // Handle requests with no origin (mobile apps, curl, server-to-server)
       if (!origin) {
-        // TEMPORARY: Always allow no-origin in development
-        if (env.NODE_ENV === "development" || env.ALLOW_NO_ORIGIN) {
+        // Allow no-origin requests only if explicitly enabled via ALLOW_NO_ORIGIN
+        if (env.ALLOW_NO_ORIGIN) {
           console.log(
-            "✅ [CORS] Allowed request with no origin (development mode)",
+            "✅ [CORS] Allowed request with no origin (ALLOW_NO_ORIGIN=true)",
           );
           return callback(null, true);
         }
