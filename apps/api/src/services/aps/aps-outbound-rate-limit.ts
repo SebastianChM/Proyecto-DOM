@@ -3,6 +3,7 @@
  * Control rate of requests to APS APIs
  * 
  * Hito 2: Prevent APS rate limiting and reduce costs
+ * CRITICAL: Fail-closed to prevent cost storms if Redis fails
  */
 
 import { redis } from "../../lib/redis";
@@ -11,25 +12,29 @@ import { ApsError, ApsErrorCode } from "./aps-error";
 export interface RateLimitConfig {
     tokensPerInterval: number; // e.g., 90 for 90 requests
     intervalSeconds: number; // e.g., 60 for 1 minute
+    maxCardinality: number; // Max entries in zset before hard block
 }
 
 export class ApsOutboundRateLimiter {
     private readonly globalConfig: RateLimitConfig = {
         tokensPerInterval: 90, // 90 requests per minute (APS limit is ~100)
         intervalSeconds: 60,
+        maxCardinality: 200, // Safety limit for zset size
     };
 
     private readonly userConfig: RateLimitConfig = {
         tokensPerInterval: 30, // 30 requests per minute per user
         intervalSeconds: 60,
+        maxCardinality: 100,
     };
 
     /**
      * Check and consume global budget
+     * FAIL CLOSED: Throws 503 if Redis unavailable
      */
-    async checkGlobal(): Promise<void> {
+    async checkGlobal(requestId?: string): Promise<void> {
         const key = `aps:ratelimit:global`;
-        const allowed = await this.checkLimit(key, this.globalConfig);
+        const allowed = await this.checkLimit(key, this.globalConfig, requestId);
 
         if (!allowed) {
             throw new ApsError(
@@ -45,10 +50,11 @@ export class ApsOutboundRateLimiter {
 
     /**
      * Check and consume per-user budget
+     * FAIL CLOSED: Throws 503 if Redis unavailable
      */
-    async checkUser(userId: string): Promise<void> {
+    async checkUser(userId: string, requestId?: string): Promise<void> {
         const key = `aps:ratelimit:user:${userId}`;
-        const allowed = await this.checkLimit(key, this.userConfig);
+        const allowed = await this.checkLimit(key, this.userConfig, requestId);
 
         if (!allowed) {
             throw new ApsError(
@@ -64,58 +70,114 @@ export class ApsOutboundRateLimiter {
 
     /**
      * Generic rate limit check using sliding window
+     * FAIL CLOSED: Throws on Redis error
      */
     private async checkLimit(
         key: string,
         config: RateLimitConfig,
+        requestId?: string,
     ): Promise<boolean> {
         try {
             const now = Date.now();
             const windowStart = now - config.intervalSeconds * 1000;
 
-            // Use Redis sorted set for sliding window
+            // Pipeline for atomic operations
             const pipeline = redis.pipeline();
 
-            // Remove old entries
+            // 1. Remove old entries outside window
             pipeline.zremrangebyscore(key, 0, windowStart);
 
-            // Count current entries
+            // 2. Count current entries in window
             pipeline.zcard(key);
 
-            // Add current request (tentatively)
-            pipeline.zadd(key, now, `${now}-${Math.random()}`);
-
-            // Set expiration
-            pipeline.expire(key, config.intervalSeconds + 60);
+            // 3. Get cardinality BEFORE adding
+            pipeline.zcard(key);
 
             const results = await pipeline.exec();
 
-            if (!results) {
-                console.warn("[APS_RATE_LIMIT] Redis pipeline failed, allowing request");
-                return true; // Fail open
+            if (!results || results.length !== 3) {
+                console.error("[APS_RATE_LIMIT] Redis pipeline failed - FAIL CLOSED", {
+                    key: key.substring(0, 30),
+                    requestId,
+                    timestamp: new Date().toISOString(),
+                    event: "redis_unavailable_outbound_limit",
+                });
+                // FAIL CLOSED: Block request if Redis fails
+                throw new ApsError(
+                    ApsErrorCode.APS_UPSTREAM,
+                    503,
+                    "Rate limiting service unavailable",
+                    { apsStatus: 503 },
+                );
             }
 
             const currentCount = results[1][1] as number;
+            const cardinality = results[2][1] as number;
 
-            // If we're over the limit, remove the tentative entry
-            if (currentCount >= config.tokensPerInterval) {
-                await redis.zrem(key, results[2][1] as string);
-                console.warn("[APS_RATE_LIMIT] Rate limit exceeded", {
+            // Safety: Hard block if zset grows too large (indicates cleanup issue)
+            if (cardinality >= config.maxCardinality) {
+                console.error("[APS_RATE_LIMIT] Cardinality limit exceeded", {
                     key: key.substring(0, 30),
-                    currentCount,
-                    limit: config.tokensPerInterval,
+                    cardinality,
+                    maxCardinality: config.maxCardinality,
+                    requestId,
                     timestamp: new Date().toISOString(),
                 });
                 return false;
             }
 
+            // Check if over rate limit
+            if (currentCount >= config.tokensPerInterval) {
+                console.warn("[APS_RATE_LIMIT] Rate limit exceeded", {
+                    key: key.substring(0, 30),
+                    currentCount,
+                    limit: config.tokensPerInterval,
+                    requestId,
+                    timestamp: new Date().toISOString(),
+                    metric: "aps_outbound_blocked",
+                });
+                return false;
+            }
+
+            // Add current request
+            await redis.zadd(key, now, `${now}-${Math.random()}`);
+
+            // Set TTL to auto-cleanup (window + buffer)
+            await redis.expire(key, config.intervalSeconds + 120);
+
+            console.log("[APS_RATE_LIMIT] Request allowed", {
+                key: key.substring(0, 30),
+                currentCount: currentCount + 1,
+                limit: config.tokensPerInterval,
+                requestId,
+                metric: "aps_outbound_total",
+            });
+
             return true;
         } catch (error) {
-            console.error("[APS_RATE_LIMIT] Check error, failing open", {
-                key: key.substring(0, 30),
-                error: error instanceof Error ? error.message : String(error),
-            });
-            return true; // Fail open on error
+            // Check if it's already an ApsError (from our fail-closed logic)
+            if (error instanceof ApsError) {
+                throw error;
+            }
+
+            // FAIL CLOSED: Any Redis error blocks the request
+            console.error(
+                "[APS_RATE_LIMIT] Redis error - FAIL CLOSED, blocking request",
+                {
+                    key: key.substring(0, 30),
+                    error: error instanceof Error ? error.message : String(error),
+                    requestId,
+                    timestamp: new Date().toISOString(),
+                    event: "redis_unavailable_outbound_limit",
+                },
+            );
+
+            throw new ApsError(
+                ApsErrorCode.APS_UPSTREAM,
+                503,
+                "Rate limiting service unavailable",
+                { apsStatus: 503 },
+            );
         }
     }
 
@@ -140,6 +202,7 @@ export class ApsOutboundRateLimiter {
                 limit: config.tokensPerInterval,
             };
         } catch (error) {
+            // Monitoring endpoint can fail open
             return {
                 count: 0,
                 limit: userId
