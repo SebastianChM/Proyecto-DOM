@@ -22,21 +22,27 @@ router.get("/", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     health.services.database = "up";
-  } catch (e: unknown) {
+  } catch {
     health.services.database = "down";
     status = 503;
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("Health Check DB Failed:", msg);
+    // Sanitized log - no connection strings or sensitive details
+    console.error("[HEALTH] Database check failed", {
+      timestamp: new Date().toISOString(),
+      requestId: req.headers["x-request-id"],
+    });
   }
 
   try {
     await redis.ping();
     health.services.redis = "up";
-  } catch (e: unknown) {
+  } catch {
     health.services.redis = "down";
     status = 503;
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("Health Check Redis Failed:", msg);
+    // Sanitized log - no connection strings or sensitive details
+    console.error("[HEALTH] Redis check failed", {
+      timestamp: new Date().toISOString(),
+      requestId: req.headers["x-request-id"],
+    });
   }
 
   // Return 503 if any critical service is down
