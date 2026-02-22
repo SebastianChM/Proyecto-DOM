@@ -5,6 +5,7 @@
 
 import { CorsOptions } from "cors";
 import { env } from "./env";
+import { logger } from "../lib/logger";
 
 /**
  * Check if origin matches ngrok pattern
@@ -18,10 +19,9 @@ function isNgrokOrigin(origin: string): boolean {
  * Does not log any sensitive data
  */
 function logCorsRejection(origin: string | undefined, reason: string): void {
-  console.warn(`🚫 [CORS] Blocked request`, {
+  logger.warn(`[CORS] Blocked request`, {
     origin: origin || "no-origin",
     reason,
-    timestamp: new Date().toISOString(),
   });
 }
 
@@ -34,8 +34,8 @@ export const getCorsOptions = (): CorsOptions => {
       if (!origin) {
         // Allow no-origin requests only if explicitly enabled via ALLOW_NO_ORIGIN
         if (env.ALLOW_NO_ORIGIN) {
-          console.log(
-            "✅ [CORS] Allowed request with no origin (ALLOW_NO_ORIGIN=true)",
+          logger.debug(
+            "[CORS] Allowed request with no origin (ALLOW_NO_ORIGIN=true)",
           );
           return callback(null, true);
         }
@@ -54,7 +54,7 @@ export const getCorsOptions = (): CorsOptions => {
         env.DEV_ALLOW_NGROK &&
         isNgrokOrigin(origin)
       ) {
-        console.log(`✅ [CORS] Allowed ngrok origin: ${origin}`);
+        logger.debug(`[CORS] Allowed ngrok origin: ${origin}`);
         return callback(null, true);
       }
 

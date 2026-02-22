@@ -19,6 +19,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import apiClient from "@/lib/axios-config";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import { Badge } from "@/components/ui/badge";
 
 interface ModelSelectorProps {
@@ -54,13 +55,16 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
         // Fetch projects with their files to avoid waterfall requests
         const res = await apiClient.get("/api/projects");
         setProjects(Array.isArray(res.data) ? res.data : []);
-      } catch (error: any) {
-        if (error.response?.status === 401) {
+      } catch (error: unknown) {
+        const axiosErr = error as { response?: { status?: number } };
+        if (axiosErr.response?.status === 401) {
           // Suppress console error for expected 401s
           setNeedsLogin(true);
           setProjects([]);
         } else {
-          console.error("Failed to fetch projects", error);
+          logger.error("Failed to fetch projects", {
+            error: (error as Error)?.message,
+          });
           toast.error("Failed to load projects");
         }
       }

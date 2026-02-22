@@ -19,6 +19,7 @@ import { showError } from "@/lib/error-handler";
 import { useUser } from "@/context/UserContext";
 import { FileRow } from "@/components/FileRow";
 import { ViewerModal } from "@/components/ViewerModal";
+import { logger } from "@/lib/logger";
 
 import {
   DropdownMenu,
@@ -111,7 +112,7 @@ export default function AllFilesPage() {
         const res = await apiClient.get("/api/auth/user-token");
         token = res.data.access_token;
       } catch {
-        console.log("No user token available for ACC file");
+        logger.info("No user token available for ACC file");
       }
     }
 
@@ -202,7 +203,9 @@ export default function AllFilesPage() {
           );
           break;
         }
-        console.error(`Failed to start conversion for ${file.name}:`, error);
+        logger.error(`Failed to start conversion for ${file.name}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
         showError(error, user?.role, `Failed to convert ${file.name}`);
       }
     }
@@ -261,7 +264,7 @@ export default function AllFilesPage() {
 
         toast.success("ZIP download started");
       } catch (error) {
-        console.error("Batch download failed:", {
+        logger.error("Batch download failed", {
           error: error instanceof Error ? error.message : String(error),
           fileCount: filesToDownload.length,
         });

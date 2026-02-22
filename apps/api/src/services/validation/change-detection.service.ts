@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { logger } from "../../lib/logger";
 
 const prisma = new PrismaClient();
 
@@ -24,7 +25,7 @@ export async function detectAndNotifyChanges(
     });
 
     if (recentValidations.length < 2) {
-      console.log("No previous validation to compare with");
+      logger.debug("[CHANGE_DETECTION] No previous validation to compare with");
       return;
     }
 
@@ -107,11 +108,13 @@ export async function detectAndNotifyChanges(
         },
       });
 
-      console.log(
-        `✅ Change detection: ${changesDetected.length} changes, ${newIssues.length} new, ${resolvedIssues.length} resolved`,
+      logger.info(
+        `[CHANGE_DETECTION] ${changesDetected.length} changes, ${newIssues.length} new, ${resolvedIssues.length} resolved`,
       );
     }
   } catch (error) {
-    console.error("Error in change detection:", error);
+    logger.error("[CHANGE_DETECTION] Error in change detection", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

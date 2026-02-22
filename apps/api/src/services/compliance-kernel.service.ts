@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { UniversalRequirement } from "../types/spec-grammar.types";
 import { BimProperty } from "./bim-query.service";
 import { UnitNormalizerService } from "./unit-normalizer.service";
+import { logger } from "../lib/logger";
 
 export interface Incident {
   id: string;
@@ -64,21 +65,21 @@ export class ComplianceKernelService {
     const incidents: Incident[] = [];
     const seenKeys = new Set<string>(); // For deduplication
 
-    console.log(
-      `[Compliance] Starting evaluation: ${requirements.length} requirements vs ${elements.length} elements`,
+    logger.info(
+      `[COMPLIANCE_KERNEL] Starting evaluation: ${requirements.length} requirements vs ${elements.length} elements`,
     );
 
     for (const req of requirements) {
       // Skip generic/invalid requirements
       if (this.isGenericRequirement(req)) {
-        console.log(
-          `[Compliance] Skipping generic requirement: "${req.parameter}"`,
+        logger.debug(
+          `[COMPLIANCE_KERNEL] Skipping generic requirement: "${req.parameter}"`,
         );
         continue;
       }
 
-      console.log(
-        `[Compliance] Evaluating: "${req.parameter}" ${req.operator} ${req.value} | Category: "${req.derivedCategory}"`,
+      logger.debug(
+        `[COMPLIANCE_KERNEL] Evaluating: "${req.parameter}" ${req.operator} ${req.value} | Category: "${req.derivedCategory}"`,
       );
 
       // Pre-filter elements by category for efficiency
@@ -86,8 +87,8 @@ export class ComplianceKernelService {
         elements,
         req.derivedCategory || "General",
       );
-      console.log(
-        `[Compliance] Found ${relevantElements.length} relevant elements for category "${req.derivedCategory}"`,
+      logger.debug(
+        `[COMPLIANCE_KERNEL] Found ${relevantElements.length} relevant elements for category "${req.derivedCategory}"`,
       );
 
       for (const elem of relevantElements) {
@@ -133,8 +134,8 @@ export class ComplianceKernelService {
       }
     }
 
-    console.log(
-      `[Compliance] Evaluation complete: ${incidents.length} incidents found`,
+    logger.info(
+      `[COMPLIANCE_KERNEL] Evaluation complete: ${incidents.length} incidents found`,
     );
     return incidents;
   }

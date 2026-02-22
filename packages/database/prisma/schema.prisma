@@ -104,13 +104,42 @@ model Conversion {
   id           String          @id @default(uuid())
   fileId       String
   file         File            @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  targetFormat String
-  status       String          @default("PENDING") // Enum: PENDING, PROCESSING, COMPLETED, FAILED
+  
+  // Batch relationship
+  batchId      String?
+  batch        ConversionBatch? @relation(fields: [batchId], references: [id])
+  
+  // Conversion configuration
+  targetFormat String          // IFC, PDF, DWG, etc.
+  method       String          // modelDerivative, designAutomation
+  
+  // Status tracking with explicit states
+  status       String          @default("PENDING") // PENDING, QUEUED, PROCESSING, COMPLETED, FAILED
+  
+  // Design Automation specific fields
+  workItemId   String?         // Exact workItemId for DA callback matching
+  dedupeKey    String?         @unique // For DA callback idempotency: DA:{workItemId}:{status}
+  
+  // Results
   resultUrn    String?
   resultUrl    String?
-  error        String?
+  
+  // Error tracking
+  error        String?         // Truncated error message (max 500 chars)
+  attempts     Int             @default(0) // Retry counter
+  lastError    String?         // Most recent error for debugging
+  
+ // Timestamps for observability
   createdAt    DateTime        @default(now())
-  completedAt  DateTime?
+  queuedAt     DateTime?       // When job was enqueued
+  startedAt    DateTime?       // When worker started processing
+  finishedAt   DateTime?       // When completed or failed
+  completedAt  DateTime?       // Legacy field, use finishedAt instead
+  
+  @@index([batchId, status])
+  @@index([status])
+  @@index([workItemId])
+  @@index([createdAt])
 }
 
 model Comparison {
@@ -686,3 +715,96 @@ model ComplianceIssue {
   @@index([status])
   @@index([elementCategory])
 }
+
+// ============================================
+// WEBHOOKS - Enterprise Grade Event Processing
+// ============================================
+
+// WebhookDelivery: Track all incoming webhook deliveries
+// Provides idempotency, retry tracking, and audit trail
+model WebhookDelivery {
+  id          String   @id @default(uuid())
+  provider    String   // APS, GITHUB, etc.
+  eventType   String   // dm.version.added, design-automation.callback
+  hookId      String?
+  deliveryId  String?
+  dedupeKey   String   @unique // provider:eventType:hookId:deliveryId
+  status      String   @default("PENDING") // PENDING, PROCESSED, FAILED
+  attempts    Int      @default(0)
+  lastError   String?
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+  requestId   String?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([dedupeKey])
+  @@index([receivedAt])
+  @@map("webhook_delivery")
+}
+
+// NotificationEvent: Persistent notification/event log
+// Decoupled from User notifications for audit and replay
+model NotificationEvent {
+  id         String   @id @default(uuid())
+  type       String   // VERSION_ADDED, TRANSLATION_COMPLETE, CONVERSION_COMPLETE
+  projectId  String?
+  resourceId String?  // File ID, URN, etc.
+  payload    String?  // JSON - minimal structured data
+  createdAt  DateTime @default(now())
+
+  @@index([type])
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("notification_event")
+}
+
+// ApsPollCursor: Polling state per APS project
+// Backup mechanism for missed webhooks
+model ApsPollCursor {
+  id            String   @id @default(uuid())
+  projectId     String   @unique // APS project ID (b.xxxx)
+  lastSeenAt    DateTime
+  lastVersionId String?
+  pollStatus    String   @default("ACTIVE") // ACTIVE, PAUSED, FAILED
+  lastPollAt    DateTime?
+  errorCount    Int      @default(0)
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([pollStatus])
+  @@map("aps_poll_cursor")
+}
+
+// ConversionBatch: Track batch conversion operations
+// Supports queue-based batch processing with progress tracking
+model ConversionBatch {
+  id          String   @id @default(uuid())
+  userId      String   // User who created the batch
+  
+  // Timestamps for lifecycle tracking
+  createdAt   DateTime @default(now())
+  queuedAt    DateTime? // When all jobs were enqueued
+  startedAt   DateTime? // When first job started processing
+  finishedAt  DateTime? // When last job completed/failed
+  
+  // Summary counts for progress tracking
+  totalCount      Int  // Total conversions in batch
+  pendingCount    Int  @default(0)
+  queuedCount     Int  @default(0)
+  processingCount Int  @default(0)
+  completedCount  Int  @default(0)
+  failedCount     Int  @default(0)
+  
+  // Relationships
+  conversions Conversion[]
+  
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("conversion_batch")
+}
+
+

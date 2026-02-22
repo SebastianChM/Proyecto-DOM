@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
+import { logger } from "@/lib/logger";
 
 export default function DashboardPage() {
   const { user, loading: userLoading } = useUser();
@@ -53,7 +54,7 @@ export default function DashboardPage() {
         const response = await apiClient.get("/api/dashboard/stats");
         setStats(response.data);
       } catch (error) {
-        console.error("Failed to load dashboard stats:", {
+        logger.error("Failed to load dashboard stats", {
           error: error instanceof Error ? error.message : String(error),
           timestamp: new Date().toISOString(),
         });

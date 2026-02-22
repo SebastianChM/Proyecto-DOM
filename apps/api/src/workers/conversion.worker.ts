@@ -1,372 +1,352 @@
+import { Worker, Job } from "bullmq";
+import { ConversionJobData } from "../lib/queue";
 import prisma from "../lib/prisma";
+import { env } from "../config/env";
+import { CONSTANTS } from "../config/constants";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
-import * as fs from "fs";
-import { apsOssService } from "../services/aps/oss.service";
+import { logger } from "../lib/logger";
 
-const CONCURRENCY_LIMIT = 50;
-const POLL_INTERVAL_MS = 2000;
+// Redis configuration (must match queue.ts)
+const redisConfig = {
+  host: env.REDIS_HOST || CONSTANTS.REDIS.DEFAULT_HOST,
+  port: env.REDIS_PORT || CONSTANTS.REDIS.DEFAULT_PORT,
+  password: env.REDIS_PASSWORD,
+};
 
-interface DerivativeNode {
-  outputType?: string;
-  mime?: string;
-  role?: string;
-  urn?: string;
-  children?: DerivativeNode[];
-  status?: string;
-  progress?: string;
-  messages?: Array<{ message: string; code: string }>;
-}
+/**
+ * Error Classification Helper (Hito 5 Note 10)
+ * Determines if an error is retryable based on status code/message
+ */
+function isRetryableError(error: Error): boolean {
+  const message = error.message;
 
-interface ConversionFile {
-  id: string;
-  name: string;
-  originalName?: string | null;
-  localPath?: string | null;
-  apsUrn: string | null; // Prisma sends null if empty
-  status: string;
-}
-
-interface ConversionJob {
-  id: string;
-  targetFormat: string;
-  file: ConversionFile;
-}
-
-export class ConversionWorker {
-  private isRunning: boolean = false;
-
-  // ... (lines 33-145 unchanged, skipping for brevity in replacement if possible, but replace_file_content needs contiguous)
-  // Actually I can just add the interface at the top (lines 28-30) and update executeJob signature separately.
-
-  // Let's do the interface first.
-  // ...
-
-  start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    console.log("🚀 Conversion Worker started. Polling for jobs...");
-    this.poll();
+  // Retryable: Rate limiting (429)
+  if (message.includes("429") || message.toLowerCase().includes("rate limit")) {
+    return true;
   }
 
-  private async poll() {
-    if (!this.isRunning) return;
-
-    try {
-      await this.processNextBatch();
-    } catch (error) {
-      console.error("⚠️ Worker polling error:", error);
-    }
-
-    setTimeout(() => this.poll(), POLL_INTERVAL_MS);
+  // Retryable: Server errors (5xx)
+  if (
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503") ||
+    message.includes("504")
+  ) {
+    return true;
   }
 
-  private async processNextBatch() {
-    const activeCount = await prisma.conversion.count({
-      where: { status: "PROCESSING" },
+  // Non-retryable: Authentication failures
+  if (message.includes("401") || message.includes("403")) {
+    return false;
+  }
+
+  // 409 Conflict: Usually retryable (job already in progress)
+  if (message.includes("409")) {
+    return true;
+  }
+
+  // Default: Retryable (be conservative)
+  return true;
+}
+
+/**
+ * Model Derivative Conversion Worker (Hito 5)
+ * - Concurrency controlled by env.CONVERSION_MD_CONCURRENCY (default: 8)
+ * - Implements idempotency via status checking (Hito 5 Note 9)
+ * - Classifies errors for retry logic (Hito 5 Note 10)
+ * - Sanitized logging (Hito 5 Note 12)
+ */
+const modelDerivativeWorker = new Worker<ConversionJobData>(
+  "conversion-model-derivative",
+  async (job: Job<ConversionJobData>) => {
+    const { conversionId, batchId, userId, method, targetFormat } = job.data;
+    const startTime = Date.now();
+
+    // Sanitized log: NO tokens, NO headers (Hito 5 Note 12)
+    logger.worker.start("CONVERSION_MD", job.id || "", {
+      conversionId,
+      batchId,
+      userId,
+      method,
+      targetFormat,
+      attempt: job.attemptsMade + 1,
     });
 
-    if (activeCount >= CONCURRENCY_LIMIT) return;
-
-    const slotsAvailable = CONCURRENCY_LIMIT - activeCount;
-
-    const pendingJobs = await prisma.conversion.findMany({
-      where: {
-        status: "PENDING",
-        file: {
-          status: { not: "UPLOADING" },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-      take: slotsAvailable,
+    // Fetch conversion with file data
+    const conversion = await prisma.conversion.findUnique({
+      where: { id: conversionId },
       include: { file: true },
     });
 
-    if (pendingJobs.length === 0) return;
-
-    console.log(`👷 Picking up ${pendingJobs.length} pending jobs...`);
-    await Promise.all(pendingJobs.map((job) => this.executeJob(job)));
-  }
-
-  private findPdfInDerivatives(
-    derivatives: DerivativeNode[],
-  ): DerivativeNode | null {
-    if (!derivatives) return null;
-
-    // 1. Shallow search (optimization)
-    const shallow = derivatives.find((d) => d.outputType === "pdf");
-    if (shallow) return shallow; // Optimization: Found at top level
-
-    // 2. Deep recursive search
-    const scan = (nodes: DerivativeNode[]): DerivativeNode | null => {
-      for (const node of nodes) {
-        // Check for valid PDF resource
-        if (
-          (node.mime === "application/pdf" || node.role === "pdf-page") &&
-          node.urn
-        ) {
-          return node;
-        }
-        if (node.children) {
-          const found = scan(node.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    return scan(derivatives);
-  }
-
-  private async ensureFileIsOnline(file: ConversionFile): Promise<string> {
-    if (!file.apsUrn) throw new Error("File has no URN");
-
-    // 1. Check if Manifest/URN is accessible
-    try {
-      await modelDerivativeService.getManifest(file.apsUrn);
-      return file.apsUrn; // Accessible
-    } catch (e) {
-      const err = e as { response?: { status: number } };
-      if (err.response?.status !== 404) {
-        // Other error, maybe transient, assume URN is correct or let it fail downstream
-        return file.apsUrn!;
-      }
+    if (!conversion) {
+      logger.error("[CONVERSION_MD] Conversion not found", { conversionId });
+      return { success: false, error: "Conversion not found" };
     }
 
-    console.warn(
-      `⚠️ File ${file.name} expired in Cloud (404). Attempting resurrection from local storage...`,
-    );
-
-    // 2. Resurrect
-    if (!file.localPath || !fs.existsSync(file.localPath)) {
-      // Specific error for the User
-      console.error(
-        `❌ Resurrection failed: Local backup missing at ${file.localPath}`,
-      );
-      throw new Error(
-        "El archivo ha expirado en la nube y no existe respaldo local. Por favor súbalo nuevamente.",
-      );
+    // CRITICAL: Idempotency check (Hito 5 Note 9)
+    if (conversion.status === "COMPLETED") {
+      logger.info("[CONVERSION_MD] Already COMPLETED, skipping", {
+        conversionId,
+      });
+      return { success: true, alreadyCompleted: true };
     }
 
-    console.log(`♻️ Resurrecting ${file.name} from ${file.localPath}...`);
+    if (conversion.status === "PROCESSING") {
+      logger.warn("[CONVERSION_MD] Already PROCESSING by another worker", {
+        conversionId,
+      });
+      throw new Error("Already being processed by another worker");
+    }
 
-    // Upload again
-    const buffer = fs.readFileSync(file.localPath);
-    const apsObject = await apsOssService.uploadObject(
-      buffer,
-      file.originalName || file.name,
-    );
-
-    // Generate new URN
-    const newUrn = apsOssService.getDerivativeUrn(
-      (apsObject as { objectId: string }).objectId,
-    );
-
-    // Update DB
-    await prisma.file.update({
-      where: { id: file.id },
-      data: { apsUrn: newUrn, status: "READY" },
-    });
-
-    console.log(`✅ Resurrection successful. New URN: ${newUrn}`);
-    return newUrn;
-  }
-
-  private async executeJob(conversion: ConversionJob) {
-    // Double-check status
-    const currentJob = await prisma.conversion.findUnique({
-      where: { id: conversion.id },
-    });
-    if (currentJob?.status !== "PENDING") return;
-
-    // Mark as PROCESSING
+    // Update status to PROCESSING
     await prisma.conversion.update({
-      where: { id: conversion.id },
-      data: { status: "PROCESSING" },
+      where: { id: conversionId },
+      data: {
+        status: "PROCESSING",
+        startedAt: new Date(),
+        attempts: job.attemptsMade + 1,
+      },
     });
 
-    const { file, targetFormat, id } = conversion;
-    const format = targetFormat;
+    try {
+      // Execute translation based on target format
+      logger.info("[CONVERSION_MD] Executing translation", {
+        conversionId,
+        format: targetFormat,
+        urn: conversion.file.apsUrn?.substring(0, 20) + "...",
+      });
 
-    console.log(`[Job ${id}] Starting conversion queue placeholder process...`); // Explicit placeholder log
+      let result: { urn?: string };
+
+      if (targetFormat === "IFC" || targetFormat === "ifc") {
+        result = await modelDerivativeService.translateToIFC(
+          conversion.file.apsUrn!,
+        );
+      } else if (targetFormat === "PDF" || targetFormat === "pdf") {
+        result = await modelDerivativeService.translateToPDF(
+          conversion.file.apsUrn!,
+        );
+      } else {
+        throw new Error(`Unsupported format: ${targetFormat}`);
+      }
+
+      // Update to COMPLETED
+      await prisma.conversion.update({
+        where: { id: conversionId },
+        data: {
+          status: "COMPLETED",
+          finishedAt: new Date(),
+          resultUrn: result.urn,
+        },
+      });
+
+      const durationMs = Date.now() - startTime;
+      logger.worker.complete("CONVERSION_MD", job.id || "", durationMs, {
+        conversionId,
+        batchId,
+        attempt: job.attemptsMade + 1,
+      });
+
+      return { success: true, conversionId, durationMs };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Truncate error (Hito 5 Note 11: max 1000 chars)
+      const truncatedError = errorMessage.substring(0, 1000);
+
+      // Classify error for retry logic (Hito 5 Note 10)
+      const retryable = isRetryableError(error as Error);
+      const attemptsLeft = env.CONVERSION_MAX_ATTEMPTS - (job.attemptsMade + 1);
+      const finalStatus = retryable && attemptsLeft > 0 ? "QUEUED" : "FAILED";
+
+      // Update status
+      await prisma.conversion.update({
+        where: { id: conversionId },
+        data: {
+          status: finalStatus,
+          lastError: truncatedError,
+          finishedAt: finalStatus === "FAILED" ? new Date() : undefined,
+        },
+      });
+
+      // Sanitized error log (NO full stack, NO sensitive data)
+      logger.worker.fail(
+        "CONVERSION_MD",
+        job.id || "",
+        truncatedError.substring(0, 200),
+        {
+          conversionId,
+          batchId,
+          retryable,
+          attempt: job.attemptsMade + 1,
+          attemptsLeft,
+        },
+      );
+
+      // If retryable, throw to trigger BullMQ retry
+      if (retryable && attemptsLeft > 0) {
+        throw error;
+      }
+
+      return { success: false, error: truncatedError };
+    }
+  },
+  {
+    connection: redisConfig,
+    concurrency: env.CONVERSION_MD_CONCURRENCY, // Configurable concurrency (default: 8)
+  },
+);
+
+/**
+ * Design Automation Conversion Worker (Hito 5)
+ * - Lower concurrency (default: 5) as DA is callback-dependent (Hito 5 Note 5)
+ */
+const designAutomationWorker = new Worker<ConversionJobData>(
+  "conversion-design-automation",
+  async (job: Job<ConversionJobData>) => {
+    const { conversionId, batchId, userId } = job.data;
+    const startTime = Date.now();
+
+    logger.worker.start("CONVERSION_DA", job.id || "", {
+      conversionId,
+      batchId,
+      userId,
+      attempt: job.attemptsMade + 1,
+    });
+
+    const conversion = await prisma.conversion.findUnique({
+      where: { id: conversionId },
+      include: { file: true },
+    });
+
+    if (!conversion) {
+      logger.error("[CONVERSION_DA] Conversion not found", { conversionId });
+      return { success: false, error: "Conversion not found" };
+    }
+
+    // Idempotency check
+    if (conversion.status === "COMPLETED") {
+      logger.info("[CONVERSION_DA] Already COMPLETED, skipping", {
+        conversionId,
+      });
+      return { success: true, alreadyCompleted: true };
+    }
+
+    if (conversion.status === "PROCESSING") {
+      logger.warn("[CONVERSION_DA] Already PROCESSING", { conversionId });
+      throw new Error("Already being processed by another worker");
+    }
+
+    // Update to PROCESSING
+    await prisma.conversion.update({
+      where: { id: conversionId },
+      data: {
+        status: "PROCESSING",
+        startedAt: new Date(),
+        attempts: job.attemptsMade + 1,
+      },
+    });
 
     try {
-      console.log(`🔄 Processing job ${id} (${format})...`);
+      // TODO: Implement Design Automation logic
+      // This would create a work item and store workItemId for callback matching
+      logger.info("[CONVERSION_DA] Creating DA work item", {
+        conversionId,
+        fileUrn: conversion.file.apsUrn?.substring(0, 20) + "...",
+      });
 
-      // --- SELF-HEALING: Ensure file exists in OSS ---
-      // If expired, restore from local backup
-      const activeUrn = await this.ensureFileIsOnline(file as ConversionFile);
-      file.apsUrn = activeUrn; // Update used URN
-
-      if (format === "pdf" && file.name.toLowerCase().endsWith(".rvt")) {
-        await prisma.conversion.update({
-          where: { id: conversion.id },
-          data: {
-            status: "FAILED",
-            error: "RVT to PDF requires Design Automation.",
-          },
-        });
-        return;
-      }
-
-      // --- OPTIMIZATION 1: PRE-CHECK EXISTING MANIFEST ---
-      // If the user is retrying, the PDF might already exist.
-      try {
-        const existingManifest = await modelDerivativeService.getManifest(
-          file.apsUrn,
-        );
-        if (existingManifest.status === "success") {
-          const existingPdf = this.findPdfInDerivatives(
-            existingManifest.derivatives,
-          );
-          if (existingPdf) {
-            console.log(
-              `⚡ INSTANT SUCCESS: Found existing PDF for ${file.name}`,
-            );
-
-            await prisma.conversion.update({
-              where: { id: conversion.id },
-              data: {
-                status: "COMPLETED",
-                completedAt: new Date(),
-                resultUrn: existingPdf.urn,
-                resultUrl: `/api/conversion/${conversion.id}/download`,
-              },
-            });
-            return; // Done!
-          }
-        }
-
-        // If failed, delete it to retry cleanly
-        if (existingManifest.status === "failed") {
-          console.log(
-            `⚠️ Deleting failed manifest for ${file.name} to force retry...`,
-          );
-          await modelDerivativeService.deleteManifest(file.apsUrn);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      } catch (err) {
-        const error = err as { response?: { status: number }; message: string };
-        if (error.response?.status !== 404) {
-          console.warn("⚠️ Pre-check manifest warning:", error.message);
-        }
-      }
-
-      // --- TRIGGER TRANSLATION ---
-      if (format === "pdf") {
-        console.log(`📄 Requesting PDF generation for ${file.name}...`);
-        await modelDerivativeService.translateToPDF(file.apsUrn);
-      } else if (format === "ifc") {
-        await modelDerivativeService.translateToIFC(file.apsUrn);
-      } else {
-        throw new Error(`Unsupported format: ${format}`);
-      }
-
-      // --- POLL MANIFEST UNTIL COMPLETE ---
-      const maxAttempts = 120; // Increased attempts, but checks are faster
-      let attempts = 0;
-      let foundPdf = false;
-      let manifestFailed = false;
-      let failReason = "";
-
-      while (attempts < maxAttempts && !foundPdf && !manifestFailed) {
-        attempts++;
-
-        // --- OPTIMIZATION 2: ADAPTIVE POLLING ---
-        // Wait LESS time for the first checks
-        let delay = 5000;
-        if (attempts <= 5)
-          delay = 1000; // First 5s: check every 1s
-        else if (attempts <= 15) delay = 2000; // Next 20s: check every 2s
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-
-        try {
-          const manifest = await modelDerivativeService.getManifest(
-            file.apsUrn,
-          );
-
-          // Logic to avoid spamming logs
-          if (
-            attempts % 5 === 0 ||
-            manifest.status === "success" ||
-            manifest.status === "failed"
-          ) {
-            console.log(
-              `🔍 [Job ${id}] Status: ${manifest.status} (${manifest.progress || "0%"})`,
-            );
-          }
-
-          if (manifest.status === "failed") {
-            manifestFailed = true;
-            const errorDetails =
-              (manifest.derivatives as DerivativeNode[])?.find(
-                (d) => d.status === "failed",
-              )?.messages || [];
-            const errorMessages = errorDetails
-              .map((m) => m.message || m.code)
-              .join("; ");
-            failReason = `Conversion Failed: ${errorMessages}`;
-            break;
-          }
-
-          if (manifest.status === "success") {
-            const pdfDerivative = this.findPdfInDerivatives(
-              manifest.derivatives,
-            );
-
-            if (pdfDerivative) {
-              console.log(`✅ PDF Generated! URN: ${pdfDerivative.urn}`);
-              await prisma.conversion.update({
-                where: { id: conversion.id },
-                data: {
-                  status: "COMPLETED",
-                  completedAt: new Date(),
-                  resultUrn: pdfDerivative.urn,
-                  resultUrl: `/api/conversion/${conversion.id}/download`,
-                },
-              });
-              foundPdf = true;
-              break;
-            } else {
-              // Success but no PDF?
-              if (attempts > 20) {
-                // Wait deeper
-                manifestFailed = true;
-                failReason = "Conversion success but PDF not found in output.";
-                break;
-              }
-            }
-          }
-        } catch (err) {
-          const manifestError = err as Error;
-          // Retry on network errors
-          if (attempts > 20 && manifestError.message.includes("failed")) {
-            manifestFailed = true;
-            failReason = manifestError.message;
-            break;
-          }
-        }
-      }
-
-      if (manifestFailed) throw new Error(failReason);
-      if (!foundPdf) throw new Error("Timeout waiting for conversion.");
-    } catch (err) {
-      const error = err as {
-        message: string;
-        response?: { data?: { diagnostic?: string } };
-      };
-      let errorMsg = error.message;
-      if (error.response?.data?.diagnostic) {
-        errorMsg = `Autodesk Rejected: ${error.response.data.diagnostic}`;
-      }
-      console.error(`❌ Job ${id} Failed:`, errorMsg);
+      // Placeholder workItemId storage (Hito 5 Note 13: for exact callback matching)
+      const workItemId = `da-workitem-${conversionId}-${Date.now()}`;
 
       await prisma.conversion.update({
-        where: { id: conversion.id },
-        data: { status: "FAILED", error: errorMsg },
+        where: { id: conversionId },
+        data: {
+          workItemId, // CRITICAL: Store for exact callback matching (no substring!)
+        },
+      });
+
+      // For DA, job stays PROCESSING until callback arrives
+      // Worker just initiates the work item, callback completes it
+
+      const durationMs = Date.now() - startTime;
+      logger.worker.complete("CONVERSION_DA", job.id || "", durationMs, {
+        conversionId,
+        workItemId: workItemId.substring(0, 30) + "...",
+        status: "awaiting_callback",
+      });
+
+      return { success: true, conversionId, workItemId };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const truncatedError = errorMessage.substring(0, 1000);
+      const retryable = isRetryableError(error as Error);
+      const attemptsLeft = env.CONVERSION_MAX_ATTEMPTS - (job.attemptsMade + 1);
+      const finalStatus = retryable && attemptsLeft > 0 ? "QUEUED" : "FAILED";
+
+      await prisma.conversion.update({
+        where: { id: conversionId },
+        data: {
+          status: finalStatus,
+          lastError: truncatedError,
+          finishedAt: finalStatus === "FAILED" ? new Date() : undefined,
+        },
+      });
+
+      logger.error(`[CONVERSION_DA_WORKER] Failed`, {
+        conversionId,
+        error: truncatedError.substring(0, 200),
+        retryable,
+        attempt: job.attemptsMade + 1,
+      });
+
+      if (retryable && attemptsLeft > 0) {
+        throw error;
+      }
+
+      return { success: false, error: truncatedError };
+    }
+  },
+  {
+    connection: redisConfig,
+    concurrency: env.CONVERSION_DA_CONCURRENCY, // Lower concurrency (default: 5) for callback-dependent work
+  },
+);
+
+// Event listeners for monitoring
+[modelDerivativeWorker, designAutomationWorker].forEach((worker) => {
+  worker.on("completed", (job) => {
+    logger.debug(`[WORKER] Job completed`, {
+      queue: worker.name,
+      jobId: job.id,
+    });
+  });
+
+  worker.on("failed", (job, err) => {
+    if (job) {
+      logger.error(`[WORKER] Job failed`, {
+        queue: worker.name,
+        jobId: job.id,
+        error: err.message.substring(0, 200),
       });
     }
-  }
-}
+  });
 
-export const conversionWorker = new ConversionWorker();
+  worker.on("error", (err) => {
+    logger.error(`[WORKER] Worker error`, {
+      queue: worker.name,
+      error: err.message,
+    });
+  });
+});
+
+logger.info("[HITO 5] BullMQ-based conversion workers initialized", {
+  mdConcurrency: env.CONVERSION_MD_CONCURRENCY,
+  daConcurrency: env.CONVERSION_DA_CONCURRENCY,
+});
+
+export default {
+  modelDerivativeWorker,
+  designAutomationWorker,
+};

@@ -20,6 +20,7 @@ import {
   EntityType,
   UserContext,
 } from "../services/workflow.service";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -74,64 +75,60 @@ async function getEntityRole(
   entityType: EntityType,
   entityId: string,
 ): Promise<string> {
-  const { PrismaClient } = await import("@prisma/client");
-  const prisma = new PrismaClient();
+  // Use shared prisma instance
+  const prisma = (await import("../lib/prisma")).default;
 
-  try {
-    if (entityType === "PROJECT") {
-      // Check if owner
-      const project = await prisma.project.findUnique({
-        where: { id: entityId },
-        select: { ownerId: true },
-      });
+  if (entityType === "PROJECT") {
+    // Check if owner
+    const project = await prisma.project.findUnique({
+      where: { id: entityId },
+      select: { ownerId: true },
+    });
 
-      if (project?.ownerId === userId) {
-        return "OWNER";
-      }
-
-      // Check project membership
-      const member = await prisma.projectMember.findUnique({
-        where: {
-          projectId_userId: { projectId: entityId, userId },
-        },
-        select: { role: true },
-      });
-
-      if (member) {
-        return member.role;
-      }
-    } else if (entityType === "FILE") {
-      // Get file's project and check role there
-      const file = await prisma.file.findUnique({
-        where: { id: entityId },
-        select: { projectId: true, uploadedBy: true },
-      });
-
-      if (file) {
-        // Uploader has EDITOR role
-        if (file.uploadedBy === userId) {
-          return "EDITOR";
-        }
-
-        // Check project role
-        return getEntityRole(userId, "PROJECT", file.projectId);
-      }
+    if (project?.ownerId === userId) {
+      return "OWNER";
     }
 
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    // Check project membership
+    const member = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: entityId, userId },
+      },
       select: { role: true },
     });
 
-    if (user?.role === "ADMIN") {
-      return "ADMIN";
+    if (member) {
+      return member.role;
     }
+  } else if (entityType === "FILE") {
+    // Get file's project and check role there
+    const file = await prisma.file.findUnique({
+      where: { id: entityId },
+      select: { projectId: true, uploadedBy: true },
+    });
 
-    return "NONE";
-  } finally {
-    await prisma.$disconnect();
+    if (file) {
+      // Uploader has EDITOR role
+      if (file.uploadedBy === userId) {
+        return "EDITOR";
+      }
+
+      // Check project role
+      return getEntityRole(userId, "PROJECT", file.projectId);
+    }
   }
+
+  // Check if user is admin
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (user?.role === "ADMIN") {
+    return "ADMIN";
+  }
+
+  return "NONE";
 }
 
 /**
@@ -147,7 +144,9 @@ function handleWorkflowError(error: unknown, res: Response) {
     });
   }
 
-  console.error("Unexpected workflow error:", error);
+  logger.error("[WORKFLOWS] Unexpected workflow error", {
+    error: error instanceof Error ? error.message : String(error),
+  });
   return res.status(500).json({
     error: "InternalServerError",
     code: "INTERNAL_ERROR",

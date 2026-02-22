@@ -42,6 +42,7 @@ import {
   Home,
 } from "lucide-react";
 import { RuleBuilder } from "./RuleBuilder";
+import { logger } from "@/lib/logger";
 
 interface Rule {
   id: string;
@@ -74,7 +75,8 @@ interface Ruleset {
   };
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { API_CONFIG } from "@/lib/config";
+const API_BASE = API_CONFIG.BASE_URL;
 
 const disciplineIcons: Record<string, React.ReactNode> = {
   ELECTRICAL: <Zap className="h-5 w-5 text-yellow-500" />,
@@ -123,7 +125,9 @@ export function RulesetManager() {
           setSelectedRuleset(data[0]);
         }
       } catch (error) {
-        console.error("Failed to load rulesets:", error);
+        logger.error("Failed to load rulesets", {
+          error: (error as Error)?.message,
+        });
       } finally {
         setLoading(false);
       }
@@ -143,7 +147,9 @@ export function RulesetManager() {
         const data = await res.json();
         setRules(data);
       } catch (error) {
-        console.error("Failed to load rules:", error);
+        logger.error("Failed to load rules", {
+          error: (error as Error)?.message,
+        });
       }
     };
     fetchRules();
@@ -175,7 +181,7 @@ export function RulesetManager() {
       setShowRuleBuilder(false);
       setEditingRule(undefined);
     } catch (error) {
-      console.error("Failed to save rule:", error);
+      logger.error("Failed to save rule", { error: (error as Error)?.message });
       throw error;
     }
   };
@@ -189,7 +195,9 @@ export function RulesetManager() {
       });
       setRules((prev) => prev.filter((r) => r.id !== ruleId));
     } catch (error) {
-      console.error("Failed to delete rule:", error);
+      logger.error("Failed to delete rule", {
+        error: (error as Error)?.message,
+      });
     }
   };
 
@@ -206,7 +214,9 @@ export function RulesetManager() {
         ),
       );
     } catch (error) {
-      console.error("Failed to toggle rule:", error);
+      logger.error("Failed to toggle rule", {
+        error: (error as Error)?.message,
+      });
     }
   };
 

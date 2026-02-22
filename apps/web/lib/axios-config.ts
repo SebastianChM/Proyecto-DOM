@@ -8,6 +8,7 @@
  */
 
 import axios from "axios";
+import { logger } from "@/lib/logger";
 
 // Use empty string to leverage Next.js proxy/rewrites by default (works for both localhost and ngrok)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -23,7 +24,6 @@ export const apiClient = axios.create({
 });
 
 // Interceptor para logging (solo en desarrollo)
-// Interceptor para logging (solo en desarrollo)
 if (process.env.NODE_ENV === "development") {
   apiClient.interceptors.request.use(
     (config) => {
@@ -31,7 +31,7 @@ if (process.env.NODE_ENV === "development") {
       return config;
     },
     (error) => {
-      console.warn("⚠️ Request Error:", error);
+      logger.warn("API Request Error", { error: error?.message });
       return Promise.reject(error);
     },
   );
@@ -44,14 +44,12 @@ if (process.env.NODE_ENV === "development") {
     (error) => {
       // Only log actual network/server errors, not 4xx validation errors which are handled by UI
       if (error.response && error.response.status >= 500) {
-        console.error(
-          `❌ API Error: ${error.response.status} ${error.config?.url}`,
-          {
-            data: error.response.data,
-          },
+        logger.error(
+          `API Error: ${error.response.status} ${error.config?.url}`,
+          { data: error.response.data },
         );
       } else if (!error.response) {
-        console.error("❌ Network Error:", error.message);
+        logger.error("Network Error", { error: error.message });
       }
       return Promise.reject(error);
     },

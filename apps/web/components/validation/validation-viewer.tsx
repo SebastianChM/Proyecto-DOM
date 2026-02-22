@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { logger } from "@/lib/logger";
 import {
   Card,
   CardContent,
@@ -86,20 +87,21 @@ export function ValidationViewer({ data, files }: ValidationViewerProps) {
   } | null>(null);
 
   const handleIncidentClick = (incident: Incident) => {
-    console.log("[ValidationViewer] Incident Clicked:", incident);
+    logger.debug("ValidationViewer: Incident clicked", {
+      id: incident.id,
+      elementId: incident.elementId,
+    });
 
     if (!viewerInstance) {
-      console.error("[ValidationViewer] No Viewer Instance found!");
+      logger.error("ValidationViewer: No Viewer Instance found");
       // return; // Don't return, allow PDF sync even if 3D fails
     } else {
       // 1. Isolate in 3D Viewer
       const dbId = Number(incident.elementId);
-      console.log(
-        "[ValidationViewer] Isolating DBID:",
+      logger.debug("ValidationViewer: Isolating DBID", {
         dbId,
-        "Type:",
-        typeof dbId,
-      );
+        type: typeof dbId,
+      });
 
       if (!isNaN(dbId)) {
         try {
@@ -109,8 +111,16 @@ export function ValidationViewer({ data, files }: ValidationViewerProps) {
           // Colors
           viewerInstance.clearThemingColors();
 
+          const winWithViewer = window as unknown as {
+            THREE?: { Vector4: new (...args: number[]) => unknown };
+            Autodesk?: {
+              Viewing?: {
+                THREE?: { Vector4: new (...args: number[]) => unknown };
+              };
+            };
+          };
           const THREE =
-            (window as any).THREE || (window as any).Autodesk?.Viewing?.THREE;
+            winWithViewer.THREE || winWithViewer.Autodesk?.Viewing?.THREE;
           if (THREE) {
             const color =
               incident.severity === "CRITICAL"
@@ -119,23 +129,25 @@ export function ValidationViewer({ data, files }: ValidationViewerProps) {
             viewerInstance.setThemingColor(dbId, color);
           }
         } catch (err) {
-          console.error("[ValidationViewer] Viewer API Exception:", err);
+          logger.error("ValidationViewer: Viewer API Exception", {
+            error: (err as Error)?.message,
+          });
         }
       } else {
-        console.error("[ValidationViewer] Invalid DBID (NaN)");
+        logger.error("ValidationViewer: Invalid DBID (NaN)");
       }
     }
 
     // 2. Sync PDF Viewer (Jump & Highlight)
     if (data.checklist) {
       const req = data.checklist.find((r) => r.id === incident.requirementId);
-      console.log("[ValidationViewer] Linked Requirement:", req);
+      logger.debug("ValidationViewer: Linked Requirement", { reqId: req?.id });
 
       if (req && req.page) {
         const searchText = req.originalText
           ? req.originalText.trim()
           : (req.text || "").trim();
-        console.log("[ValidationViewer] Setting PDF Highlight:", {
+        logger.debug("ValidationViewer: Setting PDF Highlight", {
           page: req.page,
           text: searchText,
         });
@@ -145,7 +157,7 @@ export function ValidationViewer({ data, files }: ValidationViewerProps) {
           text: searchText,
         });
       } else {
-        console.warn("[ValidationViewer] No Page info in requirement.");
+        logger.warn("ValidationViewer: No Page info in requirement");
       }
     }
   };

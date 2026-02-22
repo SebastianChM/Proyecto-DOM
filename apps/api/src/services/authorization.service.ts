@@ -7,6 +7,7 @@
 
 import prisma from "../lib/prisma";
 import { cacheService, RedisKeys } from "../lib/redis";
+import { logger } from "../lib/logger";
 
 // Definición de permisos por rol
 const ROLE_PERMISSIONS = {
@@ -108,7 +109,9 @@ export class AuthorizationService {
 
       return permissions.includes(permission);
     } catch (error) {
-      console.error("Error checking permission:", error);
+      logger.error("[AUTHORIZATION] Error checking permission", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false; // Fail closed - denegar acceso en caso de error
     }
   }
@@ -212,7 +215,9 @@ export class AuthorizationService {
 
       return true;
     } catch (error) {
-      console.error("Error sharing project:", error);
+      logger.error("[AUTHORIZATION] Error sharing project", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }
@@ -261,7 +266,9 @@ export class AuthorizationService {
 
       return true;
     } catch (error) {
-      console.error("Error revoking access:", error);
+      logger.error("[AUTHORIZATION] Error revoking access", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../lib/prisma";
 import { redis } from "../lib/redis";
 import { env } from "../config/env";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get("/", async (req, res) => {
     health.services.database = "down";
     status = 503;
     // Sanitized log - no connection strings or sensitive details
-    console.error("[HEALTH] Database check failed", {
+    logger.error("[HEALTH] Database check failed", {
       timestamp: new Date().toISOString(),
       requestId: req.headers["x-request-id"],
     });
@@ -39,7 +40,7 @@ router.get("/", async (req, res) => {
     health.services.redis = "down";
     status = 503;
     // Sanitized log - no connection strings or sensitive details
-    console.error("[HEALTH] Redis check failed", {
+    logger.error("[HEALTH] Redis check failed", {
       timestamp: new Date().toISOString(),
       requestId: req.headers["x-request-id"],
     });

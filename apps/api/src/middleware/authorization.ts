@@ -9,6 +9,7 @@ import {
   authorizationService,
   Permission,
 } from "../services/authorization.service";
+import { logger } from "../lib/logger";
 
 /**
  * Middleware que requiere un permiso específico para acceder a la ruta
@@ -24,10 +25,11 @@ export const requirePermission = (
     try {
       // Verificar que el usuario esté autenticado
       if (!req.session?.user?.id) {
-        console.warn(`🚫 [AUTH] 401 on ${req.method} ${req.path}`, {
+        logger.warn("[AUTH] 401 - Unauthenticated access", {
+          method: req.method,
+          path: req.path,
           ip: req.ip,
           requestId: req.headers["x-request-id"],
-          timestamp: new Date().toISOString(),
         });
         return res.status(401).json({
           error: "Authentication required",
@@ -63,16 +65,14 @@ export const requirePermission = (
       );
 
       if (!hasPermission) {
-        console.warn(
-          `🚫 [AUTH] 403 Permission denied on ${req.method} ${req.path}`,
-          {
-            user: req.session.user.email,
-            requiredPermission: permission,
-            projectId,
-            requestId: req.headers["x-request-id"],
-            timestamp: new Date().toISOString(),
-          },
-        );
+        logger.warn("[AUTH] 403 - Permission denied", {
+          method: req.method,
+          path: req.path,
+          user: req.session.user.email,
+          requiredPermission: permission,
+          projectId,
+          requestId: req.headers["x-request-id"],
+        });
         return res.status(403).json({
           error: "Forbidden",
           message: `No tienes permiso para: ${permission}`,
@@ -83,7 +83,7 @@ export const requirePermission = (
       next();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("Authorization middleware error:", msg);
+      logger.error("[AUTH] Authorization middleware error", { error: msg });
       res.status(500).json({
         error: "Authorization check failed",
         message: msg,
@@ -102,10 +102,11 @@ export const requireAdmin = async (
 ) => {
   try {
     if (!req.session?.user?.id) {
-      console.warn(`🚫 [AUTH] 401 on ${req.method} ${req.path}`, {
+      logger.warn("[AUTH] 401 - Unauthenticated access", {
+        method: req.method,
+        path: req.path,
         ip: req.ip,
         requestId: req.headers["x-request-id"],
-        timestamp: new Date().toISOString(),
       });
       return res.status(401).json({
         error: "Authentication required",
@@ -113,15 +114,13 @@ export const requireAdmin = async (
     }
 
     if (req.session.user.role !== "ADMIN") {
-      console.warn(
-        `🚫 [AUTH] 403 Admin required on ${req.method} ${req.path}`,
-        {
-          user: req.session.user.email,
-          role: req.session.user.role,
-          requestId: req.headers["x-request-id"],
-          timestamp: new Date().toISOString(),
-        },
-      );
+      logger.warn("[AUTH] 403 - Admin required", {
+        method: req.method,
+        path: req.path,
+        user: req.session.user.email,
+        role: req.session.user.role,
+        requestId: req.headers["x-request-id"],
+      });
       return res.status(403).json({
         error: "Forbidden",
         message: "Se requiere rol de administrador",
@@ -131,7 +130,7 @@ export const requireAdmin = async (
     next();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Admin check error:", msg);
+    logger.error("[AUTH] Admin check error", { error: msg });
     res.status(500).json({
       error: "Authorization check failed",
       message: msg,

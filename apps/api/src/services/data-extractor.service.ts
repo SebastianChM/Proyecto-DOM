@@ -12,6 +12,7 @@ const pdfParse = require("pdf-parse");
 import * as fs from "fs";
 import { PrismaClient } from "@prisma/client";
 import ExcelJS from "exceljs";
+import { logger } from "../lib/logger";
 
 const prisma = new PrismaClient();
 
@@ -44,7 +45,7 @@ export class DataExtractorService {
     filePath: string,
     documentName: string,
   ): Promise<ExtractionResult> {
-    console.log(`[DataExtractor] Extracting from PDF: ${documentName}`);
+    logger.info(`[DATA_EXTRACTOR] Extracting from PDF: ${documentName}`);
 
     try {
       const dataBuffer = fs.readFileSync(filePath);
@@ -59,8 +60,8 @@ export class DataExtractorService {
         .map((l: string) => l.trim())
         .filter((l: string) => l.length > 0);
 
-      console.log(
-        `[DataExtractor] PDF has ${numPages} pages, ${lines.length} lines`,
+      logger.info(
+        `[DATA_EXTRACTOR] PDF has ${numPages} pages, ${lines.length} lines`,
       );
 
       // Extract tables using heuristics
@@ -79,7 +80,9 @@ export class DataExtractorService {
       };
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("[DataExtractor] PDF extraction error:", err.message);
+      logger.error("[DATA_EXTRACTOR] PDF extraction error", {
+        error: err.message,
+      });
       return {
         success: false,
         documentName,
@@ -98,7 +101,7 @@ export class DataExtractorService {
     filePath: string,
     documentName: string,
   ): Promise<ExtractionResult> {
-    console.log(`[DataExtractor] Extracting from Excel: ${documentName}`);
+    logger.info(`[DATA_EXTRACTOR] Extracting from Excel: ${documentName}`);
 
     try {
       const workbook = new ExcelJS.Workbook();
@@ -151,8 +154,8 @@ export class DataExtractorService {
         }
       });
 
-      console.log(
-        `[DataExtractor] Extracted ${tables.length} tables from Excel`,
+      logger.info(
+        `[DATA_EXTRACTOR] Extracted ${tables.length} tables from Excel`,
       );
 
       return {
@@ -166,7 +169,9 @@ export class DataExtractorService {
       };
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("[DataExtractor] Excel extraction error:", err.message);
+      logger.error("[DATA_EXTRACTOR] Excel extraction error", {
+        error: err.message,
+      });
       return {
         success: false,
         documentName,
@@ -227,7 +232,7 @@ export class DataExtractorService {
       tables.push(currentTable);
     }
 
-    console.log(`[DataExtractor] Found ${tables.length} tables in text`);
+    logger.info(`[DATA_EXTRACTOR] Found ${tables.length} tables in text`);
     return tables;
   }
 
@@ -364,7 +369,7 @@ export class DataExtractorService {
       },
     });
 
-    console.log(`[DataExtractor] Saved DataSource: ${dataSource.id}`);
+    logger.info(`[DATA_EXTRACTOR] Saved DataSource: ${dataSource.id}`);
     return dataSource.id;
   }
 

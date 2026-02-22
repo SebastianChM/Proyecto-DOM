@@ -59,8 +59,8 @@
 2. **Raíz/.env** tiene credenciales correctas:
 
    ```env
-   APS_CLIENT_ID=RIi0BvKIEfSsBad3EoRdBkTAruI7i8kUjG0l0S54Wfv3GMUi  # ✅ Correcto
-   APS_CLIENT_SECRET=TFvrMRi77n5Eptxoko9RAKYL3WEcVXRQ1nAEGddiqG0Q10BvX7iugequcahgv6sg  # ✅ Correcto
+   APS_CLIENT_ID=<REDACTED - Configure in .env>
+   APS_CLIENT_SECRET=<REDACTED - Configure in .env>
    ```
 
 3. **Frontend** tiene 3 archivos .env diferentes (confusión)

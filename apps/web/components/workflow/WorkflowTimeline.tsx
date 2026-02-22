@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 import {
   Clock,
   User,
@@ -128,7 +129,9 @@ export function WorkflowTimeline({
       );
       setHistory(response.data);
     } catch (err: unknown) {
-      console.error("Error fetching workflow history:", err);
+      logger.error("Error fetching workflow history", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError("No se pudo cargar el historial");
     } finally {
       setLoading(false);

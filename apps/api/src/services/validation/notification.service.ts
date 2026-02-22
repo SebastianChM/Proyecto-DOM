@@ -1,5 +1,6 @@
 import prisma from "../../lib/prisma";
 import { redis } from "../../lib/redis";
+import { logger } from "../../lib/logger";
 
 /**
  * Create notifications for validation completion
@@ -89,13 +90,19 @@ export async function createValidationNotifications(
         };
         await redis.publish("worker:notifications", JSON.stringify(payload));
       } catch (err) {
-        console.error("Failed to publish notification to Redis:", err);
+        logger.error(
+          "[VALIDATION_NOTIFY] Failed to publish notification to Redis",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
       }
     }
 
     return notifications.length;
   } catch (error) {
-    console.error("Error creating validation notifications:", error);
+    logger.error(
+      "[VALIDATION_NOTIFY] Error creating validation notifications",
+      { error: error instanceof Error ? error.message : String(error) },
+    );
     throw error;
   }
 }

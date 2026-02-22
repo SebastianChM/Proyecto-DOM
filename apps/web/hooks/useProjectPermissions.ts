@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 
 export type Permission =
   | "project:create"
@@ -110,7 +111,7 @@ export function useProjectPermissions(
       const errorMessage =
         err instanceof Error ? err.message : "Failed to load permissions";
       setError(errorMessage);
-      console.error("Error fetching permissions:", err);
+      logger.error("Error fetching permissions", { error: errorMessage });
     } finally {
       setLoading(false);
     }

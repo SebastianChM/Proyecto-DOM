@@ -53,6 +53,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 // ============================================================================
 // TYPES
@@ -82,7 +83,8 @@ interface IssuesListProps {
 // CONSTANTS
 // ============================================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { API_CONFIG } from "@/lib/config";
+const API_BASE = API_CONFIG.BASE_URL;
 
 const SEVERITY_CONFIG = {
   CRITICAL: {
@@ -336,7 +338,10 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
         ),
       );
     } catch (err: unknown) {
-      console.error("Failed to update issue status:", err);
+      logger.error("Failed to update issue status", {
+        issueId,
+        error: (err as Error)?.message,
+      });
     } finally {
       setUpdatingIssueId(null);
     }

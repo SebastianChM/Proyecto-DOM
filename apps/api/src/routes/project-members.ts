@@ -14,7 +14,9 @@ import prisma from "../lib/prisma";
 import { requirePermission } from "../middleware/authorization";
 import { authorizationService } from "../services/authorization.service";
 import { cacheService } from "../lib/redis";
+import { logger } from "../lib/logger";
 import { emailService } from "../services/email.service";
+import { CONSTANTS } from "../config/constants";
 
 const router = Router();
 
@@ -100,7 +102,9 @@ router.get("/:id/permissions", async (req, res) => {
     });
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("Error getting permissions:", err);
+    logger.error("[PROJECT_MEMBERS] Error getting permissions", {
+      error: err.message,
+    });
     res.status(500).json({
       error: "Failed to get permissions",
       message: err.message,
@@ -164,7 +168,9 @@ router.get(
       res.json(result);
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("Error listing project members:", err);
+      logger.error("[PROJECT_MEMBERS] Error listing project members", {
+        error: err.message,
+      });
       res.status(500).json({
         error: "Failed to list members",
         message: err.message,
@@ -222,7 +228,12 @@ router.post(
             },
           });
         } catch (createError) {
-          console.error("Error auto-provisioning user:", createError);
+          logger.error("[PROJECT_MEMBERS] Error auto-provisioning user", {
+            error:
+              createError instanceof Error
+                ? (createError as Error).message
+                : String(createError),
+          });
           return res.status(500).json({
             error: "Failed to create user",
             message: "No se pudo registrar al usuario invitado",
@@ -245,8 +256,9 @@ router.post(
 
       // Send Email Notification
       // Construct link: Dashboard URL / Project ID
-      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-      const projectLink = `${baseUrl}/dashboard/projects/${projectId}`;
+      const baseUrl =
+        process.env.NEXTAUTH_URL || CONSTANTS.FRONTEND.DEFAULT_URL;
+      const projectLink = `${baseUrl}${CONSTANTS.FRONTEND.DASHBOARD_PATH}/projects/${projectId}`;
 
       // Get inviter name for the email
       const inviter = await prisma.user.findUnique({
@@ -326,7 +338,9 @@ router.post(
       });
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("Error sharing project:", err);
+      logger.error("[PROJECT_MEMBERS] Error sharing project", {
+        error: err.message,
+      });
       res.status(500).json({
         error: "Failed to share project",
         message: err.message,
@@ -403,7 +417,7 @@ router.put(
       // Invalidar cache de permisos
       await cacheService
         .invalidatePattern(`cache:permissions:${targetUserId}:*`)
-        .catch(() => {});
+        .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
       res.json({
         success: true,
@@ -411,7 +425,9 @@ router.put(
       });
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("Error updating member role:", err);
+      logger.error("[PROJECT_MEMBERS] Error updating member role", {
+        error: err.message,
+      });
       res.status(500).json({
         error: "Failed to update role",
         message: err.message,
@@ -481,7 +497,9 @@ router.delete(
       });
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("Error revoking access:", err);
+      logger.error("[PROJECT_MEMBERS] Error revoking access", {
+        error: err.message,
+      });
       res.status(500).json({
         error: "Failed to revoke access",
         message: err.message,

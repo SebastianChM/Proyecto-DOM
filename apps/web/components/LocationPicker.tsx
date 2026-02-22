@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import axios from "axios";
+import { logger } from "@/lib/logger";
 
 interface LocationPickerProps {
   value: string;
@@ -39,7 +40,9 @@ export function LocationPicker({
           );
           setPredictions(response.data);
         } catch (error) {
-          console.warn("Failed to fetch locations", error);
+          logger.warn("Failed to fetch locations", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         } finally {
           setLoading(false);
         }

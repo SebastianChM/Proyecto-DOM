@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/axios-config";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 // ============================================
 // TYPES
@@ -187,7 +188,9 @@ export function useWorkflow(
       );
       setHistory(response.data);
     } catch (err) {
-      console.error("Error fetching workflow history:", err);
+      logger.error("Error fetching workflow history", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setHistory([]);
     } finally {
       setHistoryLoading(false);

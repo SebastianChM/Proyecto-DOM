@@ -24,6 +24,7 @@ import {
 import apiClient from "@/lib/axios-config";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 interface ApsBrowserProps {
   isOpen: boolean;
@@ -90,7 +91,9 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
         setNeedsLogin(true);
       } else {
         toast.error("Failed to load Hubs");
-        console.error(error);
+        logger.error("Failed to load Hubs", {
+          error: (error as Error)?.message,
+        });
       }
     } finally {
       setLoading(false);
@@ -110,7 +113,9 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
       setView("PROJECTS");
     } catch (error) {
       toast.error("Failed to load Projects");
-      console.error(error);
+      logger.error("Failed to load Projects", {
+        error: (error as Error)?.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -126,7 +131,9 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
       setView("FOLDERS");
     } catch (error) {
       toast.error("Failed to load Folder contents");
-      console.error(error);
+      logger.error("Failed to load Folder contents", {
+        error: (error as Error)?.message,
+      });
     } finally {
       setLoading(false);
     }

@@ -53,6 +53,7 @@ import { ViewerModal } from "@/components/ViewerModal";
 import { ApsBrowser } from "@/components/ApsBrowser";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
+import { logger } from "@/lib/logger";
 
 // New Components
 import { ProjectHeader } from "@/components/ProjectHeader";
@@ -165,7 +166,6 @@ export default function ProjectDetailPage() {
   const {
     can,
     role,
-    isOwner,
     refresh: refreshPermissions,
   } = useProjectPermissions(projectId);
 
@@ -206,7 +206,9 @@ export default function ProjectDetailPage() {
           setSupportedFormats(response.data.formats);
         }
       } catch (error) {
-        console.warn("Failed to fetch supported formats", error);
+        logger.warn("Failed to fetch supported formats", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     };
     fetchFormats();
@@ -311,7 +313,9 @@ export default function ProjectDetailPage() {
         });
       }
     } catch (error) {
-      console.warn("Failed to sync file statuses", error);
+      logger.warn("Failed to sync file statuses", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [project]);
 
@@ -406,7 +410,7 @@ export default function ProjectDetailPage() {
 
         toast.success("ZIP download started");
       } catch (error) {
-        console.error("Batch download failed:", {
+        logger.error("Batch download failed", {
           error: error instanceof Error ? error.message : String(error),
           selectedCount: selectedFiles.length,
         });
@@ -498,7 +502,7 @@ export default function ProjectDetailPage() {
 
           // Ensure summary exists before accessing properties
           if (!summary) {
-            console.warn("Batch status response missing summary");
+            logger.warn("Batch status response missing summary");
             return;
           }
 
@@ -558,7 +562,12 @@ export default function ProjectDetailPage() {
             }
           }
         } catch (pollError) {
-          console.warn("Failed to check batch status:", pollError);
+          logger.warn("Failed to check batch status", {
+            error:
+              pollError instanceof Error
+                ? pollError.message
+                : String(pollError),
+          });
         }
       }, 3000); // Poll every 3 seconds
 
@@ -663,7 +672,7 @@ export default function ProjectDetailPage() {
         const res = await apiClient.get("/api/auth/user-token");
         token = res.data.access_token;
       } catch {
-        console.log("No user token available for ACC file");
+        logger.info("No user token available for ACC file");
       }
     }
 
@@ -918,7 +927,7 @@ export default function ProjectDetailPage() {
             );
           }
         } catch (pollError) {
-          console.warn("Failed to check conversion status:", {
+          logger.warn("Failed to check conversion status", {
             error:
               pollError instanceof Error
                 ? pollError.message
@@ -1096,11 +1105,15 @@ export default function ProjectDetailPage() {
       if (Array.isArray(response.data)) {
         setMembers(response.data);
       } else {
-        console.error("Expected members to be an array, got:", response.data);
+        logger.error("Expected members to be an array", {
+          data: response.data,
+        });
         setMembers([]);
       }
     } catch (error) {
-      console.warn("Failed to fetch members", error);
+      logger.warn("Failed to fetch members", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [projectId]);
 

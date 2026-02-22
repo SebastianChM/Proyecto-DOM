@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import axios from "axios";
+import { logger } from "@/lib/logger";
 
 export const showError = (
   error: unknown,
@@ -9,13 +10,14 @@ export const showError = (
   // Only log to console if it's NOT a handled 400 error
   if (axios.isAxiosError(error) && error.response?.status === 400) {
     // Do not console.error for validation errors to keep console clean
-    console.warn(
-      "Validation Error:",
-      error.response.data.error || error.message,
-    );
+    logger.warn("Validation Error", {
+      error: error.response.data.error || error.message,
+    });
   } else {
     // Use warn instead of error to keep the console "cleaner" (yellow vs red) while still logging
-    console.warn(fallbackMessage, error);
+    logger.warn(fallbackMessage, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   let message = fallbackMessage;

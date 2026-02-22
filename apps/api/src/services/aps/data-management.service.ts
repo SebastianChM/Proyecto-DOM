@@ -5,6 +5,7 @@ import {
   ItemsApi,
   VersionsApi,
 } from "forge-apis";
+import { logger } from "../../lib/logger";
 
 interface ApsAttributes {
   name: string;
@@ -58,18 +59,11 @@ class ApsDataManagementService {
    */
   async getHubs(accessToken: string) {
     try {
-      console.log(
-        "[DEBUG] getHubs called with token:",
-        accessToken.substring(0, 10) + "...",
-      );
+      logger.debug("[APS_DM] getHubs called");
       const response = await this.hubsApi.getHubs(
         null,
         null,
         this.getAuth(accessToken) as never,
-      );
-      console.log(
-        "[DEBUG] Raw Hubs Response:",
-        JSON.stringify(response.body, null, 2),
       );
 
       return response.body.data.map((hub: ApsResource) => ({
@@ -78,7 +72,9 @@ class ApsDataManagementService {
         region: hub.attributes.region,
       }));
     } catch (error) {
-      console.error("Error fetching hubs:", error);
+      logger.error("[APS_DM] Error fetching hubs", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -100,7 +96,10 @@ class ApsDataManagementService {
         rootFolderId: project.relationships?.rootFolder?.data?.id,
       }));
     } catch (error) {
-      console.error(`Error fetching projects for hub ${hubId}:`, error);
+      logger.error("[APS_DM] Error fetching projects", {
+        hubId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -137,7 +136,10 @@ class ApsDataManagementService {
 
       return contents;
     } catch (error) {
-      console.error(`Error fetching folder contents ${folderId}:`, error);
+      logger.error("[APS_DM] Error fetching folder contents", {
+        folderId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -166,7 +168,10 @@ class ApsDataManagementService {
         urn: version.relationships?.storage?.meta?.link?.href,
       }));
     } catch (error) {
-      console.error(`Error fetching versions for item ${itemId}:`, error);
+      logger.error("[APS_DM] Error fetching versions", {
+        itemId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return []; // Return empty array on error to prevent crash
     }
   }
@@ -197,7 +202,10 @@ class ApsDataManagementService {
         urn: data.relationships?.storage?.meta?.link?.href,
       };
     } catch (error) {
-      console.error(`Error fetching version ${versionId}:`, error);
+      logger.error("[APS_DM] Error fetching version", {
+        versionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -220,7 +228,7 @@ class ApsDataManagementService {
       );
 
       if (versions.length === 0) {
-        console.warn(`No versions found for item ${itemId}`);
+        logger.warn("[APS_DM] No versions found for item", { itemId });
         return null;
       }
 
@@ -240,7 +248,10 @@ class ApsDataManagementService {
       );
       return versionDetails.urn || null;
     } catch (error) {
-      console.error(`Error getting download URL for item ${itemId}:`, error);
+      logger.error("[APS_DM] Error getting download URL", {
+        itemId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }

@@ -13,6 +13,7 @@ import { useUser } from "@/context/UserContext";
 import { LogOut, User as UserIcon } from "lucide-react";
 import apiClient from "@/lib/axios-config";
 import { useRouter } from "next/navigation";
+import { logger } from "@/lib/logger";
 
 export function UserMenu() {
   const { user } = useUser();
@@ -34,7 +35,9 @@ export function UserMenu() {
       await apiClient.post("/api/auth/logout");
       window.location.href = "/"; // Full reload to clear client state
     } catch (error) {
-      console.error("Logout failed", error);
+      logger.error("Logout failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 

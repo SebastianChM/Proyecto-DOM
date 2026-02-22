@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { X, Save, AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface Rule {
   id?: string;
@@ -40,7 +41,8 @@ interface RuleBuilderProps {
   onCancel: () => void;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { API_CONFIG } from "@/lib/config";
+const API_BASE = API_CONFIG.BASE_URL;
 
 export function RuleBuilder({
   rule,
@@ -86,7 +88,9 @@ export function RuleBuilder({
         setCategories(catData);
         setOperators(opData);
       } catch (err) {
-        console.error("Failed to load form data:", err);
+        logger.error("Failed to load form data", {
+          error: (err as Error)?.message,
+        });
       }
     };
     fetchData();

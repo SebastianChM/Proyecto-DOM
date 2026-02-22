@@ -3,6 +3,7 @@ import { apsAuthService } from "./auth.service";
 import fs from "fs";
 import axios from "axios";
 import { APP_CONFIG } from "../../config/constants";
+import { logger } from "../../lib/logger";
 
 export class ApsOssService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,7 +16,6 @@ export class ApsOssService {
     this.objectsApi = new ObjectsApi();
     this.bucketsApi = new BucketsApi();
     this.bucketKey = APP_CONFIG.APS.BUCKET_KEY;
-    // console.log('Using APS Bucket:', this.bucketKey); // Removed verbose log
   }
 
   /**
@@ -263,7 +263,9 @@ export class ApsOssService {
         response?: { body?: { reason?: string } };
         message?: string;
       };
-      console.error("Failed to get signed URL:", error);
+      logger.error("[OSS] Failed to get signed URL", {
+        error: err.response?.body?.reason || err.message || "Unknown error",
+      });
       throw new Error(
         `Failed to get signed URL: ${err.response?.body?.reason || err.message || "Unknown error"}`,
       );
@@ -293,7 +295,9 @@ export class ApsOssService {
         response?: { body?: { reason?: string } };
         message?: string;
       };
-      console.error("Failed to get signed write URL:", error);
+      logger.error("[OSS] Failed to get signed write URL", {
+        error: err.response?.body?.reason || err.message || "Unknown error",
+      });
       throw new Error(
         `Failed to get signed write URL: ${err.response?.body?.reason || err.message || "Unknown error"}`,
       );

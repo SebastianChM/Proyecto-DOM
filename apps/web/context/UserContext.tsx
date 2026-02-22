@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 
 interface User {
   id: string;
@@ -32,7 +33,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       }
     } catch (error) {
-      console.warn("Failed to fetch user:", error);
+      logger.warn("Failed to fetch user", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setUser(null);
     } finally {
       setLoading(false);

@@ -1,6 +1,7 @@
 import { StructuredNode } from "./hierarchical-parser.service";
 import { LexerService } from "./spec-compiler/lexer.service";
 import { ParserService } from "./spec-compiler/parser.service";
+import { logger } from "../lib/logger";
 
 export class HierarchicalSpecProcessor {
   private lexer: LexerService;
@@ -49,7 +50,9 @@ export class HierarchicalSpecProcessor {
 
   private inferCategory(title: string): string | null {
     const t = title.toUpperCase();
-    console.log(`[InferCategory] Analyzing: "${title}" (Normalized: "${t}")`);
+    logger.debug(
+      `[SPEC_PROCESSOR] InferCategory analyzing: "${title}" (Normalized: "${t}")`,
+    );
 
     if (t.includes("CONCRETE") || t.includes("HORMIGON"))
       return "Structural Columns/Framing";
@@ -68,7 +71,7 @@ export class HierarchicalSpecProcessor {
     if (t.includes("DOOR") || t.includes("PUERTA")) return "Doors";
     if (t.includes("WINDOW") || t.includes("VENTANA")) return "Windows";
 
-    console.log(`[InferCategory] No match found for "${title}"`);
+    logger.debug(`[SPEC_PROCESSOR] InferCategory no match for "${title}"`);
     return null; // Inherit
   }
 
@@ -82,8 +85,8 @@ export class HierarchicalSpecProcessor {
 
     // DEBUG
     if (segments.length > 0) {
-      console.log(
-        `[SpecProcessor] Processing ${segments.length} segments. Sample Page: ${segments[0].page}`,
+      logger.debug(
+        `[SPEC_PROCESSOR] Processing ${segments.length} segments. Sample Page: ${segments[0].page}`,
       );
     }
 
@@ -183,8 +186,8 @@ export class HierarchicalSpecProcessor {
         // Try to find subject in the text (e.g. "Doors Height...")
         const inferredFromText = this.inferCategory(text);
         if (inferredFromText) {
-          console.log(
-            `[Self-Healing] Hierarchy failed, but inferred scope '${inferredFromText}' from text: "${text}"`,
+          logger.debug(
+            `[SPEC_PROCESSOR] Self-healing: inferred scope '${inferredFromText}' from text: "${text}"`,
           );
           finalCategory = inferredFromText;
         }

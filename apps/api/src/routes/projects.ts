@@ -1,11 +1,11 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
+import { logger } from "../lib/logger";
 import { cacheService, RedisKeys } from "../lib/redis";
 import {
   requirePermission,
   requireProjectAccess,
 } from "../middleware/authorization";
-// import { authorizationService } from '../services/authorization.service';
 import { z } from "zod";
 import { APP_CONFIG } from "../config/constants";
 import { apsWebhooksService } from "../services/aps/webhooks.service";
@@ -94,10 +94,7 @@ router.post("/", async (req, res) => {
   try {
     // Validate input
     const validation = createProjectSchema.safeParse(req.body);
-    console.log(
-      "POST /projects validation:",
-      JSON.stringify(validation, null, 2),
-    );
+    logger.debug("POST /projects validation", { valid: validation.success });
 
     if (!validation.success) {
       return res.status(400).json({
@@ -181,11 +178,13 @@ router.post("/", async (req, res) => {
     // Invalidate cache after creating project
     await cacheService
       .invalidatePattern("cache:projects:list:*")
-      .catch(() => {});
+      .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
   } catch (error: unknown) {
-    console.error("Failed to create project:", error);
+    logger.error("[PROJECTS] Failed to create project", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({
       error: "Failed to create project",
       details: error instanceof Error ? error.message : "Unknown error",
@@ -271,7 +270,9 @@ router.get("/", async (req, res) => {
     );
     res.json(projects);
   } catch (error: unknown) {
-    console.error("Error fetching projects:", error);
+    logger.error("[PROJECTS] Error fetching projects", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });
@@ -395,10 +396,7 @@ router.get("/:id", requireProjectAccess, async (req, res) => {
 router.put("/:id", requirePermission("project:update"), async (req, res) => {
   try {
     const validation = updateProjectSchema.safeParse(req.body);
-    console.log(
-      "PUT /projects/:id validation:",
-      JSON.stringify(validation, null, 2),
-    );
+    logger.debug("PUT /projects/:id validation", { valid: validation.success });
 
     if (!validation.success) {
       return res.status(400).json({
@@ -531,7 +529,9 @@ router.post("/import-aps", async (req, res) => {
     } = validation.data;
 
     // 1. Create Local Project Record
-    console.log(`🔗 Importing Autodesk Project: ${name} (${apsProjectId})`);
+    logger.info(
+      `[PROJECTS] Importing Autodesk Project: ${name} (${apsProjectId})`,
+    );
 
     const project = await prisma.project.create({
       data: {
@@ -558,7 +558,7 @@ router.post("/import-aps", async (req, res) => {
 
     // 3. Subscribe to Webhooks for this Project's Folder
     try {
-      console.log(`🎣 Subscribing to folder updates: ${apsFolderId}`);
+      logger.info(`[PROJECTS] Subscribing to folder updates: ${apsFolderId}`);
       // We pass workflowAttribute so we know WHICH local project this belongs to when event fires
       await apsWebhooksService.createWebhook("data", "dm.version.added", {
         folder: apsFolderId,
@@ -569,23 +569,26 @@ router.post("/import-aps", async (req, res) => {
           hubId: validation.data.hubId, // Pass hubId in metadata if needed
         },
       });
-      console.log(`✅ Webhook subscription active for project ${project.id}`);
+      logger.info(
+        `[PROJECTS] Webhook subscription active for project ${project.id}`,
+      );
     } catch (hookError: unknown) {
       const err = hookError as { message?: string };
-      console.error(
-        "⚠️ Failed to subscribe to webhooks:",
-        err.message || "Unknown error",
-      );
+      logger.warn("[PROJECTS] Failed to subscribe to webhooks", {
+        error: err.message || "Unknown error",
+      });
       // Don't fail the import, just warn
     }
 
     await cacheService
       .invalidatePattern("cache:projects:list:*")
-      .catch(() => {});
+      .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
   } catch (error: unknown) {
-    console.error("Import failed:", error);
+    logger.error("[PROJECTS] Import failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({
       error: "Failed to import project",
       details: error instanceof Error ? error.message : "Unknown error",

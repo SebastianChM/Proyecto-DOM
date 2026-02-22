@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import {} from "@/lib/error-handler";
+import { logger } from "@/lib/logger";
 import { VersionSelector, Version } from "@/components/viewer/VersionSelector";
 
 declare global {
@@ -73,7 +74,9 @@ function CompareViewerContent() {
         if (!primaryUrn && mockVersions[0]) setPrimaryUrn(mockVersions[0].id);
         if (!diffUrn && mockVersions[1]) setDiffUrn(mockVersions[1].id);
       } catch (err) {
-        console.error("Failed to fetch versions", err);
+        logger.error("Failed to fetch versions", {
+          error: (err as Error)?.message,
+        });
       }
     };
     fetchVersions();
@@ -199,7 +202,9 @@ function CompareViewerContent() {
             if (mounted) setLoading(false);
           } catch (err: any) {
             if (mounted) {
-              console.error(err);
+              logger.error("Viewer initialization error", {
+                error: err.message || String(err),
+              });
               const msg = err.message || "Failed to initialize comparison";
               setError(msg);
               setLoading(false);

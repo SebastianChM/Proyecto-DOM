@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Viewer from "@/components/Viewer";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
+import { logger } from "@/lib/logger";
 
 interface RecentFile {
   id: string;
@@ -32,7 +33,7 @@ function ViewerContent() {
         const response = await apiClient.get("/api/auth/token");
         setToken(response.data.access_token);
       } catch (error) {
-        console.error("Failed to fetch viewer token:", {
+        logger.error("Failed to fetch viewer token", {
           error: error instanceof Error ? error.message : String(error),
           timestamp: new Date().toISOString(),
         });

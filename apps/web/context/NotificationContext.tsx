@@ -11,6 +11,8 @@ import apiClient from "@/lib/axios-config";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
 import { useUser } from "./UserContext";
+import { API_CONFIG } from "@/lib/config";
+import { logger } from "@/lib/logger";
 
 // ==================== TYPES ====================
 
@@ -113,9 +115,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   useEffect(() => {
     if (!user) return;
 
-    const socketUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    console.log("🔌 Connecting to Socket.IO at", socketUrl);
+    const socketUrl = API_CONFIG.SOCKET_URL;
+    logger.debug("Connecting to Socket.IO", { url: socketUrl });
 
     const socketInstance = io(socketUrl, {
       withCredentials: true,
@@ -123,12 +124,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     });
 
     socketInstance.on("connect", () => {
-      console.log("✅ Socket connected:", socketInstance.id);
+      logger.debug("Socket connected", { id: socketInstance.id });
       socketInstance.emit("join_user_room", user.id);
     });
 
     socketInstance.on("notification", (payload: { data: Notification }) => {
-      console.log("🔔 Notification received:", payload);
+      logger.debug("Notification received", {
+        id: payload.data.id,
+        type: payload.data.type,
+      });
 
       // Add to state
       setNotifications((prev) => [payload.data, ...prev]);
@@ -139,13 +143,14 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         description: payload.data.message,
         action: {
           label: "Ver",
-          onClick: () => console.log("View notification", payload.data.id),
+          onClick: () =>
+            logger.debug("View notification", { id: payload.data.id }),
         },
       });
     });
 
     socketInstance.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
+      logger.debug("Socket disconnected");
     });
 
     // setSocket(socketInstance)
@@ -172,7 +177,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       }
     } catch (error) {
       // Use warn for polling errors to avoid console spam
-      console.warn("Error fetching notifications:", error);
+      logger.warn("Error fetching notifications", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +203,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      logger.error("Error marking notification as read", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, []);
 
@@ -220,7 +229,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         setUnreadCount(0);
       }
     } catch (error) {
-      console.error("Error marking all as read:", error);
+      logger.error("Error marking all as read", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [user]);
 
@@ -241,7 +252,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         });
       }
     } catch (error) {
-      console.error("Error deleting notification:", error);
+      logger.error("Error deleting notification", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, []);
 
@@ -258,7 +271,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         setUnreadCount(0);
       }
     } catch (error) {
-      console.error("Error clearing notifications:", error);
+      logger.error("Error clearing notifications", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [user]);
 
@@ -285,7 +300,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           return newNotification;
         }
       } catch (error) {
-        console.error("Error adding notification:", error);
+        logger.error("Error adding notification", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     },
     [user],

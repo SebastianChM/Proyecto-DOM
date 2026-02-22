@@ -1,4 +1,5 @@
 import { modelDerivativeService } from "./aps/model-derivative.service";
+import { logger } from "../lib/logger";
 
 export interface BimProperty {
   elementId: number;
@@ -40,7 +41,7 @@ export class BimQueryService {
    * Mass extraction optimized for filters.
    */
   async queryModel(urn: string): Promise<BimProperty[]> {
-    console.log(`🔍 Querying Model URN: ${urn}`);
+    logger.info(`[BIM_QUERY] Querying Model URN: ${urn}`);
 
     let rawProps;
     try {
@@ -50,10 +51,9 @@ export class BimQueryService {
         response?: { status?: number; data?: { diagnostic?: string } };
         message?: string;
       };
-      console.error(
-        "BimQueryService Error:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[BIM_QUERY] Error querying model", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       if (
         err.response?.status === 404 ||
         (err.response?.data?.diagnostic &&
@@ -67,11 +67,13 @@ export class BimQueryService {
     }
 
     if (!rawProps || !rawProps.data || !rawProps.data.collection) {
-      console.warn("⚠️ No property collection found.");
+      logger.warn("[BIM_QUERY] No property collection found.");
       return [];
     }
 
-    console.log(`📦 Raw Objects Found: ${rawProps.data.collection.length}`);
+    logger.info(
+      `[BIM_QUERY] Raw Objects Found: ${rawProps.data.collection.length}`,
+    );
 
     // Track category distribution for debugging
     const categoryStats: Record<string, number> = {};
@@ -163,13 +165,109 @@ export class BimQueryService {
     );
 
     // Log category distribution
-    console.log("📊 Category Distribution:");
+    logger.info("[BIM_QUERY] Category Distribution:");
     Object.entries(categoryStats)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15)
-      .forEach(([cat, count]) => console.log(`   ${cat}: ${count}`));
+      .forEach(([cat, count]) =>
+        logger.debug(`[BIM_QUERY]    ${cat}: ${count}`),
+      );
 
-    console.log(`✅ Normalized ${normalized.length} Elements.`);
+    logger.info(`[BIM_QUERY] Normalized ${normalized.length} Elements.`);
     return normalized;
+  }
+
+  /**
+   * Extracts a standardized Bill of Materials (BOM) from the model.
+   */
+  async getBOM(urn: string) {
+    const elements = await this.queryModel(urn);
+
+    return elements
+      .map((element) => {
+        const props = element.properties;
+
+        // Extract Standard Properties using flattened keys
+        // The flatten logic in queryModel puts direct keys (e.g. "Volume") in the root
+
+        const family = this.findProp(props, [
+          "Family",
+          "Familia",
+          "Family Name",
+          "Nombre de familia",
+        ]);
+        const typeName =
+          this.findProp(props, [
+            "Type",
+            "Tipo",
+            "Type Name",
+            "Nombre de tipo",
+          ]) || element.name;
+        const material = this.findProp(props, [
+          "Material",
+          "Structural Material",
+          "Material estructural",
+          "Material Name",
+        ]);
+
+        const volume = this.parseNumeric(
+          this.findProp(props, [
+            "Volume",
+            "Volumen",
+            "Host Volume",
+            "Gross Volume",
+            "Net Volume",
+          ]),
+        );
+        const area = this.parseNumeric(
+          this.findProp(props, [
+            "Area",
+            "Área",
+            "Surface Area",
+            "Gross Area",
+            "Host Area",
+          ]),
+        );
+        const length = this.parseNumeric(
+          this.findProp(props, ["Length", "Longitud", "Curve Length"]),
+        );
+
+        return {
+          id: element.elementId,
+          // externalId: element.externalId, // TODO: Bind ExternalId in queryModel if needed
+          name: element.name,
+          category: element.category,
+          family: String(family || ""),
+          type: String(typeName || ""),
+          material: String(material || ""),
+          volume,
+          area,
+          length,
+          count: 1,
+        };
+      })
+      .filter((e) => !e.name.startsWith("Non-Revit"));
+  }
+
+  private findProp(props: Record<string, unknown>, keys: string[]): unknown {
+    for (const key of keys) {
+      if (props[key] !== undefined) return props[key];
+      // Case insensitive check
+      const found = Object.keys(props).find(
+        (k) => k.toLowerCase() === key.toLowerCase(),
+      );
+      if (found) return props[found];
+    }
+    return undefined;
+  }
+
+  private parseNumeric(value: unknown): number {
+    if (value === undefined || value === null) return 0;
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+      const cleaned = value.replace(/[^0-9.-]/g, "");
+      return parseFloat(cleaned) || 0;
+    }
+    return 0;
   }
 }

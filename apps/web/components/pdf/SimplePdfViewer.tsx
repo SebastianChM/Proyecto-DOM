@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -96,7 +97,7 @@ export function SimplePdfViewer({
         }
       });
       if (!found)
-        console.warn("[SimplePdfViewer] No match found for:", targetText);
+        logger.warn("SimplePdfViewer: No match found", { targetText });
     }, 800);
 
     return () => clearTimeout(timer);

@@ -3,6 +3,8 @@
 
 # Dependencies
 node_modules/
+apps/*/package-lock.json
+packages/*/package-lock.json
 .pnp
 .pnp.js
 
@@ -80,8 +82,9 @@ lint-output.txt
 lint_errors.txt
 task_report.html
 
-# Storage (runtime data)
+# Storage & Cache (runtime data)
 storage/
+cache/
 apps/api/downloads/
 apps/api/uploads/*
 !apps/api/uploads/.gitkeep
@@ -109,6 +112,14 @@ remote-access-info.txt
 .npm
 .eslintcache
 .cache/
+tmpclaude-*
+
+# Generated reports (keep out of version control)
+eslint-report.json
+eslint-detailed-report.json
+lint-full.txt
+lint-output.txt
+project_tree.txt
 
 # Gemini artifacts (optional - uncomment if you don't want to commit)
 # .gemini/
@@ -116,7 +127,19 @@ remote-access-info.txt
 # Temporary test directory (artifacts, hardcoded paths)
 temp_empty/
 
-# Documentation & Context exclusions (User requested to keep these private/local)
+# Project management & audit artifacts
+TICKETS_*.md
+revision/
+PDFs Chile/
+Plan GPT/
+HITO*_EVIDENCE.md
+
+# Test evidence/reports (generated, not source)
+**/EVIDENCE.md
+**/*_TEST_SUMMARY.md
+**/*_TEST_RESULTS.md
+
+# Documentation & Context exclusions
 docs/context/
 docs/hitos/
 docs/guides/
@@ -128,3 +151,5 @@ docs/INSTRUCCIONES_FINALES_CONFIDENCIAL.md
 docs/LISTA_COMPLETA_ARCHIVOS.csv
 docs/TODO.md
 docs/TREE_COMPLETO.txt
+docs/TICKETS_TRACKER.md
+docs/VIEWER_FIX_VERIFICATION.md

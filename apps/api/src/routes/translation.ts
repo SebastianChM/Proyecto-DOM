@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -90,10 +91,10 @@ router.post("/:fileId/translate", async (req, res) => {
     }
 
     // Start translation
-    console.log(`🔄 Starting translation for file: ${file.name}`);
+    logger.info(`[TRANSLATION] Starting translation for file: ${file.name}`);
 
     if (file.apsUrn.startsWith("local-")) {
-      console.log("🔧 Local mode detected. Simulating translation...");
+      logger.debug("[TRANSLATION] Local mode detected, simulating translation");
       // Simulate translation
       setTimeout(async () => {
         try {
@@ -101,11 +102,16 @@ router.post("/:fileId/translate", async (req, res) => {
             where: { id: fileId },
             data: { status: "READY" },
           });
-          console.log(
-            `✅ Mock translation complete for ${file.name} - status: READY`,
+          logger.info(
+            `[TRANSLATION] Mock translation complete for ${file.name} - status: READY`,
           );
         } catch (e) {
-          console.error("Failed to update mock translation status:", e);
+          logger.error(
+            "[TRANSLATION] Failed to update mock translation status",
+            {
+              error: e instanceof Error ? e.message : String(e),
+            },
+          );
         }
       }, 5000);
     } else {
@@ -117,8 +123,8 @@ router.post("/:fileId/translate", async (req, res) => {
         safeUrn.includes("/") ||
         safeUrn.includes("=")
       ) {
-        console.log(
-          `⚠️ Detected non-URL-safe URN for file ${file.name}. Fixing...`,
+        logger.warn(
+          `[TRANSLATION] Detected non-URL-safe URN for file ${file.name}, fixing`,
         );
         safeUrn = safeUrn
           .replace(/\+/g, "-")
@@ -152,8 +158,10 @@ router.post("/:fileId/translate", async (req, res) => {
       response?: { data?: unknown; status?: number };
       message?: string;
     };
-    console.error("Translation retry failed:", err);
-    console.error("Error details:", err.response?.data || err.message);
+    logger.error("[TRANSLATION] Translation retry failed", {
+      error: err.message,
+      apsError: err.response?.data,
+    });
 
     const statusCode = err.response?.status || 500;
     res.status(statusCode).json({

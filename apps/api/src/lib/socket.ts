@@ -1,6 +1,8 @@
 import { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import { redis } from "./redis";
+import { logger } from "./logger";
+import { CONSTANTS } from "../config/constants";
 
 export class SocketService {
   private io: Server | null = null;
@@ -8,10 +10,11 @@ export class SocketService {
   initialize(httpServer: HttpServer) {
     const isDev = process.env.NODE_ENV !== "production";
     const frontendUrl =
-      process.env.FRONTEND_URL || (isDev ? "http://localhost:3000" : undefined);
+      process.env.FRONTEND_URL ||
+      (isDev ? CONSTANTS.FRONTEND.DEFAULT_URL : undefined);
 
     if (!frontendUrl && !isDev) {
-      console.warn("⚠️  Socket.IO: FRONTEND_URL not set in production");
+      logger.warn("[SOCKET] FRONTEND_URL not set in production");
     }
 
     this.io = new Server(httpServer, {
@@ -25,8 +28,11 @@ export class SocketService {
     // Redis Subscription for inter-process events
     const subRedis = redis.duplicate();
     subRedis.subscribe("worker:notifications", (err: unknown) => {
-      if (err) console.error("Failed to subscribe to worker events:", err);
-      else console.log("✅ Subscribed to worker:notifications");
+      if (err)
+        logger.error("[SOCKET] Failed to subscribe to worker events", {
+          error: err,
+        });
+      else logger.info("[SOCKET] Subscribed to worker:notifications");
     });
 
     subRedis.on("message", (channel: string, message: string) => {
@@ -36,20 +42,25 @@ export class SocketService {
           if (userId) this.notifyUser(userId, event, data);
           else if (projectId) this.notifyProject(projectId, event, data);
         } catch (e) {
-          console.error("Error parsing worker notification:", e);
+          logger.error("[SOCKET] Error parsing worker notification", {
+            error: e,
+          });
         }
       }
     });
 
     this.io.on("connection", (socket: Socket) => {
       // ... (rest of connection logic)
-      console.log(`🔌 Client connected: ${socket.id}`);
+      logger.debug("[SOCKET] Client connected", { socketId: socket.id });
 
       // Room management: Join user to their own room for private notifications
       socket.on("join_user_room", (userId: string) => {
         if (userId) {
           socket.join(`user:${userId}`);
-          console.log(`👤 User ${userId} joined room user:${userId}`);
+          logger.debug("[SOCKET] User joined room", {
+            userId,
+            room: `user:${userId}`,
+          });
         }
       });
 
@@ -57,12 +68,15 @@ export class SocketService {
       socket.on("join_project_room", (projectId: string) => {
         if (projectId) {
           socket.join(`project:${projectId}`);
-          console.log(`📁 Socket ${socket.id} joined project:${projectId}`);
+          logger.debug("[SOCKET] Socket joined project", {
+            socketId: socket.id,
+            projectId,
+          });
         }
       });
 
       socket.on("disconnect", () => {
-        console.log(`❌ Client disconnected: ${socket.id}`);
+        logger.debug("[SOCKET] Client disconnected", { socketId: socket.id });
       });
     });
   }

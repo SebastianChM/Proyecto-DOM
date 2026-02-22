@@ -41,8 +41,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import {} from "@/lib/utils";
+import { API_CONFIG } from "@/lib/config";
+import { logger } from "@/lib/logger";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_BASE = API_CONFIG.BASE_URL;
 
 interface Project {
   id: string;
@@ -355,7 +357,7 @@ export default function ComplianceResultsPage() {
           <IssuesList
             runId={selectedRunId}
             onViewElement={(elementId) => {
-              console.log("View element:", elementId);
+              logger.info("View element", { elementId });
             }}
           />
         ) : (

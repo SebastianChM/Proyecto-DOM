@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import fs from "fs-extra";
 import path from "path";
 import handlebars from "handlebars";
+import { logger } from "../lib/logger";
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
@@ -28,10 +29,10 @@ export class EmailService {
           pass: process.env.SMTP_PASS,
         },
       });
-      console.log("📧 Email Service: SMTP configuration loaded.");
+      logger.info("[EMAIL] SMTP configuration loaded");
     } else {
-      console.warn(
-        "⚠️ Email Service: SMTP credentials not found in env. Email sending will be disabled.",
+      logger.warn(
+        "[EMAIL] SMTP credentials not found. Email sending disabled.",
       );
     }
   }
@@ -40,10 +41,12 @@ export class EmailService {
     if (!this.transporter) return false;
     try {
       await this.transporter.verify();
-      console.log("✅ Email Service: Connection verified.");
+      logger.info("[EMAIL] Connection verified");
       return true;
     } catch (error) {
-      console.error("❌ Email Service: verification failed.", error);
+      logger.error("[EMAIL] Verification failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }
@@ -58,7 +61,10 @@ export class EmailService {
       const template = handlebars.compile(templateSource);
       return template(data);
     } catch (error) {
-      console.error(`Error loading template ${templateName}:`, error);
+      logger.error("[EMAIL] Error loading template", {
+        templateName,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw new Error(`Failed to load email template: ${templateName}`);
     }
   }
@@ -71,10 +77,12 @@ export class EmailService {
     link: string,
   ): Promise<boolean> {
     if (!this.transporter) {
-      console.warn(
-        `[MOCKED] Would send email to ${to} invited by ${inviterName} for project ${projectName}`,
-      );
-      return true; // Pretend we sent it if not configured, to avoid breaking flow
+      logger.debug("[EMAIL] Mocked - would send invitation", {
+        to,
+        inviterName,
+        projectName,
+      });
+      return true;
     }
 
     try {
@@ -97,10 +105,13 @@ export class EmailService {
         html,
       });
 
-      console.log(`📨 Email sent successfully to ${to}`);
+      logger.info("[EMAIL] Sent successfully", { to });
       return true;
     } catch (error) {
-      console.error("Failed to send invitation email:", error);
+      logger.error("[EMAIL] Failed to send invitation", {
+        to,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }

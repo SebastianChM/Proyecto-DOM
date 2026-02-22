@@ -11,6 +11,7 @@ import multer from "multer";
 import * as path from "path";
 import * as fs from "fs";
 import { dataExtractorService } from "../services/data-extractor.service";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -70,8 +71,8 @@ router.post(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      console.log(
-        `[DataSources] Extracting from: ${file.originalname} (${file.mimetype})`,
+      logger.info(
+        `[DATA_SOURCES] Extracting from: ${file.originalname} (${file.mimetype})`,
       );
 
       let result;
@@ -113,7 +114,7 @@ router.post(
       });
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("[DataSources] Extraction error:", err);
+      logger.error("[DATA_SOURCES] Extraction error", { error: err.message });
       res.status(500).json({ error: err.message });
     }
   },
@@ -151,7 +152,7 @@ router.post(
         return res.status(404).json({ error: "File not found on disk" });
       }
 
-      console.log(`[DataSources] Extracting from existing file: ${file.name}`);
+      logger.info(`[DATA_SOURCES] Extracting from existing file: ${file.name}`);
 
       let result;
       if (file.type === "PDF") {
@@ -191,7 +192,7 @@ router.post(
       });
     } catch (error: unknown) {
       const err = error as Error;
-      console.error("[DataSources] Extraction error:", err);
+      logger.error("[DATA_SOURCES] Extraction error", { error: err.message });
       res.status(500).json({ error: err.message });
     }
   },
@@ -225,7 +226,7 @@ router.get("/", async (req: Request, res: Response) => {
     res.json(dataSources);
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("[DataSources] Error:", err);
+    logger.error("[DATA_SOURCES] Error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -247,7 +248,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     res.json(dataSource);
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("[DataSources] Error:", err);
+    logger.error("[DATA_SOURCES] Error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -279,7 +280,7 @@ router.get("/:id/tables/:tableIndex", async (req: Request, res: Response) => {
     res.json(tables[index]);
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("[DataSources] Error:", err);
+    logger.error("[DATA_SOURCES] Error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -308,7 +309,7 @@ router.put("/:id/status", async (req: Request, res: Response) => {
     res.json(updated);
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("[DataSources] Error:", err);
+    logger.error("[DATA_SOURCES] Error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -328,7 +329,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("[DataSources] Error:", err);
+    logger.error("[DATA_SOURCES] Error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });

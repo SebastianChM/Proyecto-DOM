@@ -7,6 +7,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { LocationPicker } from "@/components/LocationPicker";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 interface ProjectDetailsPanelProps {
   projectType: string;
@@ -62,7 +63,9 @@ export function ProjectDetailsPanel({
       await onSave(formData);
       setIsEditing(false);
     } catch (error) {
-      console.error("Failed to save", error);
+      logger.error("Failed to save project details", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setSaving(false);
     }

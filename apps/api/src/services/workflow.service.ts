@@ -19,6 +19,7 @@ import {
   WorkflowTransition,
   WorkflowHistory,
 } from "@prisma/client";
+import { logger } from "../lib/logger";
 
 const prisma = new PrismaClient();
 
@@ -644,7 +645,9 @@ export class WorkflowService {
         entityId,
         user,
       ).catch((err) => {
-        console.error("Error executing workflow actions:", err);
+        logger.error("[WORKFLOW] Error executing workflow actions", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     }
 
@@ -656,7 +659,9 @@ export class WorkflowService {
         entityId,
         user,
       ).catch((err) => {
-        console.error("Error executing on-enter actions:", err);
+        logger.error("[WORKFLOW] Error executing on-enter actions", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     }
 
@@ -757,7 +762,7 @@ export class WorkflowService {
           break;
 
         default:
-          console.warn(`Unknown condition type: ${condition.type}`);
+          logger.warn(`[WORKFLOW] Unknown condition type: ${condition.type}`);
       }
     }
 
@@ -786,21 +791,27 @@ export class WorkflowService {
 
           case "webhook":
             // TODO: Implement webhook calls
-            console.log("Webhook action not yet implemented:", action);
+            logger.warn("[WORKFLOW] Webhook action not yet implemented", {
+              action,
+            });
             break;
 
           case "email":
             // TODO: Integrate with email service
-            console.log("Email action not yet implemented:", action);
+            logger.warn("[WORKFLOW] Email action not yet implemented", {
+              action,
+            });
             break;
 
           default:
-            console.warn(
-              `Unknown action type: ${(action as WorkflowAction).type}`,
+            logger.warn(
+              `[WORKFLOW] Unknown action type: ${(action as WorkflowAction).type}`,
             );
         }
       } catch (error) {
-        console.error(`Error executing action ${action.type}:`, error);
+        logger.error(`[WORKFLOW] Error executing action ${action.type}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }

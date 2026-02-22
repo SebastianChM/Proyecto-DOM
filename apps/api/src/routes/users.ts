@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { requireAdmin } from "../middleware/authorization";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -27,7 +28,9 @@ router.get("/", requireAdmin, async (req, res) => {
 
     res.json(users);
   } catch (error: unknown) {
-    console.error("Error listing users:", error);
+    logger.error("[USERS] Error listing users", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({
       error: "Failed to list users",
       message: error instanceof Error ? error.message : "Unknown error",
@@ -84,7 +87,9 @@ router.put("/admin/users/:id/role", requireAdmin, async (req, res) => {
 
     res.json(user);
   } catch (error: unknown) {
-    console.error("Error updating user role:", error);
+    logger.error("[USERS] Error updating user role", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({
       error: "Failed to update user role",
       message: error instanceof Error ? error.message : "Unknown error",

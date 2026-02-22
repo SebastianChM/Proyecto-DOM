@@ -10,6 +10,7 @@ import { rateLimiter } from "./config/rate-limit.config";
 
 // Load and validate environment variables (Fail fast)
 import { env } from "./config/env";
+import { logger } from "./lib/logger";
 import path from "path";
 
 // Routes
@@ -20,30 +21,35 @@ import projectsRouter from "./routes/projects";
 import projectMembersRouter from "./routes/project-members";
 import conversionRouter from "./routes/conversion";
 import comparisonRouter from "./routes/comparison";
-import apsProxyRouter from "./routes/aps-proxy";
+import apsRouter from "./routes/aps";
 import translationRouter from "./routes/translation";
 import viewerRouter from "./routes/viewer";
 import validationRouter from "./routes/validation";
-import validationsRouter from "./routes/validations";
 import notificationsRouter from "./routes/notifications";
-import validationRunnerRouter from "./routes/validation-runner";
 import reportsRouter from "./routes/reports";
 import webhooksRouter from "./routes/webhooks";
-import complianceRouter from "./routes/compliance";
-import complianceV2Router from "./routes/compliance-rules";
-import complianceRunsRouter from "./routes/compliance-runs";
-import complianceExportRouter from "./routes/compliance-export";
+import {
+  v1Router as complianceRouter,
+  v2RulesRouter as complianceV2Router,
+  v2RunsRouter as complianceRunsRouter,
+  v2ExportRouter as complianceExportRouter,
+} from "./routes/compliance";
 import dataSourcesRouter from "./routes/data-sources";
 import workflowsRouter from "./routes/workflows";
+import designAutomationCallbackRouter from "./routes/design-automation-callback";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 
 process.on("uncaughtException", (error) => {
-  console.error("UNCAUGHT EXCEPTION:", error);
+  logger.error("[PROCESS] UNCAUGHT EXCEPTION", {
+    error: error instanceof Error ? error.message : String(error),
+  });
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("UNHANDLED REJECTION:", reason);
+  logger.error("[PROCESS] UNHANDLED REJECTION", {
+    reason: reason instanceof Error ? reason.message : String(reason),
+  });
 });
 
 const app = express();
@@ -51,7 +57,7 @@ const PORT = env.PORT;
 
 // Import configurations
 import { getCorsOptions } from "./config/cors.config";
-import { Redis } from "ioredis";
+import { redis as redisClient } from "./lib/redis";
 import { basicAuth } from "./middleware/auth";
 import { requireAdmin } from "./middleware/authorization";
 
@@ -67,21 +73,11 @@ app.use((req, res, next) => {
 // ===== TRUST PROXY =====
 if (env.TRUST_PROXY) {
   app.set("trust proxy", 1);
-  console.log("🔒 [PROXY] Trust proxy enabled");
+  logger.info("[PROXY] Trust proxy enabled");
 }
 
-// Redis Client Factory
-let redisClient: Redis;
-if (env.REDIS_URL) {
-  redisClient = new Redis(env.REDIS_URL);
-} else {
-  redisClient = new Redis({
-    host: env.REDIS_HOST,
-    port: env.REDIS_PORT,
-    family: 4, // Force IPv4
-  });
-}
-export const redis = redisClient;
+// Redis: Using singleton from lib/redis.ts (UNIFIED CONNECTION)
+// Session store and all other consumers share the same Redis instance.
 
 // ===== HELMET (Security Headers) =====
 app.use(
@@ -148,10 +144,9 @@ app.use("/health", healthRouter);
 // ===== DEBUG ROUTES (Protected with ADMIN) =====
 if (env.ENABLE_DEBUG_ROUTES) {
   app.get("/debug/aps-config", basicAuth, requireAdmin, (req, res) => {
-    // Audit log for debug route access
-    console.log(
-      `🔍 [AUDIT] Debug route accessed by ${req.session?.user?.email}`,
-    );
+    logger.info("[AUDIT] Debug route accessed", {
+      user: req.session?.user?.email,
+    });
     res.json({
       hasClientId: !!env.APS_CLIENT_ID,
       hasClientSecret: !!env.APS_CLIENT_SECRET,
@@ -172,9 +167,9 @@ app.get(
   basicAuth,
   requireAdmin,
   (req, res) => {
-    console.log(
-      `🔍 [AUDIT] Admin status accessed by ${req.session?.user?.email}`,
-    );
+    logger.info("[AUDIT] Admin status accessed", {
+      user: req.session?.user?.email,
+    });
     res.json({
       status: "ok",
       environment: env.NODE_ENV,
@@ -206,12 +201,13 @@ app.use(
   rateLimiter.heavyOperationLimiter(),
   validationRouter,
 );
-app.use("/api/validations", rateLimiter.apiLimiter(), validationsRouter);
+// Legacy routes alias to new unified router
+app.use("/api/validations", rateLimiter.apiLimiter(), validationRouter);
 app.use("/api/notifications", rateLimiter.apiLimiter(), notificationsRouter);
 app.use(
   "/api/validation-runner",
   rateLimiter.heavyOperationLimiter(),
-  validationRunnerRouter,
+  validationRouter,
 );
 app.use("/api/reports", rateLimiter.heavyOperationLimiter(), reportsRouter);
 
@@ -228,9 +224,19 @@ app.use(
 app.use("/api/dashboard", rateLimiter.apiLimiter(), dashboardRouter);
 
 // APS routes: Derivatives limiter for specific routes
-app.use("/api/aps", rateLimiter.derivativesLimiter(), apsProxyRouter);
+app.use("/api/aps", rateLimiter.derivativesLimiter(), apsRouter);
 
+// Webhooks: Apply raw body capture BEFORE routes
+import { captureRawBody } from "./middleware/raw-body.middleware";
+app.use("/api/webhooks", captureRawBody);
 app.use("/api/webhooks", rateLimiter.webhookLimiter(), webhooksRouter);
+
+// Design Automation Callbacks (Hito 5)
+app.use(
+  "/api/callbacks",
+  rateLimiter.apiLimiter(),
+  designAutomationCallbackRouter,
+);
 app.use(
   "/api/compliance",
   rateLimiter.heavyOperationLimiter(),
@@ -264,17 +270,18 @@ app.use(errorHandler);
 import { modelDerivativeService } from "./services/aps/model-derivative.service";
 import { createServer } from "http";
 import { socketService } from "./lib/socket";
-import { conversionWorker } from "./workers/conversion.worker";
 
 const httpServer = createServer(app);
 
-// Start the worker (Only if enabled)
+// Start workers if enabled
 if (env.RUN_WORKERS) {
-  console.log("🔧 Starting embedded worker...");
-  conversionWorker.start();
+  logger.info("[SERVER] Starting embedded workers...");
+  import("./workers/conversion.worker"); // Workers auto-initialize on import
+  import("./workers/webhook-worker");
+  import("./workers/validation.worker");
 } else {
-  console.log(
-    "ℹ️  Embedded worker disabled (RUN_WORKERS=false). Expecting dedicated worker process.",
+  logger.info(
+    "[SERVER] Embedded worker disabled (RUN_WORKERS=false). Expecting dedicated worker process.",
   );
 }
 
@@ -283,73 +290,81 @@ if (require.main === module) {
   (async () => {
     try {
       // Verify Redis connection BEFORE listening
-      await redis.ping();
-      console.log("✅ Redis: Connected and operational");
+      await redisClient.ping();
+      logger.info("[REDIS] Connected and operational");
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("❌ Redis: Connection failed -", msg);
+      logger.error("[REDIS] Connection failed", { error: msg });
       // Fail Fast in development
       if (env.NODE_ENV === "development") {
-        console.error("🚨 Redis is required in development. Exiting...");
+        logger.error("[REDIS] Redis is required in development. Exiting...");
         process.exit(1);
       }
-      console.warn(
-        "⚠️ Server will continue but cache features will be disabled (Production Fallback)",
+      logger.warn(
+        "[SERVER] Continuing without Redis — cache features will be disabled (Production Fallback)",
       );
     }
 
     httpServer.listen(PORT, async () => {
-      console.log(`🚀 DOM BIM API running on port ${PORT}`);
-      console.log(`   Environment: ${env.NODE_ENV}`);
-      console.log(
-        `   Worker Mode: ${env.RUN_WORKERS ? "Embedded" : "Dedicated"}`,
-      );
-      console.log(`   Trust Proxy: ${env.TRUST_PROXY}`);
-      console.log(`   HSTS: ${env.HSTS_ENABLED}`);
+      logger.info("[SERVER] DOM BIM API running", {
+        port: PORT,
+        environment: env.NODE_ENV,
+        workerMode: env.RUN_WORKERS ? "Embedded" : "Dedicated",
+        trustProxy: env.TRUST_PROXY,
+        hsts: env.HSTS_ENABLED,
+      });
 
       // Initialize Socket.IO
       socketService.initialize(httpServer);
-      console.log("   Socket.IO: Initialized");
+      logger.info("[SOCKET] Initialized");
 
       // Warm up formats cache on startup (Optional)
       if (env.APS_WARMUP_ON_START) {
         try {
-          console.log("Pre-fetching supported formats from APS...");
+          logger.debug("[APS] Pre-fetching supported formats...");
           await modelDerivativeService.getFormats();
-          console.log("Formats cache warmed up");
+          logger.info("[APS] Formats cache warmed up");
         } catch (error) {
-          console.warn(
-            "Failed to warm up formats cache (will retry on demand):",
-            error,
+          logger.warn(
+            "[APS] Failed to warm up formats cache (will retry on demand)",
+            {
+              error: error instanceof Error ? error.message : String(error),
+            },
           );
         }
       }
     });
   })().catch((err) => {
-    console.error("❌ Fatal Error during startup:", err);
+    logger.error("[SERVER] Fatal Error during startup", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     process.exit(1);
   });
 }
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, shutting down gracefully...");
+  logger.info("[SERVER] SIGTERM received, shutting down gracefully...");
   try {
-    await redis.quit();
-    console.log("Redis connection closed");
+    await redisClient.quit();
+    logger.info("[REDIS] Connection closed");
   } catch (error) {
-    console.error("Error closing Redis:", error);
+    logger.error("[REDIS] Error closing connection", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  console.log("SIGINT received, shutting down gracefully...");
+  logger.info("[SERVER] SIGINT received, shutting down gracefully...");
   try {
-    await redis.quit();
-    console.log("Redis connection closed");
+    await redisClient.quit();
+    logger.info("[REDIS] Connection closed");
   } catch (error) {
-    console.error("Error closing Redis:", error);
+    logger.error("[REDIS] Error closing connection", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   process.exit(0);
 });

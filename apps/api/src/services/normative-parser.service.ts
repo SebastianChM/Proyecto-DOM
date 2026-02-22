@@ -1,5 +1,6 @@
 import { HierarchicalParserService } from "./hierarchical-parser.service";
 import { HierarchicalSpecProcessor } from "./hierarchical-spec-processor";
+import { logger } from "../lib/logger";
 
 export class NormativeParserService {
   private parser: HierarchicalParserService;
@@ -11,7 +12,7 @@ export class NormativeParserService {
   }
 
   async parse(filePath: string): Promise<Array<Record<string, unknown>>> {
-    console.log(`[NormativeParser] Parsing: ${filePath}`);
+    logger.info(`[NormativeParser] Parsing: ${filePath}`);
 
     // 1. Build Structure Tree
     const tree = await this.parser.parse(filePath);
@@ -20,7 +21,7 @@ export class NormativeParserService {
     // We might add specific 'Normative' keywords in the future here
     const requirements = this.processor.processTree(tree, "", "Normative");
 
-    console.log(
+    logger.info(
       `[NormativeParser] Extracted ${requirements.length} normative rules.`,
     );
     return requirements;

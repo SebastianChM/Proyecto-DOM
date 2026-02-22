@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { logger } from "../lib/logger";
 
 const prisma = new PrismaClient();
 
@@ -65,8 +66,8 @@ export class ComplianceRunnerService {
     modelName?: string,
   ): Promise<ComplianceRunResult> {
     const startedAt = new Date();
-    console.log(`[ComplianceRunner] Starting run with ruleset: ${rulesetId}`);
-    console.log(`[ComplianceRunner] Elements: ${elements.length}`);
+    logger.info(`[COMPLIANCE_RUNNER] Starting run with ruleset: ${rulesetId}`);
+    logger.info(`[COMPLIANCE_RUNNER] Elements: ${elements.length}`);
 
     // Get ruleset with active rules
     const ruleset = await prisma.ruleset.findUnique({
@@ -82,8 +83,8 @@ export class ComplianceRunnerService {
       throw new Error(`Ruleset not found: ${rulesetId}`);
     }
 
-    console.log(
-      `[ComplianceRunner] Ruleset: ${ruleset.name}, Rules: ${ruleset.rules.length}`,
+    logger.info(
+      `[COMPLIANCE_RUNNER] Ruleset: ${ruleset.name}, Rules: ${ruleset.rules.length}`,
     );
 
     // Create compliance run record
@@ -163,8 +164,8 @@ export class ComplianceRunnerService {
         });
       }
 
-      console.log(
-        `[ComplianceRunner] Completed. Score: ${complianceScore}%, Issues: ${issues.length}`,
+      logger.info(
+        `[COMPLIANCE_RUNNER] Completed. Score: ${complianceScore}%, Issues: ${issues.length}`,
       );
 
       return {
@@ -225,8 +226,8 @@ export class ComplianceRunnerService {
         this.matchesNamePattern(el.name, rule.targetNamePattern),
     );
 
-    console.log(
-      `[ComplianceRunner] Rule "${rule.name}": ${matchingElements.length}/${elements.length} elements match`,
+    logger.debug(
+      `[COMPLIANCE_RUNNER] Rule "${rule.name}": ${matchingElements.length}/${elements.length} elements match`,
     );
 
     for (const element of matchingElements) {

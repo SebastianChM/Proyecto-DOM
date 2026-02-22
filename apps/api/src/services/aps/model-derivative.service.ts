@@ -3,6 +3,7 @@
 import { DerivativesApi } from "forge-apis";
 import { apsAuthService } from "./auth.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 export class APSModelDerivativeService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,22 +28,20 @@ export class APSModelDerivativeService {
         `https://developer.api.autodesk.com/modelderivative/v2/designdata/${encodeURIComponent(urn)}/manifest`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      console.log("🗑️ Deleted old manifest successfully");
+      logger.debug("[MODEL_DERIVATIVE] Deleted old manifest");
       return true;
     } catch (error: unknown) {
       const err = error as {
         response?: { status?: number; data?: unknown };
         message?: string;
       };
-      // 404 means no manifest exists, which is fine
       if (err.response?.status === 404) {
-        console.log("ℹ️ No manifest to delete");
+        logger.debug("[MODEL_DERIVATIVE] No manifest to delete");
         return true;
       }
-      console.warn(
-        "⚠️ Could not delete manifest:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.warn("[MODEL_DERIVATIVE] Could not delete manifest", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       return false;
     }
   }
@@ -56,13 +55,13 @@ export class APSModelDerivativeService {
       this.formatsCache &&
       Date.now() - this.lastCacheTime < this.CACHE_DURATION
     ) {
-      console.log("📦 Serving formats from cache");
+      logger.debug("[MODEL_DERIVATIVE] Serving formats from cache");
       return this.formatsCache;
     }
 
     const token = await apsAuthService.getInternalToken();
     try {
-      console.log("🌐 Fetching formats from Autodesk...");
+      logger.debug("[MODEL_DERIVATIVE] Fetching formats from Autodesk");
 
       const headers: Record<string, string> = {
         Authorization: `Bearer ${token}`,
@@ -90,15 +89,16 @@ export class APSModelDerivativeService {
       };
       // Handle 304 Not Modified
       if (err.response?.status === 304 && this.formatsCache) {
-        console.log("📦 Formats not modified (304), serving from cache");
-        this.lastCacheTime = Date.now(); // Refresh cache timer
+        logger.debug(
+          "[MODEL_DERIVATIVE] Formats not modified (304), serving from cache",
+        );
+        this.lastCacheTime = Date.now();
         return this.formatsCache;
       }
 
-      console.error(
-        "❌ Failed to get formats:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[MODEL_DERIVATIVE] Failed to get formats", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       throw error;
     }
   }
@@ -157,8 +157,8 @@ export class APSModelDerivativeService {
       },
     };
 
-    console.log("📤 [Strategy 1] Direct PDF translation...");
-    console.log("📝 Request body:", JSON.stringify(jobDirectPdf, null, 2));
+    logger.debug("[MODEL_DERIVATIVE] [Strategy 1] Direct PDF translation");
+    logger.debug("[MODEL_DERIVATIVE] Request body", { job: jobDirectPdf });
 
     try {
       const response = await axios.post(
@@ -172,7 +172,9 @@ export class APSModelDerivativeService {
           },
         },
       );
-      console.log("✅ Translation job started (Direct PDF):", response.data);
+      logger.info("[MODEL_DERIVATIVE] Translation job started (Direct PDF)", {
+        result: response.data,
+      });
       return response.data;
     } catch (error: unknown) {
       const err = error as {
@@ -181,10 +183,11 @@ export class APSModelDerivativeService {
       };
       const errorMsg =
         err.response?.data?.diagnostic || err.message || "Unknown error";
-      console.warn("⚠️ Strategy 1 (Direct PDF) failed:", errorMsg);
+      logger.warn("[MODEL_DERIVATIVE] Strategy 1 (Direct PDF) failed", {
+        error: errorMsg,
+      });
 
-      // Strategy 2: SVF2 with 2dviews: pdf (for DWG 2022+)
-      console.log("🔄 [Strategy 2] SVF2 with 2dviews: pdf...");
+      logger.debug("[MODEL_DERIVATIVE] [Strategy 2] SVF2 with 2dviews: pdf");
 
       const jobSvf2Pdf = {
         input: { urn },
@@ -214,9 +217,9 @@ export class APSModelDerivativeService {
             },
           },
         );
-        console.log(
-          "✅ Translation job started (SVF2 + 2dviews:pdf):",
-          response.data,
+        logger.info(
+          "[MODEL_DERIVATIVE] Translation job started (SVF2 + 2dviews:pdf)",
+          { result: response.data },
         );
         return response.data;
       } catch (fallbackError: unknown) {
@@ -224,9 +227,11 @@ export class APSModelDerivativeService {
           response?: { data?: unknown };
           message?: string;
         };
-        console.error(
-          "❌ Strategy 2 (SVF2+2dviews) also failed:",
-          fbErr.response?.data || fbErr.message || "Unknown error",
+        logger.error(
+          "[MODEL_DERIVATIVE] Strategy 2 (SVF2+2dviews) also failed",
+          {
+            error: fbErr.response?.data || fbErr.message || "Unknown error",
+          },
         );
         throw new Error(
           `PDF conversion failed for URN: ${urn}. Both direct PDF and SVF2 methods failed.`,
@@ -305,10 +310,9 @@ export class APSModelDerivativeService {
       return result.body;
     } catch (error: unknown) {
       const err = error as { response?: { data?: unknown }; message?: string };
-      console.error(
-        "Failed to get object tree:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[MODEL_DERIVATIVE] Failed to get object tree", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       throw error;
     }
   }
@@ -346,7 +350,7 @@ export class APSModelDerivativeService {
     const encodedUrn = encodeURIComponent(derivativeUrn);
     const url = `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest/${encodedUrn}/signedcookies`;
 
-    console.log(`🔑 Getting signed cookies/url from: ${url}`);
+    logger.debug("[MODEL_DERIVATIVE] Getting signed cookies/url", { url });
 
     try {
       const response = await axios.get(url, {
@@ -375,10 +379,9 @@ export class APSModelDerivativeService {
       return { url: downloadUrl, headers };
     } catch (error: unknown) {
       const err = error as { response?: { data?: unknown }; message?: string };
-      console.error(
-        "❌ Failed to get signed download URL:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[MODEL_DERIVATIVE] Failed to get signed download URL", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       throw error;
     }
   }
@@ -393,7 +396,7 @@ export class APSModelDerivativeService {
     const encodedUrn = encodeURIComponent(derivativeUrn);
     const url = `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest/${encodedUrn}`;
 
-    console.log(`📥 Fetching derivative from: ${url}`);
+    logger.debug("[MODEL_DERIVATIVE] Fetching derivative", { url });
 
     const response = await axios.get(url, {
       headers: {
@@ -402,9 +405,10 @@ export class APSModelDerivativeService {
       responseType: "arraybuffer",
     });
 
-    console.log(
-      `📦 Received ${response.data.length} bytes, Content-Type: ${response.headers["content-type"]}`,
-    );
+    logger.debug("[MODEL_DERIVATIVE] Received derivative", {
+      bytes: response.data.length,
+      contentType: response.headers["content-type"],
+    });
 
     return Buffer.from(response.data);
   }

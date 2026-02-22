@@ -5,6 +5,7 @@ import {
   DiffItem,
   PropertyChange,
 } from "../../interfaces/comparison.interface";
+import { logger } from "../../lib/logger";
 
 interface MetadataItem {
   role?: string;
@@ -36,10 +37,15 @@ export class APSComparisonService {
    * @returns DiffResult object containing added, removed, and modified elements.
    */
   async compareMetadata(urn1: string, urn2: string): Promise<DiffResult> {
-    // 1. Local/Demo Mode Check
+    // 1. Local/Demo Mode Check — only allowed in non-production
     if (urn1.startsWith("local-") || urn2.startsWith("local-")) {
-      console.log(
-        "🔧 [ComparisonService] Local mode detected. Returning mock diff.",
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "Local/mock comparisons are not allowed in production environment.",
+        );
+      }
+      logger.warn(
+        "[COMPARISON] Local mode detected, returning mock diff (dev only)",
       );
       return this.getMockDiff(urn1, urn2);
     }
@@ -79,10 +85,9 @@ export class APSComparisonService {
       );
     } catch (error: unknown) {
       const err = error as { response?: { body?: unknown }; message?: string };
-      console.error(
-        "❌ [ComparisonService] Error converting/comparing models:",
-        err.response ? err.response.body : err,
-      );
+      logger.error("[COMPARISON] Error comparing models", {
+        error: err.message,
+      });
       throw new Error(
         "Failed to compare models. Ensure URNs are valid and processed.",
       );
@@ -114,9 +119,7 @@ export class APSComparisonService {
     if (response.statusCode === 202) {
       // For now, simpler to fail fast than implement polling in this request scoped service
       // Proper way: Enqueue this diff job in the Worker.
-      console.warn(
-        "⚠️ [ComparisonService] Properties are still processing/extracting by APS.",
-      );
+      logger.warn("[COMPARISON] Properties still processing/extracting by APS");
     }
 
     return response.body;

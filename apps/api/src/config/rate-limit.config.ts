@@ -7,6 +7,7 @@
 import { Request, Response, NextFunction } from "express";
 import { redis, RedisKeys } from "../lib/redis";
 import { env } from "./env";
+import { logger } from "../lib/logger";
 
 // ==================== Types ====================
 
@@ -138,10 +139,9 @@ export class RateLimiterService {
       };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("❌ [RATE_LIMIT] Redis error:", {
+      logger.error("[RATE_LIMIT] Redis error", {
         error: msg,
         endpoint,
-        timestamp: new Date().toISOString(),
       });
 
       // Marcar Redis como no disponible
@@ -167,12 +167,11 @@ export class RateLimiterService {
 
     const { count, allowed } = memoryFallback.check(key, windowMs);
 
-    console.warn("⚠️ [RATE_LIMIT] Using memory fallback (Redis unavailable)", {
+    logger.warn("[RATE_LIMIT] Using memory fallback (Redis unavailable)", {
       endpoint,
       identifier: identifier.substring(0, 8) + "...",
       count,
-      limit: 10, // Umbral bajo hardcoded
-      timestamp: new Date().toISOString(),
+      limit: 10,
     });
 
     return {
@@ -209,7 +208,7 @@ export class RateLimiterService {
 
           // Redis funcionando, marcar como disponible
           if (!this.redisAvailable) {
-            console.log("✅ [RATE_LIMIT] Redis restored");
+            logger.info("[RATE_LIMIT] Redis restored");
             this.redisAvailable = true;
           }
         } catch (redisError: unknown) {
@@ -218,8 +217,8 @@ export class RateLimiterService {
             redisError instanceof Error
               ? redisError.message
               : String(redisError);
-          console.warn(
-            "⚠️ [RATE_LIMIT] Redis check failed, proceeding with fallback logic",
+          logger.warn(
+            "[RATE_LIMIT] Redis check failed, proceeding with fallback logic",
             {
               error: errMsg.substring(0, 100),
             },
@@ -227,13 +226,12 @@ export class RateLimiterService {
 
           if (config.strictMode) {
             // Modo estricto: rechazar request
-            console.error(
-              "🚫 [RATE_LIMIT] Rejecting request - Redis unavailable (strict mode)",
+            logger.error(
+              "[RATE_LIMIT] Rejecting request - Redis unavailable (strict mode)",
               {
                 endpoint: config.endpoint,
                 path: req.path,
                 requestId: req.headers["x-request-id"],
-                timestamp: new Date().toISOString(),
               },
             );
 
@@ -267,17 +265,16 @@ export class RateLimiterService {
           res.setHeader("Retry-After", result.retryAfter);
 
           // Log intento bloqueado SIN datos sensibles
-          console.warn("🚫 [RATE_LIMIT] Request blocked", {
+          logger.warn("[RATE_LIMIT] Request blocked", {
             endpoint: config.endpoint,
             path: req.path,
             method: req.method,
-            identifier: identifier.substring(0, 15) + "...", // Truncado
+            identifier: identifier.substring(0, 15) + "...",
             userId: req.user?.id || "anonymous",
             requestId: req.headers["x-request-id"],
             status: 429,
             limit: result.limit,
             retryAfter: result.retryAfter,
-            timestamp: new Date().toISOString(),
           });
 
           return res.status(429).json({
@@ -293,7 +290,7 @@ export class RateLimiterService {
         next();
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
-        console.error("❌ [RATE_LIMIT] Middleware error:", {
+        logger.error("[RATE_LIMIT] Middleware error", {
           error: msg,
           endpoint: config.endpoint,
           path: req.path,
@@ -439,14 +436,14 @@ export class RateLimiterService {
     try {
       const key = RedisKeys.rateLimit(identifier, endpoint);
       await redis.del(key);
-      console.log("✅ [RATE_LIMIT] Reset successful", {
+      logger.info("[RATE_LIMIT] Reset successful", {
         identifier: identifier.substring(0, 8) + "...",
         endpoint,
       });
       return true;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("❌ [RATE_LIMIT] Reset error:", msg);
+      logger.error("[RATE_LIMIT] Reset error", { error: msg });
       return false;
     }
   }

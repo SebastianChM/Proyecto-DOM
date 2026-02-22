@@ -1,8 +1,9 @@
 import axios from "axios";
 import { apsAuthService } from "./auth.service";
 import { APP_CONFIG } from "../../config/constants";
+import { logger } from "../../lib/logger";
 
-const WEHOOKS_API_URL =
+const WEBHOOKS_API_URL =
   "https://developer.api.autodesk.com/webhooks/v1/systems";
 
 export class APSWebhooksService {
@@ -24,16 +25,16 @@ export class APSWebhooksService {
   async getWebhooks(system: string = "data") {
     const headers = await this.getAuthHeader();
     try {
-      const response = await axios.get(`${WEHOOKS_API_URL}/${system}/hooks`, {
+      const response = await axios.get(`${WEBHOOKS_API_URL}/${system}/hooks`, {
         headers,
       });
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: unknown }; message?: string };
-      console.error(
-        `❌ Failed to get webhooks for system ${system}:`,
-        err.response?.data || err.message,
-      );
+      logger.error("[APS_WEBHOOKS] Failed to get webhooks", {
+        system,
+        error: err.response?.data || err.message,
+      });
       throw error;
     }
   }
@@ -50,8 +51,8 @@ export class APSWebhooksService {
     scopeObject: Record<string, unknown>,
   ) {
     if (!APP_CONFIG.APS.WEBHOOK_URL) {
-      console.warn(
-        "⚠️ APS_WEBHOOK_URL is not configured. Skipping webhook creation.",
+      logger.warn(
+        "[APS_WEBHOOKS] APS_WEBHOOK_URL is not configured. Skipping webhook creation.",
       );
       return null;
     }
@@ -64,17 +65,21 @@ export class APSWebhooksService {
       scope: scopeObject,
     };
 
-    console.log(`🔗 Creating webhook for ${event}...`);
-    console.log(`   Callback: ${callbackUrl}`);
-    console.log(`   Scope:`, JSON.stringify(scopeObject));
+    logger.info("[APS_WEBHOOKS] Creating webhook", {
+      event,
+      callbackUrl,
+      scope: JSON.stringify(scopeObject),
+    });
 
     try {
       const response = await axios.post(
-        `${WEHOOKS_API_URL}/${system}/events/${event}/hooks`,
+        `${WEBHOOKS_API_URL}/${system}/events/${event}/hooks`,
         body,
         { headers },
       );
-      console.log(`✅ Webhook created successfully: ${response.data.hookId}`);
+      logger.info("[APS_WEBHOOKS] Webhook created successfully", {
+        hookId: response.data.hookId,
+      });
       return response.data;
     } catch (error: unknown) {
       const err = error as {
@@ -83,14 +88,13 @@ export class APSWebhooksService {
       };
       // Check if it already exists (409 Conflict) - This is common and acceptable
       if (err.response?.status === 409) {
-        console.log(`ℹ️ Webhook already exists for this scope.`);
+        logger.debug("[APS_WEBHOOKS] Webhook already exists for this scope");
         return { status: "exists" };
       }
 
-      console.error(
-        `❌ Failed to create webhook:`,
-        err.response?.data || err.message,
-      );
+      logger.error("[APS_WEBHOOKS] Failed to create webhook", {
+        error: err.response?.data || err.message,
+      });
       // Don't throw, just return null so the flow doesn't break
       return null;
     }
@@ -103,17 +107,17 @@ export class APSWebhooksService {
     const headers = await this.getAuthHeader();
     try {
       await axios.delete(
-        `${WEHOOKS_API_URL}/${system}/events/${event}/hooks/${hookId}`,
+        `${WEBHOOKS_API_URL}/${system}/events/${event}/hooks/${hookId}`,
         { headers },
       );
-      console.log(`🗑️ Webhook ${hookId} deleted.`);
+      logger.info("[APS_WEBHOOKS] Webhook deleted", { hookId });
       return true;
     } catch (error: unknown) {
       const err = error as { response?: { data?: unknown }; message?: string };
-      console.error(
-        `❌ Failed to delete webhook:`,
-        err.response?.data || err.message,
-      );
+      logger.error("[APS_WEBHOOKS] Failed to delete webhook", {
+        hookId,
+        error: err.response?.data || err.message,
+      });
       return false;
     }
   }

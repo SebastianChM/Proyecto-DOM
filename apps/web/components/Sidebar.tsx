@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import apiClient from "@/lib/axios-config";
 import { useUser } from "@/context/UserContext";
+import { logger } from "@/lib/logger";
 
 const baseSidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -72,7 +73,9 @@ export function Sidebar() {
       // Redirect to login page
       window.location.href = "/";
     } catch (error) {
-      console.warn("Logout failed:", error);
+      logger.warn("Logout failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Force redirect even if API fails
       window.location.href = "/";
     }

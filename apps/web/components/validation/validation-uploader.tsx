@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 import {
   Tabs,
   TabsContent,
@@ -32,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { API_CONFIG } from "@/lib/config";
 
 // Shared Interfaces
 export interface Incident {
@@ -147,7 +149,9 @@ export function ValidationUploader({
       );
       setProjectFiles(pdfFiles);
     } catch (err) {
-      console.error("Failed to fetch project files", err);
+      logger.error("Failed to fetch project files", {
+        error: (err as Error)?.message,
+      });
       setProjectFiles([]);
     } finally {
       setLoadingProjectFiles(false);
@@ -193,7 +197,7 @@ export function ValidationUploader({
           }
         }
       } catch (err) {
-        console.error("Status check failed", err);
+        logger.error("Status check failed", { error: (err as Error)?.message });
         setModelStatus("unknown");
       } finally {
         setCheckingStatus(false);
@@ -282,7 +286,7 @@ export function ValidationUploader({
         });
       }
     } catch (err: unknown) {
-      console.error("Analysis failed", err);
+      logger.error("Analysis failed", { error: (err as Error)?.message });
       setError(
         "Failed to analyze document. Ensure it's a valid PDF/Text file.",
       );
@@ -312,7 +316,7 @@ export function ValidationUploader({
       // Generate specUrl for project PDFs
       const specUrl =
         pdfSource === "project" && selectedPdfId
-          ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/files/${selectedPdfId}/download`
+          ? `${API_CONFIG.BASE_URL}/api/files/${selectedPdfId}/download`
           : null;
 
       onUploadComplete(
@@ -329,10 +333,11 @@ export function ValidationUploader({
 
       setStep("upload");
     } catch (error: unknown) {
-      console.error("Verification failed", error);
+      logger.error("Verification failed", { error: (error as Error)?.message });
 
+      const axiosErr = error as { response?: { data?: { error?: string } } };
       const msg =
-        (error as any).response?.data?.error ||
+        axiosErr.response?.data?.error ||
         (error as Error).message ||
         "Verification Failed";
       setError(msg);

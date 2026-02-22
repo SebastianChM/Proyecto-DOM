@@ -318,8 +318,8 @@ export default function FileHistoryPage() {
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
         <p className="text-sm dark:text-blue-300 text-blue-800">
           <strong>How to compare:</strong> Select two versions by clicking on
-          them, then click "Compare Selected" to view differences. (DiffTool for
-          3D models, PixelCompare for PDFs).
+          them, then click &quot;Compare Selected&quot; to view differences.
+          (DiffTool for 3D models, PixelCompare for PDFs).
         </p>
       </div>
     </div>

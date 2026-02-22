@@ -35,6 +35,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 // ============================================================================
 // TYPES
@@ -84,7 +85,8 @@ interface ComplianceDashboardProps {
 // CONSTANTS
 // ============================================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { API_CONFIG } from "@/lib/config";
+const API_BASE = API_CONFIG.BASE_URL;
 
 const STATUS_CONFIG = {
   COMPLETED: {
@@ -484,7 +486,9 @@ export function ComplianceDashboard({
         }
       }
     } catch (err) {
-      console.error("Failed to fetch models:", err);
+      logger.error("Failed to fetch models", {
+        error: (err as Error)?.message,
+      });
       setModels([]);
     }
   }, [projectId, selectedModel]);

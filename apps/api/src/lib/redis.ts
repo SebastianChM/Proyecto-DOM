@@ -4,6 +4,9 @@
  */
 
 import Redis from "ioredis";
+import { CONSTANTS } from "../config/constants";
+import { env } from "../config/env";
+import { logger } from "./logger";
 
 /**
  * Cliente Redis singleton profesional
@@ -17,17 +20,20 @@ class RedisClient {
   static getInstance(): Redis {
     if (!RedisClient.instance) {
       const redisConfig = {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379"),
-        password: process.env.REDIS_PASSWORD,
+        host: env.REDIS_HOST || CONSTANTS.REDIS.DEFAULT_HOST,
+        port: env.REDIS_PORT || CONSTANTS.REDIS.DEFAULT_PORT,
+        password: env.REDIS_PASSWORD,
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {
           if (times > 10) {
-            console.error("❌ Redis: Max retries reached, giving up");
+            logger.error("[REDIS] Max retries reached, giving up");
             return null;
           }
           const delay = Math.min(times * 100, 3000);
-          console.warn(`⚠️  Redis: Retry attempt ${times}, waiting ${delay}ms`);
+          logger.warn("[REDIS] Retry attempt", {
+            attempt: times,
+            delayMs: delay,
+          });
           return delay;
         },
         enableOfflineQueue: true,
@@ -42,27 +48,27 @@ class RedisClient {
 
       // Event listeners para monitoreo
       RedisClient.instance.on("connect", () => {
-        console.log("🔄 Redis: Connecting...");
+        logger.debug("[REDIS] Connecting...");
       });
 
       RedisClient.instance.on("ready", () => {
-        console.log("✅ Redis: Connected and ready");
+        logger.info("[REDIS] Connected and ready");
       });
 
       RedisClient.instance.on("error", (error) => {
-        console.error("❌ Redis: Connection error:", error.message);
+        logger.error("[REDIS] Connection error", { error: error.message });
       });
 
       RedisClient.instance.on("close", () => {
-        console.warn("⚠️  Redis: Connection closed");
+        logger.warn("[REDIS] Connection closed");
       });
 
       RedisClient.instance.on("reconnecting", (delay: number) => {
-        console.log(`🔄 Redis: Reconnecting in ${delay}ms...`);
+        logger.debug("[REDIS] Reconnecting", { delayMs: delay });
       });
 
       RedisClient.instance.on("end", () => {
-        console.warn("⚠️  Redis: Connection ended");
+        logger.warn("[REDIS] Connection ended");
       });
     }
 
@@ -73,7 +79,7 @@ class RedisClient {
     if (RedisClient.instance) {
       await RedisClient.instance.quit();
       RedisClient.instance = null;
-      console.log("✅ Redis: Disconnected gracefully");
+      logger.info("[REDIS] Disconnected gracefully");
     }
   }
 
@@ -152,10 +158,10 @@ export class CacheService {
 
       return JSON.parse(value) as T;
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache get error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Get error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return null;
     }
   }
@@ -172,10 +178,10 @@ export class CacheService {
       await redis.setex(key, ttl, JSON.stringify(value));
       return true;
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache set error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Set error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return false;
     }
   }
@@ -188,28 +194,38 @@ export class CacheService {
       await redis.del(key);
       return true;
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache delete error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Delete error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return false;
     }
   }
 
   /**
    * Elimina múltiples keys que coincidan con un patrón
+   * Uses SCAN instead of KEYS to avoid blocking Redis in production
    */
   async invalidatePattern(pattern: string): Promise<number> {
     try {
-      const keys = await redis.keys(pattern);
-      if (keys.length === 0) return 0;
+      const keys: string[] = [];
+      const stream = redis.scanStream({ match: pattern, count: 100 });
 
+      await new Promise<void>((resolve, reject) => {
+        stream.on("data", (batch: string[]) => {
+          keys.push(...batch);
+        });
+        stream.on("end", () => resolve());
+        stream.on("error", (err: Error) => reject(err));
+      });
+
+      if (keys.length === 0) return 0;
       return await redis.del(...keys);
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache invalidate pattern error for ${pattern}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Invalidate pattern error", {
+        pattern: pattern.substring(0, 50),
+        error: (error as Error).message,
+      });
       return 0;
     }
   }
@@ -222,10 +238,10 @@ export class CacheService {
       const result = await redis.exists(key);
       return result === 1;
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache exists error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Exists error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return false;
     }
   }
@@ -268,10 +284,10 @@ export class CacheService {
 
       return value;
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache increment error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] Increment error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return 0;
     }
   }
@@ -286,7 +302,7 @@ export class CacheService {
       const values = await redis.mget(...keys);
       return values.map((v) => (v ? (JSON.parse(v) as T) : null));
     } catch (error: unknown) {
-      console.error(`❌ Cache mget error:`, (error as Error).message);
+      logger.error("[CACHE] Mget error", { error: (error as Error).message });
       return keys.map(() => null);
     }
   }
@@ -308,7 +324,7 @@ export class CacheService {
       await pipeline.exec();
       return true;
     } catch (error: unknown) {
-      console.error(`❌ Cache mset error:`, (error as Error).message);
+      logger.error("[CACHE] Mset error", { error: (error as Error).message });
       return false;
     }
   }
@@ -320,10 +336,10 @@ export class CacheService {
     try {
       return await redis.ttl(key);
     } catch (error: unknown) {
-      console.error(
-        `❌ Cache TTL error for key ${key}:`,
-        (error as Error).message,
-      );
+      logger.error("[CACHE] TTL error", {
+        key: key.substring(0, 50),
+        error: (error as Error).message,
+      });
       return -1;
     }
   }
@@ -348,7 +364,7 @@ export class LockService {
       const result = await redis.set(key, "1", "EX", ttl, "NX");
       return result === "OK";
     } catch (error: unknown) {
-      console.error(`❌ Lock acquire error:`, (error as Error).message);
+      logger.error("[LOCK] Acquire error", { error: (error as Error).message });
       return false;
     }
   }
@@ -362,7 +378,7 @@ export class LockService {
       await redis.del(key);
       return true;
     } catch (error: unknown) {
-      console.error(`❌ Lock release error:`, (error as Error).message);
+      logger.error("[LOCK] Release error", { error: (error as Error).message });
       return false;
     }
   }

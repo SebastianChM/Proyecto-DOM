@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { logger } from "@/lib/logger";
 
 interface BrowserProps {
   onSelect: (data: {
@@ -67,7 +68,7 @@ export function AutodeskProjectBrowser({ onSelect, onCancel }: BrowserProps) {
       const res = await apiClient.get("/api/aps/hubs");
       setHubs(res.data);
     } catch (error: unknown) {
-      console.error("Failed to load hubs", error);
+      logger.error("Failed to load hubs", { error: (error as Error)?.message });
       const err = error as { response?: { status: number } };
       /* 
                If the backend returns 401 (Unauthorized), it means the session text is missing or invalid.

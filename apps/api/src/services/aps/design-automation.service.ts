@@ -1,10 +1,13 @@
 import { apsAuthService } from "./auth.service";
 import { apsOssService } from "./oss.service";
 import axios from "axios";
+import * as fs from "fs";
+import FormData from "form-data";
+import { logger } from "../../lib/logger";
 
 const DA_BASE_URL = "https://developer.api.autodesk.com/da/us-east/v3";
-const FORGE_CLIENT_ID = process.env.APS_CLIENT_ID || "";
 // Use configured nickname or fallback to client ID (which is the default if not set)
+const FORGE_CLIENT_ID = process.env.APS_CLIENT_ID || "";
 const NICKNAME = process.env.APS_DA_NICKNAME || FORGE_CLIENT_ID;
 
 export class APSDesignAutomationService {
@@ -32,14 +35,14 @@ export class APSDesignAutomationService {
       // Check if nickname is already set by trying to get it (not directly possible via simple GET,
       // but we can try to create it and handle 409)
 
-      console.log(`🔧 Setting up Design Automation nickname: ${NICKNAME}`);
+      logger.debug("[DA] Setting up nickname", { nickname: NICKNAME });
 
       await axios.patch(
         `${DA_BASE_URL}/forgeapps/me`,
         { nickname: NICKNAME },
         { headers },
       );
-      console.log(`✅ Nickname set to: ${NICKNAME}`);
+      logger.info("[DA] Nickname set", { nickname: NICKNAME });
       return true;
     } catch (error: unknown) {
       const err = error as {
@@ -48,13 +51,12 @@ export class APSDesignAutomationService {
       };
       // 409 means nickname already exists, which is fine
       if (err.response?.status === 409) {
-        console.log(`✅ Nickname already exists (or conflict): ${NICKNAME}`);
+        logger.debug("[DA] Nickname already exists", { nickname: NICKNAME });
         return true;
       }
-      console.error(
-        "Failed to setup nickname:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[DA] Failed to setup nickname", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       return false;
     }
   }
@@ -69,7 +71,7 @@ export class APSDesignAutomationService {
     try {
       // Check if activity exists
       await axios.get(`${DA_BASE_URL}/activities/${activityId}`, { headers });
-      console.log(`✅ Activity exists: ${activityId}`);
+      logger.debug("[DA] Activity exists", { activityId });
       return activityId;
     } catch (error: unknown) {
       const err = error as {
@@ -77,16 +79,16 @@ export class APSDesignAutomationService {
         message?: string;
       };
       if (err.response?.status !== 404) {
-        console.error(
-          `❌ Error checking activity ${activityId}:`,
-          err.response?.data || err.message || "Unknown error",
-        );
+        logger.error("[DA] Error checking activity", {
+          activityId,
+          error: err.response?.data || err.message || "Unknown error",
+        });
         throw error;
       }
     }
 
     // Create the activity using AutoCAD's built-in PlotToPDF command
-    console.log(`📝 Creating DWG to PDF activity: ${activityId}...`);
+    logger.debug("[DA] Creating DWG to PDF activity", { activityId });
 
     // Ensure nickname is set up before creating activity
     await this.setupNickname();
@@ -123,7 +125,7 @@ export class APSDesignAutomationService {
       const response = await axios.post(`${DA_BASE_URL}/activities`, activity, {
         headers,
       });
-      console.log(`✅ Activity created: ${response.data.id}`);
+      logger.info("[DA] Activity created", { id: response.data.id });
 
       // Create alias 'prod' for the activity
       await axios.post(
@@ -131,7 +133,7 @@ export class APSDesignAutomationService {
         { id: "prod", version: 1 },
         { headers },
       );
-      console.log(`✅ Activity alias 'prod' created`);
+      logger.debug("[DA] Activity alias 'prod' created");
 
       return activityId;
     } catch (error: unknown) {
@@ -139,14 +141,12 @@ export class APSDesignAutomationService {
         response?: { status?: number; data?: unknown };
         message?: string;
       };
-      console.error(
-        "Failed to create activity:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[DA] Failed to create activity", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
 
-      // If it failed because it already exists (race condition or partial setup), try to return the ID anyway
       if (err.response?.status === 409) {
-        console.log("Activity already exists (409), returning ID.");
+        logger.debug("[DA] Activity already exists (409), returning ID");
         return activityId;
       }
       throw error;
@@ -169,12 +169,12 @@ export class APSDesignAutomationService {
 
     // Create SIGNED URLs for input/output (required by Design Automation)
     // Bearer token headers are NOT supported - must use signed URLs
-    console.log(`🔐 Getting signed URLs for input: ${inputObjectId}`);
+    logger.debug("[DA] Getting signed URLs", { inputObjectId });
     const inputSignedUrl = await apsOssService.getSignedUrl(inputObjectId);
     const outputSignedUrl =
       await apsOssService.getSignedWriteUrl(outputObjectId);
 
-    console.log(`✅ Got signed URLs`);
+    logger.debug("[DA] Got signed URLs");
 
     const workItem: {
       activityId: string;
@@ -197,30 +197,30 @@ export class APSDesignAutomationService {
     };
 
     if (webhookUrl) {
-      console.log(`🔗 Attaching webhook to WorkItem: ${webhookUrl}`);
+      logger.debug("[DA] Attaching webhook to WorkItem", { webhookUrl });
       workItem.arguments.onComplete = {
         verb: "post",
         url: webhookUrl,
       };
     }
 
-    console.log(`📤 Creating work item for DWG to PDF conversion...`);
-    console.log(`   Activity: ${activityId}`);
-    console.log(`   Input: ${inputObjectId}`);
-    console.log(`   Output: ${outputObjectId}`);
+    logger.debug("[DA] Creating work item for DWG to PDF", {
+      activityId,
+      inputObjectId,
+      outputObjectId,
+    });
 
     try {
       const response = await axios.post(`${DA_BASE_URL}/workitems`, workItem, {
         headers,
       });
-      console.log(`✅ Work item created: ${response.data.id}`);
+      logger.info("[DA] Work item created", { id: response.data.id });
       return response.data.id;
     } catch (error: unknown) {
       const err = error as { response?: { data?: unknown }; message?: string };
-      console.error(
-        "Failed to create work item:",
-        err.response?.data || err.message || "Unknown error",
-      );
+      logger.error("[DA] Failed to create work item", {
+        error: err.response?.data || err.message || "Unknown error",
+      });
       throw error;
     }
   }
@@ -305,6 +305,7 @@ export class APSDesignAutomationService {
     const headers = await this.getAuthHeader();
     await axios.delete(`${DA_BASE_URL}/workitems/${id}`, { headers });
   }
+
   /**
    * Ensure Revit to PDF Activity exists
    */
@@ -314,14 +315,14 @@ export class APSDesignAutomationService {
 
     try {
       await axios.get(`${DA_BASE_URL}/activities/${activityId}`, { headers });
-      console.log(`✅ Revit Activity exists: ${activityId}`);
+      logger.debug("[DA] Revit Activity exists", { activityId });
       return activityId;
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } };
       if (err.response?.status !== 404) throw error;
     }
 
-    console.log(`📝 Creating Revit to PDF activity...`);
+    logger.debug("[DA] Creating Revit to PDF activity");
     await this.setupNickname();
 
     const activity = {
@@ -352,9 +353,8 @@ export class APSDesignAutomationService {
       const response = await axios.post(`${DA_BASE_URL}/activities`, activity, {
         headers,
       });
-      console.log(`✅ Revit Activity created: ${response.data.id}`);
+      logger.info("[DA] Revit Activity created", { id: response.data.id });
 
-      // Create alias
       await axios.post(
         `${DA_BASE_URL}/activities/${activity.id}/aliases`,
         { id: "prod", version: 1 },
@@ -363,7 +363,9 @@ export class APSDesignAutomationService {
       return activityId;
     } catch (error: unknown) {
       const err = error as { response?: { status?: number; data?: unknown } };
-      console.error("Failed to create Revit Activity:", err.response?.data);
+      logger.error("[DA] Failed to create Revit Activity", {
+        error: err.response?.data,
+      });
       if (err.response?.status === 409) return activityId;
       throw error;
     }
@@ -406,11 +408,93 @@ export class APSDesignAutomationService {
       },
     };
 
-    console.log(`📤 Submitting Revit WorkItem...`);
+    logger.debug("[DA] Submitting Revit WorkItem");
     const response = await axios.post(`${DA_BASE_URL}/workitems`, workItem, {
       headers,
     });
     return response.data.id;
+  }
+
+  /**
+   * Deploy App Bundle (Upload + Register + Alias)
+   */
+  async deployAppBundle(
+    appName: string,
+    zipFilePath: string,
+    engine: string,
+    description: string,
+  ): Promise<string> {
+    logger.debug("[DA] Deploying AppBundle", { appName });
+    await this.setupNickname();
+
+    const appBundleId = `${NICKNAME}.${appName}`;
+    const headers = await this.getAuthHeader();
+
+    const appBundleSpec = {
+      id: appName,
+      engine: engine,
+      description: description,
+    };
+
+    let uploadParams = null;
+
+    try {
+      const res = await axios.post(`${DA_BASE_URL}/appbundles`, appBundleSpec, {
+        headers,
+      });
+      uploadParams = res.data.uploadParameters;
+      logger.info("[DA] AppBundle created, uploading binary");
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status === 409) {
+        logger.debug(
+          "[DA] AppBundle exists, getting upload URL for new version",
+        );
+        const res = await axios.post(
+          `${DA_BASE_URL}/appbundles/${appName}/versions`,
+          { engine, description },
+          { headers },
+        );
+        uploadParams = res.data.uploadParameters;
+        logger.info("[DA] New version created", { version: res.data.version });
+      } else {
+        throw error;
+      }
+    }
+
+    // 2. Upload ZIP using the parameters provided by APS (Direct to S3)
+    const formData = new FormData();
+    Object.keys(uploadParams.formData).forEach((key) => {
+      formData.append(key, uploadParams.formData[key]);
+    });
+    formData.append("file", fs.createReadStream(zipFilePath));
+
+    await axios.post(uploadParams.endpointURL, formData, {
+      headers: {
+        ...formData.getHeaders(),
+      },
+    });
+    logger.info("[DA] ZIP Uploaded successfully");
+
+    const version = uploadParams.version || 1;
+    const aliasId = "prod";
+
+    try {
+      await axios.get(
+        `${DA_BASE_URL}/appbundles/${appName}/aliases/${aliasId}`,
+        { headers },
+      );
+      await axios.patch(
+        `${DA_BASE_URL}/appbundles/${appName}/aliases/${aliasId}`,
+        { version },
+        { headers },
+      );
+      logger.info("[DA] Alias 'prod' updated", { version });
+    } catch {
+      logger.info("[DA] Alias 'prod' created", { version });
+    }
+
+    return appBundleId;
   }
 }
 

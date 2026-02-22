@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import handlebars from "handlebars";
 import fs from "fs-extra";
 import path from "path";
+import { logger } from "../../lib/logger";
 
 export class ReportService {
   private templatePath: string;
@@ -54,7 +55,9 @@ export class ReportService {
 
       return Buffer.from(pdfBuffer);
     } catch (error) {
-      console.error("Failed to generate PDF report:", error);
+      logger.error("[REPORT] Failed to generate PDF report", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw new Error("Report generation failed");
     }
   }

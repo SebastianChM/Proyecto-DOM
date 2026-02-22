@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import apiClient from "@/lib/axios-config";
 import { isMockUrn } from "@/lib/utils";
 import { showError } from "@/lib/error-handler";
+import { logger } from "@/lib/logger";
 import { useUser } from "@/context/UserContext";
 import {
   Card,
@@ -118,7 +119,7 @@ export default function Viewer({
           }
         });
       } catch (error) {
-        console.error("Viewer initialization failed:", {
+        logger.error("Viewer initialization failed", {
           error: error instanceof Error ? error.message : String(error),
           urn: urn,
           hasToken: !!providedToken,

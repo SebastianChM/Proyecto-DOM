@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { cacheService } from "../lib/redis";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -97,7 +98,9 @@ router.get("/stats", async (req, res) => {
 
     res.json(stats);
   } catch (error: unknown) {
-    console.error("Dashboard stats error:", error);
+    logger.error("[DASHBOARD] Stats error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({ error: "Failed to load stats" });
   }
 });

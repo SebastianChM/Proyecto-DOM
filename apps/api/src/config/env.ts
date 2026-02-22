@@ -50,6 +50,7 @@ const envSchema = z
     REDIS_HOST: z.string().optional(),
     REDIS_PORT: z.string().transform(Number).optional(),
     REDIS_URL: z.string().optional(),
+    REDIS_PASSWORD: z.string().optional(),
 
     // APS Config
     APS_CLIENT_ID: z.string().min(1, { message: "APS_CLIENT_ID is required" }),
@@ -66,6 +67,17 @@ const envSchema = z
     CORS_ORIGINS: z.string().min(1, { message: "CORS_ORIGINS is required" }),
     ADMIN_EMAILS: z.string().optional().default(""),
     WEBHOOK_SECRET: z.string().optional().default(""),
+
+    // APS Webhooks
+    APS_WEBHOOK_SIGNING_SECRET: z.string().optional().default(""),
+    APS_WEBHOOK_URL: z.string().optional().default(""),
+
+    // Queue & Worker
+    WEBHOOK_QUEUE_CONCURRENCY: z.string().default("5").transform(Number),
+    POLLING_INTERVAL_MINUTES: z.string().default("30").transform(Number),
+
+    // Logging
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
     // Proxy & HTTPS
     TRUST_PROXY: z
@@ -110,6 +122,13 @@ const envSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((val) => val === "true"),
+
+    // Conversion Concurrency Limits (Hito 5)
+    CONVERSION_CONCURRENCY: z.coerce.number().min(1).max(20).default(10), // Reduced from 50 to prevent APS rate limiting
+    CONVERSION_MD_CONCURRENCY: z.coerce.number().min(1).max(15).default(8), // Model Derivative concurrency
+    CONVERSION_DA_CONCURRENCY: z.coerce.number().min(1).max(10).default(5), // Design Automation concurrency
+    CONVERSION_MAX_ATTEMPTS: z.coerce.number().default(3), // Retry attempts for failed jobs
+    CONVERSION_BACKOFF_DELAY: z.coerce.number().default(2000), // Initial backoff delay in ms
     ALLOW_EMPTY_ADMIN_EMAILS: z
       .enum(["true", "false"])
       .default("false")
@@ -177,6 +196,21 @@ export const env = {
   ...parsedEnv,
   adminEmails: adminEmailsList,
   corsOrigins: corsOriginsList,
+
+  // Webhook Config
+  APS_WEBHOOK_SIGNING_SECRET: parsedEnv.APS_WEBHOOK_SIGNING_SECRET || "",
+  APS_WEBHOOK_URL: parsedEnv.APS_WEBHOOK_URL || "",
+  WEBHOOK_QUEUE_CONCURRENCY: parsedEnv.WEBHOOK_QUEUE_CONCURRENCY,
+  POLLING_INTERVAL_MINUTES: parsedEnv.POLLING_INTERVAL_MINUTES,
+  LOG_LEVEL: parsedEnv.LOG_LEVEL,
+  SKIP_WEBHOOK_VALIDATION: parsedEnv.SKIP_WEBHOOK_VALIDATION,
+
+  // Conversion Concurrency (Hito 5)
+  CONVERSION_CONCURRENCY: parsedEnv.CONVERSION_CONCURRENCY,
+  CONVERSION_MD_CONCURRENCY: parsedEnv.CONVERSION_MD_CONCURRENCY,
+  CONVERSION_DA_CONCURRENCY: parsedEnv.CONVERSION_DA_CONCURRENCY,
+  CONVERSION_MAX_ATTEMPTS: parsedEnv.CONVERSION_MAX_ATTEMPTS,
+  CONVERSION_BACKOFF_DELAY: parsedEnv.CONVERSION_BACKOFF_DELAY,
 };
 
 console.log("✅ [ENV] Validation Success");

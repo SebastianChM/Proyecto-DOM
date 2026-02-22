@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 import {
   Crown,
   Shield,
@@ -93,7 +94,9 @@ export function ProjectMembersList({
       );
       setMembers(response.data);
     } catch (error) {
-      console.error("Error fetching members:", error);
+      logger.error("Error fetching members", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error("Error al cargar miembros");
     } finally {
       setLoading(false);

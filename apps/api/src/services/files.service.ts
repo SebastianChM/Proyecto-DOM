@@ -2,21 +2,12 @@ import prisma from "../lib/prisma";
 import { apsOssService } from "./aps/oss.service";
 import { modelDerivativeService } from "./aps/model-derivative.service";
 import { APP_CONFIG } from "../config/constants";
+import { getFileType } from "../lib/utils";
 import fs from "fs";
 import path from "path";
+import { logger } from "../lib/logger";
 
 export class FileService {
-  static getFileType(filename: string) {
-    const ext = filename.split(".").pop()?.toLowerCase();
-    if (ext === "rvt") return "RVT";
-    if (ext === "dwg") return "DWG";
-    if (ext === "pdf") return "PDF";
-    if (ext === "ifc") return "IFC";
-    if (ext === "nwc") return "NWC";
-    if (ext === "dwf") return "DWF";
-    return "OTHER";
-  }
-
   /**
    * Handle file upload with ASYNCHRONOUS APS upload
    * Creates DB record immediately, responds fast, then uploads to APS in background
@@ -44,7 +35,7 @@ export class FileService {
       );
     }
 
-    const fileType = FileService.getFileType(file.originalname);
+    const fileType = getFileType(file.mimetype, file.originalname);
     const isPdf = fileType === "PDF";
     const s3Key = `files/${projectId}/${Date.now()}-${file.originalname}`;
 
@@ -64,9 +55,9 @@ export class FileService {
       },
     });
 
-    console.log(
-      `📤 File ${file.originalname} registered, starting background upload...`,
-    );
+    logger.debug("[FILES] File registered, starting background upload", {
+      filename: file.originalname,
+    });
 
     // STEP 2: Start BACKGROUND upload to APS (non-blocking)
     // The file path is still valid at this point since multer hasn't cleaned it up yet
@@ -81,9 +72,9 @@ export class FileService {
         }
 
         // Upload to APS
-        console.log(
-          `🚀 Background APS upload started for ${file.originalname}`,
-        );
+        logger.debug("[FILES] Background APS upload started", {
+          filename: file.originalname,
+        });
         const startTime = Date.now();
 
         // OPTIMIZATION: Use uploadObject (Classic) instead of uploadStream (S3 Direct)
@@ -103,9 +94,10 @@ export class FileService {
           .replace(/=/g, "");
 
         const uploadTime = Date.now() - startTime;
-        console.log(
-          `✅ APS upload completed for ${file.originalname} in ${uploadTime}ms`,
-        );
+        logger.info("[FILES] APS upload completed", {
+          filename: file.originalname,
+          durationMs: uploadTime,
+        });
 
         // Update DB with the URN
         const newStatus = isPdf ? "READY" : "UPLOADED";
@@ -125,40 +117,45 @@ export class FileService {
               where: { id: fileId },
               data: { status: "TRANSLATING" },
             });
-            console.log(`🔄 Translation started for ${file.originalname}`);
+            logger.debug("[FILES] Translation started", {
+              filename: file.originalname,
+            });
           } catch (translateError: unknown) {
             const err = translateError as { message?: string };
-            console.warn(
-              `⚠️ Translation failed to start for ${file.originalname}:`,
-              err.message || "Unknown error",
-            );
+            logger.warn("[FILES] Translation failed to start", {
+              filename: file.originalname,
+              error: err.message || "Unknown error",
+            });
           }
 
           // --- PREDICTIVE CONVERSION ---
           // Automatically start PDF conversion for DWG files to reduce wait time
           if (fileType === "DWG") {
             try {
-              console.log(
-                `🤖 Predictive Conversion: queueing PDF for ${file.originalname}...`,
-              );
+              logger.debug("[FILES] Predictive Conversion: queueing PDF", {
+                filename: file.originalname,
+              });
               await prisma.conversion.create({
                 data: {
                   fileId: fileId,
                   targetFormat: "pdf",
+                  method: "modelDerivative", // DWG to PDF uses Model Derivative
                   status: "PENDING", // Worker will pick this up
                 },
               });
             } catch (pcError: unknown) {
-              console.warn("Predictive conversion failed to queue:", pcError);
+              logger.warn("[FILES] Predictive conversion failed to queue", {
+                error: String(pcError),
+              });
             }
           }
         }
       } catch (apsError: unknown) {
         const err = apsError as { message?: string };
-        console.error(
-          `❌ Background APS upload failed for ${file.originalname}:`,
-          err.message || "Unknown error",
-        );
+        logger.error("[FILES] Background APS upload failed", {
+          filename: file.originalname,
+          error: err.message || "Unknown error",
+        });
 
         if (APP_CONFIG.DEMO_MODE) {
           // In demo mode, use local fallback
@@ -170,7 +167,9 @@ export class FileService {
               status: isPdf ? "READY" : "LOCAL_ONLY",
             },
           });
-          console.log(`📁 Using local fallback for ${file.originalname}`);
+          logger.debug("[FILES] Using local fallback", {
+            filename: file.originalname,
+          });
         } else {
           // Mark as failed
           await prisma.file.update({

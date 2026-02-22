@@ -156,11 +156,11 @@ APS_CLIENT_SECRET="your_client_secret"
 APS_CALLBACK_URL="http://localhost:8080/api/auth/callback"
 
 # Seguridad
-SESSION_SECRET="generate_random_32_chars_minimum"
-WEBHOOK_SECRET="generate_random_32_chars"
+SESSION_SECRET="<GENERATE_RANDOM_32_CHARS>"
+WEBHOOK_SECRET="<GENERATE_RANDOM_32_CHARS>"
 
 # Base de Datos (auto-configurado si usas Docker)
-DATABASE_URL="postgresql://dom:password@localhost:5432/dom_bim"
+DATABASE_URL="postgresql://dom:your_password@localhost:5432/dom_bim"
 REDIS_HOST="localhost"
 REDIS_PORT="6379"
 ```

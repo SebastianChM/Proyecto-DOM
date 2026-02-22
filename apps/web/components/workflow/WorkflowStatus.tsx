@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-config";
+import { logger } from "@/lib/logger";
 import {
   ChevronDown,
   Loader2,
@@ -155,7 +156,7 @@ export function WorkflowStatus({
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to load workflow";
-      console.error("Error fetching workflow:", err);
+      logger.error("Error fetching workflow", { error: message });
       setError(message);
     } finally {
       setLoading(false);

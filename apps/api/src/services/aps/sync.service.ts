@@ -1,10 +1,11 @@
 import prisma from "../../lib/prisma";
 import { apsDataManagementService } from "./data-management.service";
 import { apsAuthService } from "./auth.service";
+import { logger } from "../../lib/logger";
 
 export class ApsSyncService {
   async syncAccount() {
-    console.log("Starting Account Sync...");
+    logger.info("[SYNC] Starting Account Sync");
     const token = await apsAuthService.getInternalToken();
 
     const hubs = await apsDataManagementService.getHubs(token);
@@ -18,10 +19,10 @@ export class ApsSyncService {
           region: hub.attributes.region,
         },
       });
-      console.log(`Synced Hub: ${hub.attributes.name}`);
+      logger.debug("[SYNC] Synced Hub", { hub: hub.attributes.name });
       await this.syncProjects(hub.id, token);
     }
-    console.log("Account Sync Completed.");
+    logger.info("[SYNC] Account Sync Completed");
   }
 
   async syncProjects(hubId: string, token: string) {
@@ -32,7 +33,9 @@ export class ApsSyncService {
         update: { name: project.attributes.name, hubId: hubId },
         create: { id: project.id, name: project.attributes.name, hubId: hubId },
       });
-      console.log(`Synced Project: ${project.attributes.name}`);
+      logger.debug("[SYNC] Synced Project", {
+        project: project.attributes.name,
+      });
 
       // Sync Root Folder (Project Files)
       const projectWithRoot = project as { rootFolderId?: string };
@@ -122,10 +125,10 @@ export class ApsSyncService {
       }
     } catch (error: unknown) {
       const err = error as { message?: string };
-      console.error(
-        `Error scanning folder ${folderId}:`,
-        err.message || "Unknown error",
-      );
+      logger.error("[SYNC] Error scanning folder", {
+        folderId,
+        error: err.message || "Unknown error",
+      });
     }
   }
 }

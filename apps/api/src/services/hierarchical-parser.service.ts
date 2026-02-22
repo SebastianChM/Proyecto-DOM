@@ -1,5 +1,6 @@
 import { PDFExtract, PDFExtractOptions } from "pdf.js-extract";
 import fs from "fs";
+import { logger } from "../lib/logger";
 
 export interface StructuredNode {
   id: string;
@@ -33,13 +34,15 @@ export class HierarchicalParserService {
       return this.buildTree(data);
     } catch (err: unknown) {
       const error = err as { message?: string };
-      console.error("PDF Structure Error:", error);
+      logger.error("[HIERARCHICAL_PARSER] PDF Structure Error", {
+        error: (error as { message?: string }).message || "Unknown",
+      });
       throw new Error("Failed to extract PDF structure");
     }
   }
 
   private parseHtml(filePath: string): StructuredNode[] {
-    console.log("[HierarchicalParser] PARSING HTML FILE:", filePath);
+    logger.info(`[HIERARCHICAL_PARSER] Parsing HTML file: ${filePath}`);
     const content = fs.readFileSync(filePath, "utf-8");
     // Simple regex-based HTML parsing for our test spec
     // Assuming structure: <h2>Title</h2> ... rules ...
@@ -63,7 +66,7 @@ export class HierarchicalParserService {
       if (h2Match) {
         // New Section
         const title = h2Match[1];
-        console.log("[HierarchicalParser] Found Section:", title);
+        logger.debug(`[HIERARCHICAL_PARSER] Found Section: ${title}`);
         const parts = title.split(".");
         const sectionId = parts[0]?.trim() || "1";
 
@@ -83,9 +86,8 @@ export class HierarchicalParserService {
         }
       }
     }
-    console.log(
-      "[HierarchicalParser] HTML Parse Complete. Nodes:",
-      root.children.length,
+    logger.info(
+      `[HIERARCHICAL_PARSER] HTML Parse Complete. Nodes: ${root.children.length}`,
     );
     return root.children;
   }

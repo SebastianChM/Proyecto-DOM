@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 export default function Error({
   error,
@@ -13,7 +14,7 @@ export default function Error({
 }) {
   useEffect(() => {
     // Log the error to an error reporting service
-    console.warn("Global Error Boundary caught:", error);
+    logger.warn("Global Error Boundary caught", { error: error.message });
   }, [error]);
 
   return (

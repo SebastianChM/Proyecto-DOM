@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { cacheService, RedisKeys } from "../lib/redis";
+import { logger } from "../lib/logger";
 
 /**
  * Authentication Middleware
@@ -31,7 +32,9 @@ export const basicAuth = (req: Request, res: Response, next: NextFunction) => {
   if (req.session && req.session.user) {
     // Cache user data for faster subsequent checks
     const cacheKey = RedisKeys.userProfile(req.session.user.id);
-    cacheService.set(cacheKey, req.session.user, 300).catch(() => {}); // Fire and forget
+    cacheService
+      .set(cacheKey, req.session.user, 300)
+      .catch((e) => logger.debug("Session cache failed", { error: e })); // Fire and forget
     return next();
   }
 

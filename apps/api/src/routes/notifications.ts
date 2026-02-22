@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -58,7 +59,9 @@ router.get("/", async (req: Request, res: Response) => {
       },
     });
   } catch (error: unknown) {
-    console.error("Error fetching notifications:", error);
+    logger.error("[NOTIFICATIONS] Error fetching notifications", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to fetch notifications" });
@@ -108,7 +111,9 @@ router.post("/", async (req: Request, res: Response) => {
 
     res.status(201).json({ success: true, data: notification });
   } catch (error: unknown) {
-    console.error("Error creating notification:", error);
+    logger.error("[NOTIFICATIONS] Error creating notification", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to create notification" });
@@ -133,7 +138,9 @@ router.patch("/:id/read", async (req: Request, res: Response) => {
 
     res.json({ success: true, data: notification });
   } catch (error: unknown) {
-    console.error("Error marking notification as read:", error);
+    logger.error("[NOTIFICATIONS] Error marking notification as read", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to mark notification as read" });
@@ -173,7 +180,9 @@ router.patch("/mark-read/bulk", async (req: Request, res: Response) => {
 
     res.json({ success: true, data: { count: result.count } });
   } catch (error: unknown) {
-    console.error("Error marking notifications as read:", error);
+    logger.error("[NOTIFICATIONS] Error marking notifications as read", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to mark notifications as read" });
@@ -194,7 +203,9 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
     res.json({ success: true, message: "Notification deleted" });
   } catch (error: unknown) {
-    console.error("Error deleting notification:", error);
+    logger.error("[NOTIFICATIONS] Error deleting notification", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to delete notification" });
@@ -219,7 +230,9 @@ router.delete("/user/:userId", async (req: Request, res: Response) => {
 
     res.json({ success: true, data: { count: result.count } });
   } catch (error: unknown) {
-    console.error("Error deleting notifications:", error);
+    logger.error("[NOTIFICATIONS] Error deleting notifications", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to delete notifications" });
@@ -271,7 +284,9 @@ router.get("/stats/:userId", async (req: Request, res: Response) => {
 
     res.json({ success: true, data: stats });
   } catch (error: unknown) {
-    console.error("Error fetching notification stats:", error);
+    logger.error("[NOTIFICATIONS] Error fetching notification stats", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res
       .status(500)
       .json({ success: false, error: "Failed to fetch notification stats" });

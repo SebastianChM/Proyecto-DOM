@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Building2, User, ArrowRight } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface LastUser {
   name: string;
@@ -29,7 +30,9 @@ export default function LoginPage() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLastUser(JSON.parse(storedUser));
       } catch (e) {
-        console.error("Failed to parse last user", e);
+        logger.error("Failed to parse last user", {
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
   }, []);
