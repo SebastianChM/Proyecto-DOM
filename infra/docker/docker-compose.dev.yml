@@ -13,10 +13,11 @@ services:
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dom}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dom} -d ${POSTGRES_DB:-dom_bim}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 15s
     networks:
       - dom-dev-net
     restart: unless-stopped
@@ -26,17 +27,21 @@ services:
     container_name: dom-dev-redis
     ports:
       - "127.0.0.1:6379:6379" # Bind to localhost only
+    volumes:
+      - redis_data_dev:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - dom-dev-net
     restart: unless-stopped
 
 volumes:
   postgres_data_dev:
+  redis_data_dev:
 
 networks:
   dom-dev-net:
