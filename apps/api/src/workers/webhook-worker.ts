@@ -117,10 +117,10 @@ async function handleDesignAutomationCallback(
     requestId,
   });
 
-  // Find conversion by workItemId in resultUrl
+  // Find conversion by exact workItemId match
   const conversion = await prisma.conversion.findFirst({
     where: {
-      resultUrl: { contains: workItemId },
+      workItemId: workItemId,
     },
   });
 
