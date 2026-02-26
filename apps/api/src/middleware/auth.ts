@@ -12,7 +12,11 @@ import { logger } from "../lib/logger";
  * 2. Autodesk callback stores session with user data
  * 3. All subsequent requests validate req.session.user
  */
-export const basicAuth = (req: Request, res: Response, next: NextFunction) => {
+export const basicAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   // Skip auth for public endpoints
   const publicPaths = [
     "/health",
@@ -32,9 +36,14 @@ export const basicAuth = (req: Request, res: Response, next: NextFunction) => {
   if (req.session && req.session.user) {
     // Cache user data for faster subsequent checks
     const cacheKey = RedisKeys.userProfile(req.session.user.id);
-    cacheService
-      .set(cacheKey, req.session.user, 300)
-      .catch((e) => logger.debug("Session cache failed", { error: e })); // Fire and forget
+    try {
+      await cacheService.set(cacheKey, req.session.user, 300);
+    } catch (e) {
+      logger.warn("[AUTH] Session cache write failed", {
+        userId: req.session.user.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
     return next();
   }
 
