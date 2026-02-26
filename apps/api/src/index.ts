@@ -201,14 +201,7 @@ app.use(
   rateLimiter.heavyOperationLimiter(),
   validationRouter,
 );
-// Legacy routes alias to new unified router
-app.use("/api/validations", rateLimiter.apiLimiter(), validationRouter);
 app.use("/api/notifications", rateLimiter.apiLimiter(), notificationsRouter);
-app.use(
-  "/api/validation-runner",
-  rateLimiter.heavyOperationLimiter(),
-  validationRouter,
-);
 app.use("/api/reports", rateLimiter.heavyOperationLimiter(), reportsRouter);
 
 // Conversion routes: Specific conversion limiter
