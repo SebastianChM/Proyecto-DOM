@@ -37,49 +37,91 @@ export interface RateLimitResult {
 // ==================== In-Memory Fallback Store ====================
 
 /**
- * Fallback store para cuando Redis no está disponible
- * Solo para rutas NO críticas. Auth y Admin siempre rechazan.
+ * Fallback store para cuando Redis no está disponible.
+ * Solo para rutas NO críticas. Auth y Admin siempre rechazan (strictMode).
+ * Uses per-endpoint thresholds (conservative: ~half of Redis-backed values).
  */
 class MemoryFallbackStore {
-  private store: Map<string, number[]> = new Map();
-  private readonly LOW_THRESHOLD = 10; // Umbral bajo para seguridad
+  private store: Map<string, { count: number; resetAt: number }> = new Map();
+  private fallbackWarningLogged = false;
 
-  check(key: string, windowMs: number): { count: number; allowed: boolean } {
-    const now = Date.now();
-    const windowStart = now - windowMs;
+  /**
+   * Per-endpoint thresholds for memory fallback.
+   * These are intentionally lower than Redis-backed limits as a safety margin.
+   */
+  private readonly TIER_THRESHOLDS: Record<string, number> = {
+    auth: 3,              // Redis: 5 (strict, but define for safety)
+    admin: 15,            // Redis: 30 (strict, but define for safety)
+    upload: 10,           // Redis: 20
+    conversion: 15,       // Redis: 30
+    derivatives: 25,      // Redis: 50
+    api: 50,              // Redis: 100
+    webhook: 50,          // Redis: 100
+    heavy_operation: 5,   // Redis: 10
+  };
 
-    // Limpiar timestamps viejos
-    const timestamps = (this.store.get(key) || []).filter(
-      (ts) => ts > windowStart,
-    );
+  private readonly DEFAULT_THRESHOLD = 10;
 
-    // Aplicar umbral bajo como medida de seguridad
-    const allowed = timestamps.length < this.LOW_THRESHOLD;
-
-    if (allowed) {
-      timestamps.push(now);
-    }
-
-    this.store.set(key, timestamps);
-
-    // Limpieza periódica (cada 1000 requests)
-    if (Math.random() < 0.001) {
-      this.cleanup(windowMs * 2);
-    }
-
-    return { count: timestamps.length, allowed };
+  getThreshold(endpoint: string): number {
+    return this.TIER_THRESHOLDS[endpoint] ?? this.DEFAULT_THRESHOLD;
   }
 
-  private cleanup(maxAge: number): void {
+  check(
+    key: string,
+    windowMs: number,
+    endpoint: string,
+  ): { count: number; allowed: boolean; threshold: number } {
     const now = Date.now();
-    for (const [key, timestamps] of this.store.entries()) {
-      const valid = timestamps.filter((ts) => now - ts < maxAge);
-      if (valid.length === 0) {
+    const threshold = this.getThreshold(endpoint);
+
+    const entry = this.store.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      // Window expired or first request: start fresh
+      this.store.set(key, { count: 1, resetAt: now + windowMs });
+      this.logFallbackWarning();
+      return { count: 1, allowed: true, threshold };
+    }
+
+    // Within window: increment and check
+    entry.count += 1;
+    const allowed = entry.count <= threshold;
+
+    // Limpieza periódica (probabilistic, ~every 1000 requests)
+    if (Math.random() < 0.001) {
+      this.cleanup(now);
+    }
+
+    this.logFallbackWarning();
+    return { count: entry.count, allowed, threshold };
+  }
+
+  private cleanup(now: number): void {
+    for (const [key, entry] of this.store.entries()) {
+      if (now > entry.resetAt) {
         this.store.delete(key);
-      } else {
-        this.store.set(key, valid);
       }
     }
+  }
+
+  /**
+   * Log warning once when memory fallback is first activated.
+   * Avoids spamming logs on every request.
+   */
+  private logFallbackWarning(): void {
+    if (!this.fallbackWarningLogged) {
+      logger.warn(
+        "[RATE_LIMIT] Memory fallback ACTIVE — Redis unavailable. " +
+          "Per-endpoint thresholds in effect (reduced limits). " +
+          "This warning is logged once until Redis recovers.",
+      );
+      this.fallbackWarningLogged = true;
+    }
+  }
+
+  /** Called when Redis recovers to reset the one-time warning flag. */
+  resetWarning(): void {
+    this.fallbackWarningLogged = false;
   }
 }
 
@@ -154,7 +196,7 @@ export class RateLimiterService {
 
   /**
    * Verifica rate limit usando memoria (fallback de emergencia)
-   * Solo para rutas NO críticas. Usa umbral bajo (10 req) por seguridad.
+   * Solo para rutas NO críticas. Usa umbrales por endpoint (reducidos).
    */
   private checkLimitMemory(
     identifier: string,
@@ -165,19 +207,23 @@ export class RateLimiterService {
     const windowMs = windowSeconds * 1000;
     const now = Date.now();
 
-    const { count, allowed } = memoryFallback.check(key, windowMs);
+    const { count, allowed, threshold } = memoryFallback.check(
+      key,
+      windowMs,
+      endpoint,
+    );
 
-    logger.warn("[RATE_LIMIT] Using memory fallback (Redis unavailable)", {
+    logger.debug("[RATE_LIMIT] Memory fallback check", {
       endpoint,
       identifier: identifier.substring(0, 8) + "...",
       count,
-      limit: 10,
+      limit: threshold,
     });
 
     return {
       allowed,
-      limit: 10, // Umbral bajo por seguridad
-      remaining: Math.max(0, 10 - count),
+      limit: threshold,
+      remaining: Math.max(0, threshold - count),
       resetTime: new Date(now + windowMs),
       retryAfter: windowSeconds,
     };
@@ -210,6 +256,7 @@ export class RateLimiterService {
           if (!this.redisAvailable) {
             logger.info("[RATE_LIMIT] Redis restored");
             this.redisAvailable = true;
+            memoryFallback.resetWarning();
           }
         } catch (redisError: unknown) {
           // Redis falló - log error for debugging
