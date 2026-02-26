@@ -6,15 +6,14 @@
  */
 
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import * as path from "path";
 import * as fs from "fs";
+import prisma from "../lib/prisma";
 import { dataExtractorService } from "../services/data-extractor.service";
 import { logger } from "../lib/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
