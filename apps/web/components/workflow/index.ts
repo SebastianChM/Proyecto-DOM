@@ -10,5 +10,3 @@ export type {
   AvailableTransition,
   WorkflowInstance,
 } from "./WorkflowStatus";
-
-export { WorkflowTimeline } from "./WorkflowTimeline";
