@@ -270,4 +270,10 @@ class ApsDataManagementService {
   }
 }
 
-export const apsDataManagementService = new ApsDataManagementService();
+// Conditional: use mock when APS_MOCK=true
+import { env } from "../../config/env";
+import { MockApsDataManagementService } from "../../mocks/aps-mock";
+
+export const apsDataManagementService: ApsDataManagementService = env.APS_MOCK
+  ? (new MockApsDataManagementService() as unknown as ApsDataManagementService)
+  : new ApsDataManagementService();

@@ -52,13 +52,17 @@ const envSchema = z
     REDIS_URL: z.string().optional(),
     REDIS_PASSWORD: z.string().optional(),
 
-    // APS Config
-    APS_CLIENT_ID: z.string().min(1, { message: "APS_CLIENT_ID is required" }),
-    APS_CLIENT_SECRET: z
-      .string()
-      .min(1, { message: "APS_CLIENT_SECRET is required" }),
-    APS_CALLBACK_URL: z.string().url(),
-    APS_BUCKET: z.string().min(1, { message: "APS_BUCKET is required" }),
+    // APS Mock Mode (development/test only — bypasses real Autodesk calls)
+    APS_MOCK: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((val) => val === "true"),
+
+    // APS Config (conditionally required — see superRefine below)
+    APS_CLIENT_ID: z.string().optional().default(""),
+    APS_CLIENT_SECRET: z.string().optional().default(""),
+    APS_CALLBACK_URL: z.string().optional().default(""),
+    APS_BUCKET: z.string().optional().default(""),
 
     // Session & Security
     SESSION_SECRET: z
@@ -142,7 +146,61 @@ const envSchema = z
       message: "Either REDIS_URL or (REDIS_HOST + REDIS_PORT) must be defined",
       path: ["REDIS_HOST"],
     },
-  );
+  )
+  .superRefine((data, ctx) => {
+    // APS_MOCK is forbidden in production
+    if (data.APS_MOCK && data.NODE_ENV === "production") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "APS_MOCK cannot be enabled in production",
+        path: ["APS_MOCK"],
+      });
+      return;
+    }
+
+    // When APS_MOCK=true, skip credential validation
+    if (data.APS_MOCK) return;
+
+    if (!data.APS_CLIENT_ID) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "APS_CLIENT_ID is required when APS_MOCK is not enabled",
+        path: ["APS_CLIENT_ID"],
+      });
+    }
+    if (!data.APS_CLIENT_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "APS_CLIENT_SECRET is required when APS_MOCK is not enabled",
+        path: ["APS_CLIENT_SECRET"],
+      });
+    }
+    if (!data.APS_CALLBACK_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "APS_CALLBACK_URL is required when APS_MOCK is not enabled",
+        path: ["APS_CALLBACK_URL"],
+      });
+    } else {
+      try {
+        new URL(data.APS_CALLBACK_URL);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "APS_CALLBACK_URL must be a valid URL when APS_MOCK is not enabled",
+          path: ["APS_CALLBACK_URL"],
+        });
+      }
+    }
+    if (!data.APS_BUCKET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "APS_BUCKET is required when APS_MOCK is not enabled",
+        path: ["APS_BUCKET"],
+      });
+    }
+  });
 
 const _env = envSchema.safeParse(process.env);
 
@@ -197,6 +255,9 @@ export const env = {
   adminEmails: adminEmailsList,
   corsOrigins: corsOriginsList,
 
+  // APS Mock Mode
+  APS_MOCK: parsedEnv.APS_MOCK,
+
   // Webhook Config
   APS_WEBHOOK_SIGNING_SECRET: parsedEnv.APS_WEBHOOK_SIGNING_SECRET || "",
   APS_WEBHOOK_URL: parsedEnv.APS_WEBHOOK_URL || "",
@@ -215,5 +276,6 @@ export const env = {
 
 console.log("✅ [ENV] Validation Success");
 console.log(`   NODE_ENV: ${env.NODE_ENV}`);
+console.log(`   APS_MOCK: ${env.APS_MOCK}`);
 console.log(`   ADMIN_EMAILS: ${env.adminEmails.length} configured`);
 console.log(`   CORS_ORIGINS: ${env.corsOrigins.length} origins`);

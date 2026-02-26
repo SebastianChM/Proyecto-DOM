@@ -414,4 +414,10 @@ export class APSModelDerivativeService {
   }
 }
 
-export const modelDerivativeService = new APSModelDerivativeService();
+// Conditional: use mock when APS_MOCK=true
+import { env } from "../../config/env";
+import { MockAPSModelDerivativeService } from "../../mocks/aps-mock";
+
+export const modelDerivativeService: APSModelDerivativeService = env.APS_MOCK
+  ? (new MockAPSModelDerivativeService() as unknown as APSModelDerivativeService)
+  : new APSModelDerivativeService();

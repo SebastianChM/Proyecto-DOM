@@ -329,4 +329,10 @@ export class ApsOssService {
   }
 }
 
-export const apsOssService = new ApsOssService();
+// Conditional: use mock when APS_MOCK=true
+import { env } from "../../config/env";
+import { MockApsOssService } from "../../mocks/aps-mock";
+
+export const apsOssService: ApsOssService = env.APS_MOCK
+  ? (new MockApsOssService() as unknown as ApsOssService)
+  : new ApsOssService();
