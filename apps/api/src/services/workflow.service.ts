@@ -12,16 +12,14 @@
  */
 
 import {
-  PrismaClient,
   WorkflowInstance,
   WorkflowTemplate,
   WorkflowState,
   WorkflowTransition,
   WorkflowHistory,
 } from "@prisma/client";
+import prisma from "../lib/prisma";
 import { logger } from "../lib/logger";
-
-const prisma = new PrismaClient();
 
 // ============================================
 // CUSTOM ERROR CLASSES

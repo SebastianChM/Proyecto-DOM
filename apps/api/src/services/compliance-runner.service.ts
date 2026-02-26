@@ -5,10 +5,8 @@
  * Part of Compliance Engine V2 - Professional Rule-Based Validation
  */
 
-import { PrismaClient } from "@prisma/client";
+import prisma from "../lib/prisma";
 import { logger } from "../lib/logger";
-
-const prisma = new PrismaClient();
 
 // Types
 export interface BimElement {

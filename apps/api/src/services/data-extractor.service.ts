@@ -10,11 +10,9 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
 import * as fs from "fs";
-import { PrismaClient } from "@prisma/client";
 import ExcelJS from "exceljs";
+import prisma from "../lib/prisma";
 import { logger } from "../lib/logger";
-
-const prisma = new PrismaClient();
 
 export interface ExtractedTable {
   name: string;
