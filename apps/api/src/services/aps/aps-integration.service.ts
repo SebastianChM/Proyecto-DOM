@@ -195,4 +195,10 @@ export class ApsIntegrationService {
   }
 }
 
-export const apsIntegrationService = new ApsIntegrationService();
+// Conditional: use mock when APS_MOCK=true
+import { env } from "../../config/env";
+import { MockApsIntegrationService } from "../../mocks/aps-mock";
+
+export const apsIntegrationService: ApsIntegrationService = env.APS_MOCK
+  ? (new MockApsIntegrationService() as unknown as ApsIntegrationService)
+  : new ApsIntegrationService();

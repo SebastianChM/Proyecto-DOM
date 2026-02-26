@@ -259,4 +259,10 @@ export class ViewerTokenService {
   }
 }
 
-export const viewerTokenService = new ViewerTokenService();
+// Conditional: use mock when APS_MOCK=true
+import { env } from "../../config/env";
+import { MockViewerTokenService } from "../../mocks/aps-mock";
+
+export const viewerTokenService: ViewerTokenService = env.APS_MOCK
+  ? (new MockViewerTokenService() as unknown as ViewerTokenService)
+  : new ViewerTokenService();
