@@ -5,6 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/axios-config";
 import {
+  usePollingWithBackoff,
+  pollWithBackoff,
+} from "@/hooks/usePollingWithBackoff";
+import {
   Upload,
   FileText,
   Box,
@@ -319,24 +323,30 @@ export default function ProjectDetailPage() {
     }
   }, [project]);
 
-  useEffect(() => {
-    if (!project) return;
+  const hasProcessingFiles = (project?.files ?? []).some(
+    (f) =>
+      f.status === "TRANSLATING" ||
+      f.status === "PROCESSING" ||
+      f.status === "PENDING",
+  );
 
-    const hasProcessingFiles = project.files.some(
-      (f) =>
-        f.status === "TRANSLATING" ||
-        f.status === "PROCESSING" ||
-        f.status === "PENDING",
-    );
-
-    if (hasProcessingFiles) {
-      const interval = setInterval(() => {
-        checkFileStatuses();
-      }, 5000); // Poll every 5 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [project, checkFileStatuses]);
+  usePollingWithBackoff({
+    fn: checkFileStatuses,
+    enabled: hasProcessingFiles,
+    initialDelayMs: 3000,
+    maxDelayMs: 30000,
+    maxRetries: 40,
+    onTimeout: () => {
+      toast.warning("File processing is taking longer than expected.", {
+        description:
+          "Automatic polling stopped. Refresh the page to check again.",
+        duration: 10000,
+      });
+    },
+    onError: () => {
+      // Don't stop on transient network errors; backoff will space them out
+    },
+  });
 
   const toggleFileSelection = (fileId: string) => {
     setSelectedFiles((prev) => {
@@ -492,15 +502,28 @@ export default function ProjectDetailPage() {
         `Batch started: ${started} conversions running in parallel`,
       );
 
-      // Poll for batch completion
-      const pollInterval = setInterval(async () => {
-        try {
+      // Poll for batch completion with exponential backoff
+      pollWithBackoff({
+        fn: async () => {
           const statusResponse = await apiClient.get(
             `/api/conversion/batch/${batchId}`,
           );
-          const { status, summary } = statusResponse.data;
+          return statusResponse.data as {
+            status: string;
+            summary?: {
+              completed?: number;
+              failed?: number;
+              processing?: number;
+              pending?: number;
+            };
+          };
+        },
+        initialDelayMs: 3000,
+        maxDelayMs: 30000,
+        maxRetries: 30,
+        onSuccess: (data) => {
+          const { status, summary } = data;
 
-          // Ensure summary exists before accessing properties
           if (!summary) {
             logger.warn("Batch status response missing summary");
             return;
@@ -512,11 +535,10 @@ export default function ProjectDetailPage() {
             (summary.processing || 0) +
             (summary.pending || 0);
           const downloadReady =
-            summary.completed > 0 &&
-            summary.processing === 0 &&
-            summary.pending === 0;
+            (summary.completed ?? 0) > 0 &&
+            (summary.processing ?? 0) === 0 &&
+            (summary.pending ?? 0) === 0;
 
-          // Update toast with progress
           if (status === "processing") {
             toast.info(
               `Batch progress: ${summary.completed || 0}/${total} completed`,
@@ -531,9 +553,6 @@ export default function ProjectDetailPage() {
           }
 
           if (status === "completed" || status === "failed") {
-            clearInterval(pollInterval);
-
-            // Clear converting status
             setConvertingFiles((prev) => {
               const newSet = new Set(prev);
               validFiles.forEach((id) => newSet.delete(id));
@@ -560,29 +579,26 @@ export default function ProjectDetailPage() {
                 id: `batch-${batchId}`,
               });
             }
+            return true; // Stop polling
           }
-        } catch (pollError) {
+        },
+        onError: (error) => {
           logger.warn("Failed to check batch status", {
-            error:
-              pollError instanceof Error
-                ? pollError.message
-                : String(pollError),
+            error: error.message,
           });
-        }
-      }, 3000); // Poll every 3 seconds
-
-      // Timeout after 15 minutes
-      setTimeout(
-        () => {
-          clearInterval(pollInterval);
+        },
+        onTimeout: () => {
           setConvertingFiles((prev) => {
             const newSet = new Set(prev);
             validFiles.forEach((id) => newSet.delete(id));
             return newSet;
           });
+          toast.warning("Batch conversion polling timed out.", {
+            id: `batch-${batchId}`,
+            description: "Refresh to check status.",
+          });
         },
-        15 * 60 * 1000,
-      );
+      });
     } catch (error: unknown) {
       setConvertingFiles((prev) => {
         const newSet = new Set(prev);
@@ -875,15 +891,24 @@ export default function ProjectDetailPage() {
         ),
       );
 
-      const pollInterval = setInterval(async () => {
-        try {
+      // Poll for conversion status with exponential backoff
+      pollWithBackoff({
+        fn: async () => {
           const statusResponse = await apiClient.get(
             `/api/conversion/${conversionId}`,
           );
-          const status = statusResponse.data.status;
+          return statusResponse.data as {
+            status: string;
+            error?: string;
+          };
+        },
+        initialDelayMs: 2000,
+        maxDelayMs: 30000,
+        maxRetries: 30,
+        onSuccess: (data) => {
+          const { status } = data;
 
           if (status === "COMPLETED") {
-            clearInterval(pollInterval);
             setConvertingFiles((prev) => {
               const newSet = new Set(prev);
               newSet.delete(fileId);
@@ -892,7 +917,6 @@ export default function ProjectDetailPage() {
 
             const downloadUrl = `/api/conversion/${conversionId}/download`;
 
-            // Update tracker to completed
             setActiveConversions((prev) =>
               prev.map((c) =>
                 c.id === trackingId
@@ -905,60 +929,57 @@ export default function ProjectDetailPage() {
                   : c,
               ),
             );
+            return true; // Stop polling
           } else if (status === "FAILED") {
-            clearInterval(pollInterval);
             setConvertingFiles((prev) => {
               const newSet = new Set(prev);
               newSet.delete(fileId);
               return newSet;
             });
 
-            // Update tracker to failed
             setActiveConversions((prev) =>
               prev.map((c) =>
                 c.id === trackingId
                   ? {
                       ...c,
                       status: "failed" as const,
-                      error: statusResponse.data.error || "Unknown error",
+                      error: data.error || "Unknown error",
                     }
                   : c,
               ),
             );
+            return true; // Stop polling
           }
-        } catch (pollError) {
+        },
+        onError: (error) => {
           logger.warn("Failed to check conversion status", {
-            error:
-              pollError instanceof Error
-                ? pollError.message
-                : String(pollError),
-            conversionId: conversionId,
+            error: error.message,
+            conversionId,
           });
-        }
-      }, 2000); // Poll every 2 seconds instead of 1 to reduce load
-
-      // Timeout after 10 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        setConvertingFiles((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(fileId);
-          return newSet;
-        });
-        // Mark as failed if still processing after timeout
-        setActiveConversions((prev) =>
-          prev.map((c) =>
-            c.id === trackingId &&
-            (c.status === "pending" || c.status === "processing")
-              ? {
-                  ...c,
-                  status: "failed" as const,
-                  error: "Conversion timed out",
-                }
-              : c,
-          ),
-        );
-      }, 600000); // 10 minute timeout
+        },
+        onTimeout: () => {
+          setConvertingFiles((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(fileId);
+            return newSet;
+          });
+          setActiveConversions((prev) =>
+            prev.map((c) =>
+              c.id === trackingId &&
+              (c.status === "pending" || c.status === "processing")
+                ? {
+                    ...c,
+                    status: "failed" as const,
+                    error: "Conversion timed out",
+                  }
+                : c,
+            ),
+          );
+          toast.warning("Conversion timed out", {
+            description: "The conversion is taking longer than expected.",
+          });
+        },
+      });
     } catch (error: unknown) {
       setConvertingFiles((prev) => {
         const newSet = new Set(prev);
