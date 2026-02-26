@@ -153,3 +153,7 @@ docs/TODO.md
 docs/TREE_COMPLETO.txt
 docs/TICKETS_TRACKER.md
 docs/VIEWER_FIX_VERIFICATION.md
+
+# Local AI/agent artifacts (not source code)
+CLAUDE.md
+.github/prompts/
