@@ -20,7 +20,6 @@ import filesRouter from "./routes/files";
 import projectsRouter from "./routes/projects";
 import projectMembersRouter from "./routes/project-members";
 import conversionRouter from "./routes/conversion";
-import comparisonRouter from "./routes/comparison";
 import apsRouter from "./routes/aps";
 import translationRouter from "./routes/translation";
 import viewerRouter from "./routes/viewer";
@@ -209,11 +208,6 @@ app.use("/api/conversion", rateLimiter.conversionLimiter(), conversionRouter);
 app.use("/api/translation", rateLimiter.conversionLimiter(), translationRouter);
 
 app.use("/api/viewer", rateLimiter.apiLimiter(), viewerRouter);
-app.use(
-  "/api/comparison",
-  rateLimiter.heavyOperationLimiter(),
-  comparisonRouter,
-);
 app.use("/api/dashboard", rateLimiter.apiLimiter(), dashboardRouter);
 
 // APS routes: Derivatives limiter for specific routes
