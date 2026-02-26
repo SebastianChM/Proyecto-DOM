@@ -1,10 +1,12 @@
 /**
  * Validation Routes - Main Router
  *
+ * Canonical mount: /api/validation
+ *
  * Modularized validation logic consolidating:
- * - validation.ts (legacy upload/sync logic)
- * - validations.ts (CRUD logic)
- * - validation-runner.ts (Queue logic)
+ * - crud.routes.ts (CRUD logic)
+ * - upload.routes.ts (upload/sync logic)
+ * - runner.routes.ts (Queue logic)
  */
 
 import { Router } from "express";

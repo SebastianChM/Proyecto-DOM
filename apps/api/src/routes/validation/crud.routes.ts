@@ -8,7 +8,7 @@ const router = Router();
 
 /**
  * Create a new validation run
- * POST /api/validations
+ * POST /api/validation
  */
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -50,7 +50,7 @@ router.post("/", async (req: Request, res: Response) => {
 
 /**
  * Get all validation runs
- * GET /api/validations?projectId=xxx&fileId=xxx&userId=xxx&limit=10
+ * GET /api/validation?projectId=xxx&fileId=xxx&userId=xxx&limit=10
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -98,7 +98,7 @@ router.get("/", async (req: Request, res: Response) => {
 /**
  * Get issue statistics for a file or project
  * MOVED UP to avoid conflict with /:id
- * GET /api/validations/stats/summary
+ * GET /api/validation/stats/summary
  */
 router.get("/stats/summary", async (req: Request, res: Response) => {
   try {
@@ -163,7 +163,7 @@ router.get("/stats/summary", async (req: Request, res: Response) => {
 
 /**
  * Compare two validation runs to detect changes
- * GET /api/validations/compare/:id1/:id2
+ * GET /api/validation/compare/:id1/:id2
  */
 router.get("/compare/:id1/:id2", async (req: Request, res: Response) => {
   try {
@@ -247,7 +247,7 @@ router.get("/compare/:id1/:id2", async (req: Request, res: Response) => {
 
 /**
  * Get a specific validation run
- * GET /api/validations/:id
+ * GET /api/validation/:id
  */
 router.get("/:id", async (req: Request, res: Response) => {
   try {
@@ -282,7 +282,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 /**
  * Update validation run (complete, fail, etc.)
- * PATCH /api/validations/:id
+ * PATCH /api/validation/:id
  */
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
@@ -327,7 +327,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
 /**
  * Create validation issues (bulk)
- * POST /api/validations/:id/issues
+ * POST /api/validation/:id/issues
  */
 router.post("/:id/issues", async (req: Request, res: Response) => {
   try {
@@ -396,7 +396,7 @@ router.post("/:id/issues", async (req: Request, res: Response) => {
 
 /**
  * Get issues for a validation run
- * GET /api/validations/:id/issues?type=MISSING&status=OPEN
+ * GET /api/validation/:id/issues?type=MISSING&status=OPEN
  */
 router.get("/:id/issues", async (req: Request, res: Response) => {
   try {
@@ -426,7 +426,7 @@ router.get("/:id/issues", async (req: Request, res: Response) => {
 
 /**
  * Update an issue (resolve, acknowledge, etc.)
- * PATCH /api/validations/issues/:issueId
+ * PATCH /api/validation/issues/:issueId
  */
 router.patch("/issues/:issueId", async (req: Request, res: Response) => {
   try {
