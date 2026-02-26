@@ -20,6 +20,8 @@ model User {
   files           File[]
   projectMembers  ProjectMember[]
   notifications   Notification[]
+
+  @@index([apsUserId])
 }
 
 model Project {
@@ -87,6 +89,7 @@ model File {
 
   @@index([projectId])
   @@index([status])
+  @@index([apsUrn])
 }
 
 model FileVersion {
@@ -117,7 +120,7 @@ model Conversion {
   status       String          @default("PENDING") // PENDING, QUEUED, PROCESSING, COMPLETED, FAILED
   
   // Design Automation specific fields
-  workItemId   String?         // Exact workItemId for DA callback matching
+  workItemId   String?         @unique // Exact workItemId for DA callback matching
   dedupeKey    String?         @unique // For DA callback idempotency: DA:{workItemId}:{status}
   
   // Results
@@ -138,7 +141,6 @@ model Conversion {
   
   @@index([batchId, status])
   @@index([status])
-  @@index([workItemId])
   @@index([createdAt])
 }
 
