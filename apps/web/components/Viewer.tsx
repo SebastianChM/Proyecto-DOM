@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useRef } from "react";
-import apiClient from "@/lib/axios-config";
+import { authService } from "@/lib/api/services";
 import { isMockUrn } from "@/lib/utils";
 import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
@@ -91,8 +91,8 @@ export default function Viewer({
         let token = providedToken;
 
         if (!token) {
-          const response = await apiClient.get("/api/auth/token");
-          token = response.data.access_token;
+          const data = await authService.token();
+          token = data.access_token;
         }
 
         const options = {

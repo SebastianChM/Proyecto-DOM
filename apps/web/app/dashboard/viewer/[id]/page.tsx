@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import apiClient from "@/lib/axios-config";
+import { filesService } from "@/lib/api/services";
 import { ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
@@ -23,8 +23,8 @@ const Viewer = dynamic(() => import("@/components/Viewer"), { ssr: false });
 interface FileData {
   id: string;
   name: string;
-  apsUrn: string | null;
-  projectId: string;
+  apsUrn?: string | null;
+  projectId?: string;
   status: string;
   type: string;
 }
@@ -41,8 +41,8 @@ export default function ViewerPage() {
   useEffect(() => {
     const fetchFile = async () => {
       try {
-        const response = await apiClient.get(`/api/files/${fileId}`);
-        setFile(response.data);
+        const data = await filesService.get(fileId);
+        setFile(data);
       } catch (error) {
         showError(error, user?.role, "Failed to load file details");
       } finally {

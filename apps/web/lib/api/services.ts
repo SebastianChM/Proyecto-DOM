@@ -78,6 +78,9 @@ export const dashboardService = {
 // ---------------------------------------------------------------------------
 
 export const filesService = {
+  /** GET /api/files/:id — single file details */
+  get: (id: string) => api.get<ProjectFile>(`/api/files/${id}`),
+
   /** GET /api/files/recent — recently accessed files */
   recent: () => api.get<ProjectFile[]>("/api/files/recent"),
 };
