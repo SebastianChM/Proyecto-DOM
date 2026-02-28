@@ -49,9 +49,6 @@ export interface UseFileOperationsReturn {
 
   // --- Validation (client-side) ---
   handleValidate: (file: ProjectFileDetail) => void;
-
-  // --- Utility ---
-  formatSize: (bytes: number) => string;
 }
 
 interface UseFileOperationsDeps {
@@ -65,7 +62,8 @@ interface UseFileOperationsDeps {
 // Utility
 // ---------------------------------------------------------------------------
 
-export function formatSize(bytes: number): string {
+// formatSize — local copy for validation messages (canonical export in FilesTabContent)
+function formatSize(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
   const sizes = ["Bytes", "KB", "MB", "GB"];
@@ -433,7 +431,5 @@ export function useFileOperations(
     handleBatchDownload,
 
     handleValidate,
-
-    formatSize,
   };
 }
