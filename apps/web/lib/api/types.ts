@@ -148,6 +148,8 @@ export interface ProjectFile {
 
 /** Enriched file returned inside ProjectDetail (includes versions, conversions, progress). */
 export interface ProjectFileDetail extends ProjectFile {
+  /** Size is always present for files within a project detail response. */
+  size: number;
   progress?: number;
   versions?: FileVersion[];
   conversions?: Conversion[];
@@ -181,6 +183,77 @@ export interface ProjectMember {
     name: string;
     email: string;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Conversions
+// ---------------------------------------------------------------------------
+
+/** GET /api/conversion/formats — map of source type → supported target formats */
+export type ConversionFormats = Record<string, string[]>;
+
+/** POST /api/conversion/:fileId — start a single conversion */
+export interface ConversionStartResponse {
+  conversion?: { id: string };
+  downloadUrl?: string;
+  message?: string;
+}
+
+/** GET /api/conversion/:id — poll conversion status */
+export interface ConversionStatusResponse {
+  status: string;
+  error?: string;
+}
+
+/** POST /api/conversion/batch — start a batch conversion */
+export interface BatchConversionResponse {
+  batchId: string;
+}
+
+/** GET /api/conversion/batch/:id — poll batch conversion status */
+export interface BatchConversionStatusResponse {
+  status: string;
+  conversions: Array<{
+    id: string;
+    fileId: string;
+    status: string;
+    error?: string;
+  }>;
+  zipUrl?: string;
+}
+
+// ---------------------------------------------------------------------------
+// File operations
+// ---------------------------------------------------------------------------
+
+/** Single file entry returned inside FileSyncStatusResponse */
+export interface FileSyncStatusItem {
+  id: string;
+  status: string;
+  progress: number;
+}
+
+/** POST /api/files/sync-status — full response envelope */
+export interface FileSyncStatusResponse {
+  success: boolean;
+  updatedCount: number;
+  updates: FileSyncStatusItem[];
+  files: FileSyncStatusItem[];
+}
+
+/** POST /api/files/batch-download — download URL for ZIP */
+export interface BatchDownloadResponse {
+  downloadUrl: string;
+}
+
+// ---------------------------------------------------------------------------
+// Translation
+// ---------------------------------------------------------------------------
+
+/** POST /api/translation/:fileId/translate */
+export interface TranslationResponse {
+  status: string;
+  message: string;
 }
 
 // ---------------------------------------------------------------------------
