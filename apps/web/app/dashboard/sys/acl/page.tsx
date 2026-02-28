@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import apiClient from "@/lib/axios-config";
+import { adminService, projectsService, projectMembersService } from "@/lib/api/services";
 import {
   Shield,
   Users,
@@ -67,15 +67,15 @@ interface User {
 interface Project {
   id: string;
   name: string;
-  ownerId: string;
-  owner: {
+  ownerId?: string;
+  owner?: {
     id: string;
     name: string;
     email: string;
   };
-  isFromAutodesk: boolean;
-  _count: {
-    members: number;
+  isFromAutodesk?: boolean;
+  _count?: {
+    members?: number;
   };
 }
 
@@ -140,14 +140,14 @@ export default function AdminRBACPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [usersRes, projectsRes] = await Promise.all([
-        apiClient.get("/api/users"),
-        apiClient.get("/api/projects"),
+      const [usersData, projectsData] = await Promise.all([
+        adminService.listUsers(),
+        projectsService.list(),
       ]);
-      setUsers(usersRes.data);
-      setProjects(projectsRes.data);
+      setUsers(usersData);
+      setProjects(projectsData as Project[]);
     } catch (error) {
-      showError(error, "Failed to load admin data");
+      showError(error, user?.role, "Failed to load admin data");
     } finally {
       setLoading(false);
     }
@@ -155,12 +155,10 @@ export default function AdminRBACPage() {
 
   const fetchProjectMembers = async (projectId: string) => {
     try {
-      const res = await apiClient.get(
-        `/api/project-members/${projectId}/members`,
-      );
-      setProjectMembers(res.data);
+      const data = await projectMembersService.list(projectId);
+      setProjectMembers(data);
     } catch (error) {
-      showError(error, "Failed to load project members");
+      showError(error, user?.role, "Failed to load project members");
     }
   };
 
@@ -172,11 +170,11 @@ export default function AdminRBACPage() {
 
   const handleChangeUserRole = async (userId: string, newRole: string) => {
     try {
-      await apiClient.put(`/api/admin/users/${userId}/role`, { role: newRole });
+      await adminService.changeUserRole(userId, newRole);
       toast.success("Role updated successfully");
       fetchData();
     } catch (error) {
-      showError(error, "Failed to update user role");
+      showError(error, user?.role, "Failed to update user role");
     }
   };
 
@@ -186,16 +184,13 @@ export default function AdminRBACPage() {
     newRole: string,
   ) => {
     try {
-      await apiClient.put(
-        `/api/project-members/${projectId}/members/${userId}`,
-        { role: newRole },
-      );
+      await projectMembersService.changeRole(projectId, userId, newRole);
       toast.success("Member role updated");
       if (selectedProject) {
         await fetchProjectMembers(selectedProject.id);
       }
     } catch (error) {
-      showError(error, "Failed to update member role");
+      showError(error, user?.role, "Failed to update member role");
     }
   };
 
@@ -203,15 +198,13 @@ export default function AdminRBACPage() {
     if (!confirm("Are you sure you want to remove this member?")) return;
 
     try {
-      await apiClient.delete(
-        `/api/project-members/${projectId}/members/${userId}`,
-      );
+      await projectMembersService.remove(projectId, userId);
       toast.success("Member removed");
       if (selectedProject) {
         await fetchProjectMembers(selectedProject.id);
       }
     } catch (error) {
-      showError(error, "Failed to remove member");
+      showError(error, user?.role, "Failed to remove member");
     }
   };
 
