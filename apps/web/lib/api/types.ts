@@ -148,6 +148,8 @@ export interface ProjectFile {
 
 /** Enriched file returned inside ProjectDetail (includes versions, conversions, progress). */
 export interface ProjectFileDetail extends ProjectFile {
+  /** Size is always present for files within a project detail response. */
+  size: number;
   progress?: number;
   versions?: FileVersion[];
   conversions?: Conversion[];

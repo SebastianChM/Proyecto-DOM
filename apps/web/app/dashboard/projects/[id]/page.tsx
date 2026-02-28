@@ -81,38 +81,31 @@ import {
 import { ShareProjectDialog } from "@/components/ShareProjectDialog";
 import { ProjectMembersList } from "@/components/ProjectMembersList";
 import { useProjectPermissions } from "@/hooks/useProjectPermissions";
-
-interface ProjectFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  status: string;
-  apsUrn: string | null;
-  createdAt: string;
-  progress?: number;
-  apsProjectId?: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  files: ProjectFile[];
-  // Mock fields for now
-  clientName?: string;
-  location?: string;
-  startDate?: string;
-  endDate?: string;
-  status?: "Active" | "Archived" | "Draft";
-  discipline?: string;
-}
+import { useProjectDetail } from "@/hooks/useProjectDetail";
+import type { ProjectFileDetail } from "@/lib/api/types";
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const { user } = useUser();
-  const [project, setProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
+  const projectId = params.id as string;
+
+  const {
+    project,
+    setProject,
+    loading,
+    fetchProject,
+    members,
+    isSettingsOpen,
+    setIsSettingsOpen,
+    isShareDialogOpen,
+    setIsShareDialogOpen,
+    handleUpdateProject,
+    handleDeleteProject,
+    handleInviteMember,
+    handleUpdateMemberRole,
+    handleRemoveMember,
+  } = useProjectDetail(projectId);
+
   const [uploading, setUploading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -129,7 +122,7 @@ export default function ProjectDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewerModal, setViewerModal] = useState<{
     isOpen: boolean;
-    file: ProjectFile;
+    file: ProjectFileDetail;
     token?: string;
   } | null>(null);
   const [supportedFormats, setSupportedFormats] = useState<Record<
@@ -155,14 +148,6 @@ export default function ProjectDetailPage() {
     ActiveConversion[]
   >([]);
 
-  // Settings state
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [members, setMembers] = useState<ProjectMember[]>([]);
-
-  // Share dialog state
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-
-  const projectId = params.id as string;
   const router = useRouter();
 
   // RBAC Permissions
@@ -249,23 +234,6 @@ export default function ProjectDetailPage() {
 
     return false;
   };
-
-  const fetchProject = useCallback(async () => {
-    try {
-      const response = await apiClient.get(`/api/projects/${projectId}`);
-      setProject(response.data);
-    } catch (error) {
-      showError(error, user?.role, "Failed to load project details");
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, user?.role]);
-
-  useEffect(() => {
-    if (projectId) {
-      fetchProject();
-    }
-  }, [projectId, fetchProject]);
 
   const checkFileStatuses = useCallback(async () => {
     if (!project) return;
@@ -370,26 +338,6 @@ export default function ProjectDetailPage() {
     } else {
       // Otherwise, select all files
       setSelectedFiles(project.files.map((f) => f.id));
-    }
-  };
-
-  const handleUpdateProject = async (
-    data: Record<string, string | undefined>,
-  ) => {
-    try {
-      await apiClient.put(`/api/projects/${projectId}`, {
-        status: data.projectType,
-        discipline: data.discipline,
-        clientName: data.ownerName,
-        location: data.location,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        description: data.notes,
-      });
-      toast.success("Project details updated successfully");
-      fetchProject();
-    } catch (error) {
-      showError(error, user?.role, "Failed to update project details");
     }
   };
 
@@ -660,9 +608,9 @@ export default function ProjectDetailPage() {
     if (!project) return false;
     const files = project.files.filter((f) => fileIds.includes(f.id));
     if (files.length !== 2) return false;
-    const is3D = (f: ProjectFile) =>
+    const is3D = (f: ProjectFileDetail) =>
       ["rvt", "ifc", "nwc", "dwg"].includes(f.type.toLowerCase());
-    const is2D = (f: ProjectFile) =>
+    const is2D = (f: ProjectFileDetail) =>
       ["pdf", "dwf"].includes(f.type.toLowerCase());
     return (
       (is3D(files[0]) && is3D(files[1])) || (is2D(files[0]) && is2D(files[1]))
@@ -675,7 +623,7 @@ export default function ProjectDetailPage() {
     return files.every((f) => isConversionSupported(f.type, format));
   };
 
-  const handleViewFile = async (file: ProjectFile) => {
+  const handleViewFile = async (file: ProjectFileDetail) => {
     if (file.status !== "READY" || !file.apsUrn) {
       toast.error("File is not ready for viewing");
       return;
@@ -1005,7 +953,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleValidate = (file: ProjectFile) => {
+  const handleValidate = (file: ProjectFileDetail) => {
     const namingRegex = /^[A-Z0-9]+-[A-Z]+-[0-9]+/i;
     const issues: string[] = [];
 
@@ -1118,60 +1066,6 @@ export default function ProjectDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const fetchMembers = useCallback(async () => {
-    try {
-      const response = await apiClient.get(
-        `/api/project-members/${projectId}/members`,
-      );
-      if (Array.isArray(response.data)) {
-        setMembers(response.data);
-      } else {
-        logger.error("Expected members to be an array", {
-          data: response.data,
-        });
-        setMembers([]);
-      }
-    } catch (error) {
-      logger.warn("Failed to fetch members", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    if (isSettingsOpen) {
-      fetchMembers();
-    }
-  }, [isSettingsOpen, fetchMembers]);
-
-  const handleInviteMember = async (email: string, role: string) => {
-    await apiClient.post(`/api/project-members/${projectId}/members`, {
-      email,
-      role,
-    });
-    fetchMembers();
-  };
-
-  const handleUpdateMemberRole = async (userId: string, role: string) => {
-    await apiClient.put(`/api/project-members/${projectId}/members/${userId}`, {
-      role,
-    });
-    fetchMembers();
-  };
-
-  const handleRemoveMember = async (userId: string) => {
-    await apiClient.delete(
-      `/api/project-members/${projectId}/members/${userId}`,
-    );
-    fetchMembers();
-  };
-
-  const handleDeleteProject = async () => {
-    await apiClient.delete(`/api/projects/${projectId}`);
-    router.push("/dashboard");
-    toast.success("Project deleted successfully");
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen text-foreground">
@@ -1195,7 +1089,7 @@ export default function ProjectDetailPage() {
         projectName={project.name}
         clientName={project.clientName || "DOM Client"}
         discipline={project.discipline || "Architecture"}
-        status={project.status || "Active"}
+        status={(project.status as "Active" | "Archived" | "Draft") || "Active"}
         lastUpdated="Today"
         projectId={projectId}
         onNewFile={() => fileInputRef.current?.click()}
@@ -1780,7 +1674,7 @@ export default function ProjectDetailPage() {
       <ViewerModal
         isOpen={!!viewerModal}
         onClose={() => setViewerModal(null)}
-        file={viewerModal?.file ?? null}
+        file={viewerModal?.file ? { ...viewerModal.file, apsUrn: viewerModal.file.apsUrn ?? null } : null}
         token={viewerModal?.token}
       />
 
