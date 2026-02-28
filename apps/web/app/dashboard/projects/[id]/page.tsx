@@ -82,6 +82,7 @@ import { ShareProjectDialog } from "@/components/ShareProjectDialog";
 import { ProjectMembersList } from "@/components/ProjectMembersList";
 import { useProjectPermissions } from "@/hooks/useProjectPermissions";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
+import { useFileSelection } from "@/hooks/useFileSelection";
 import type { ProjectFileDetail } from "@/lib/api/types";
 
 export default function ProjectDetailPage() {
@@ -118,7 +119,6 @@ export default function ProjectDetailPage() {
   const [translatingFiles, setTranslatingFiles] = useState<Set<string>>(
     new Set(),
   );
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewerModal, setViewerModal] = useState<{
     isOpen: boolean;
@@ -158,34 +158,20 @@ export default function ProjectDetailPage() {
     refresh: refreshPermissions,
   } = useProjectPermissions(projectId);
 
-  // UI State
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState("ALL"); // ALL, RVT, DWG, PDF, IFC, OTHER
-
-  // Filtered Files Logic
-  const filteredFiles =
-    project?.files.filter((file) => {
-      const matchesSearch = file.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesFilter =
-        activeFilter === "ALL" || file.type === activeFilter;
-      return matchesSearch && matchesFilter;
-    }) || [];
-
-  // Group files by type for "ALL" view
-  const groupedFiles =
-    activeFilter === "ALL"
-      ? {
-          RVT: filteredFiles.filter((f) => f.type === "RVT"),
-          DWG: filteredFiles.filter((f) => f.type === "DWG"),
-          PDF: filteredFiles.filter((f) => f.type === "PDF"),
-          IFC: filteredFiles.filter((f) => f.type === "IFC"),
-          OTHER: filteredFiles.filter(
-            (f) => !["RVT", "DWG", "PDF", "IFC"].includes(f.type),
-          ),
-        }
-      : null;
+  // File selection, search, filtering
+  const {
+    selectedFiles,
+    setSelectedFiles,
+    toggleFileSelection,
+    toggleSelectAll,
+    searchTerm,
+    setSearchTerm,
+    activeFilter,
+    setActiveFilter,
+    filteredFiles,
+    groupedFiles,
+    areFilesCompatibleForCompare,
+  } = useFileSelection(project?.files ?? []);
 
   useEffect(() => {
     const fetchFormats = async () => {
@@ -315,31 +301,6 @@ export default function ProjectDetailPage() {
       // Don't stop on transient network errors; backoff will space them out
     },
   });
-
-  const toggleFileSelection = (fileId: string) => {
-    setSelectedFiles((prev) => {
-      if (prev.includes(fileId)) {
-        return prev.filter((id) => id !== fileId);
-      } else {
-        return [...prev, fileId];
-      }
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (!project) return;
-
-    // If all files are already selected, deselect all
-    if (
-      selectedFiles.length === project.files.length &&
-      project.files.length > 0
-    ) {
-      setSelectedFiles([]);
-    } else {
-      // Otherwise, select all files
-      setSelectedFiles(project.files.map((f) => f.id));
-    }
-  };
 
   const handleBatchDownload = async () => {
     if (selectedFiles.length === 0) return;
@@ -602,19 +563,6 @@ export default function ProjectDetailPage() {
     } else {
       toast.error("Selected files must be processed (have URN) to compare.");
     }
-  };
-
-  const areFilesCompatibleForCompare = (fileIds: string[]) => {
-    if (!project) return false;
-    const files = project.files.filter((f) => fileIds.includes(f.id));
-    if (files.length !== 2) return false;
-    const is3D = (f: ProjectFileDetail) =>
-      ["rvt", "ifc", "nwc", "dwg"].includes(f.type.toLowerCase());
-    const is2D = (f: ProjectFileDetail) =>
-      ["pdf", "dwf"].includes(f.type.toLowerCase());
-    return (
-      (is3D(files[0]) && is3D(files[1])) || (is2D(files[0]) && is2D(files[1]))
-    );
   };
 
   const areFilesCompatible = (fileIds: string[], format: string) => {
@@ -1313,7 +1261,7 @@ export default function ProjectDetailPage() {
               {/* Grouped Files List */}
               <div className="space-y-8">
                 {activeFilter === "ALL" && groupedFiles ? (
-                  Object.entries(groupedFiles).map(([type, files]) => {
+                  Object.entries(groupedFiles).map(([type, files]: [string, ProjectFileDetail[]]) => {
                     if (files.length === 0) return null;
                     return (
                       <div key={type} className="space-y-2 animate-fade-in">
