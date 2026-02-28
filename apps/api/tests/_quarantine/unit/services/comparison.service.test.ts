@@ -1,4 +1,4 @@
-import { APSComparisonService } from "../../../src/services/aps/comparison.service";
+import { APSComparisonService } from "../../../src/_quarantine/services/aps/comparison.service";
 
 // Mock dependencies
 jest.mock("forge-apis");
