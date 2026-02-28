@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import apiClient from "@/lib/axios-config";
+import { filesService, conversionService } from "@/lib/api/services";
 import {
   usePollingWithBackoff,
 } from "@/hooks/usePollingWithBackoff";
@@ -105,7 +105,6 @@ export default function ProjectDetailPage() {
     viewerModal,
     setViewerModal,
     handleViewFile,
-    fileToDelete,
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     deletingFile,
@@ -125,7 +124,6 @@ export default function ProjectDetailPage() {
   const {
     isConversionSupported,
     areFilesCompatible,
-    convertingFiles,
     handleConvert,
     handleBulkConvert,
     activeConversions,
@@ -154,19 +152,16 @@ export default function ProjectDetailPage() {
     if (processingFiles.length === 0) return;
 
     try {
-      const response = await apiClient.post("/api/files/sync-status", {
-        fileIds: processingFiles.map((f) => f.id),
-      });
+      const data = await filesService.syncStatus(
+        processingFiles.map((f) => f.id),
+      );
 
       // Always update progress for all files returned
-      if (response.data.files && response.data.files.length > 0) {
+      if (data.files && data.files.length > 0) {
         setProject((prev) => {
           if (!prev) return null;
           const newFiles = prev.files.map((f) => {
-            const fileUpdate = response.data.files.find(
-              (u: { id: string; status: string; progress: number }) =>
-                u.id === f.id,
-            );
+            const fileUpdate = data.files.find((u) => u.id === f.id);
             if (fileUpdate) {
               return {
                 ...f,
@@ -181,8 +176,8 @@ export default function ProjectDetailPage() {
       }
 
       // Show toasts for status changes
-      if (response.data.updates && response.data.updates.length > 0) {
-        response.data.updates.forEach((u: { id: string; status: string }) => {
+      if (data.updates && data.updates.length > 0) {
+        data.updates.forEach((u) => {
           if (u.status === "READY") {
             toast.success("File processing completed!");
           } else if (u.status === "FAILED") {
@@ -506,9 +501,7 @@ export default function ProjectDetailPage() {
           if (!conversion.conversionId) return;
           try {
             toast.info("Saving file to project...");
-            await apiClient.post(
-              `/api/conversion/${conversion.conversionId}/save-to-project`,
-            );
+            await conversionService.saveToProject(conversion.conversionId);
             toast.success("File saved to project successfully!");
             setActiveConversions((prev) =>
               prev.filter((c) => c.id !== conversion.id),

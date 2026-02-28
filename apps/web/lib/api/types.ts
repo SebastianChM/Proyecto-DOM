@@ -226,11 +226,19 @@ export interface BatchConversionStatusResponse {
 // File operations
 // ---------------------------------------------------------------------------
 
-/** POST /api/files/sync-status — per-file status after sync */
+/** Single file entry returned inside FileSyncStatusResponse */
 export interface FileSyncStatusItem {
   id: string;
   status: string;
-  progress?: number;
+  progress: number;
+}
+
+/** POST /api/files/sync-status — full response envelope */
+export interface FileSyncStatusResponse {
+  success: boolean;
+  updatedCount: number;
+  updates: FileSyncStatusItem[];
+  files: FileSyncStatusItem[];
 }
 
 /** POST /api/files/batch-download — download URL for ZIP */

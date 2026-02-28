@@ -21,7 +21,7 @@ import type {
   ConversionStartResponse,
   ConversionStatusResponse,
   DashboardStats,
-  FileSyncStatusItem,
+  FileSyncStatusResponse,
   Project,
   ProjectDetail,
   ProjectFile,
@@ -109,7 +109,7 @@ export const filesService = {
 
   /** POST /api/files/sync-status — check translation status of multiple files */
   syncStatus: (fileIds: string[]) =>
-    api.post<FileSyncStatusItem[]>("/api/files/sync-status", { fileIds }),
+    api.post<FileSyncStatusResponse>("/api/files/sync-status", { fileIds }),
 
   /** POST /api/files/import-aps — import a file from Autodesk cloud */
   importAps: (data: {

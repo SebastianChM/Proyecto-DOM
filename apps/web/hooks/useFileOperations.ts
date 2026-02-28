@@ -78,7 +78,7 @@ function formatSize(bytes: number): string {
 export function useFileOperations(
   deps: UseFileOperationsDeps,
 ): UseFileOperationsReturn {
-  const { projectId, project, fetchProject, selectedFiles } = deps;
+  const { projectId, fetchProject, selectedFiles } = deps;
   const { user } = useUser();
 
   // --- Upload state ---
