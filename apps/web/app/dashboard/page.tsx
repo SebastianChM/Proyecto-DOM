@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import apiClient from "@/lib/axios-config";
+import { dashboardService } from "@/lib/api/services";
 import {
   FolderKanban,
   FileText,
@@ -51,8 +51,8 @@ export default function DashboardPage() {
 
     const fetchDashboardData = async () => {
       try {
-        const response = await apiClient.get("/api/dashboard/stats");
-        setStats(response.data);
+        const data = await dashboardService.stats();
+        setStats(data);
       } catch (error) {
         logger.error("Failed to load dashboard stats", {
           error: error instanceof Error ? error.message : String(error),
