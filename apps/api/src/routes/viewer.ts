@@ -9,7 +9,8 @@
 import { Router, Request, Response } from "express";
 import { viewerTokenService } from "../services/viewer/viewer-token.service";
 import rateLimit from "express-rate-limit";
-import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { serviceUnavailable, internal } from "../lib/errors";
 
 const router = Router();
 
@@ -44,7 +45,7 @@ const viewerTokenLimiter = rateLimit({
 router.get(
   "/token",
   viewerTokenLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = req.headers["x-request-id"] as string | undefined;
 
     try {
@@ -56,29 +57,15 @@ router.get(
 
       // Handle specific error: VIEWER_TOKEN_BUSY
       if (errorMessage === "VIEWER_TOKEN_BUSY") {
-        return res.status(503).json({
-          error: "VIEWER_TOKEN_ERROR",
-          code: "VIEWER_TOKEN_BUSY",
-          message: "Token generation in progress. Please retry in a moment.",
-          requestId,
-          status: 503,
-        });
+        throw serviceUnavailable(
+          "Token generation in progress. Please retry in a moment.",
+          "VIEWER_TOKEN_BUSY",
+        );
       }
 
-      logger.error("[VIEWER_TOKEN] Endpoint error", {
-        error: errorMessage.substring(0, 200),
-        requestId,
-      });
-
-      res.status(500).json({
-        error: "VIEWER_TOKEN_ERROR",
-        code: "VIEWER_TOKEN_FAILED",
-        message: "Failed to generate viewer token",
-        requestId,
-        status: 500,
-      });
+      throw internal("Failed to generate viewer token", "VIEWER_TOKEN_FAILED");
     }
-  },
+  }),
 );
 
 export default router;

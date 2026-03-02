@@ -8,7 +8,7 @@
 
 import { Router } from "express";
 import { modelDerivativeService } from "../../services/aps/model-derivative.service";
-import { handleApsError } from "../../lib/utils";
+import { asyncHandler } from "../../lib/async-handler";
 import { logger } from "../../lib/logger";
 
 const router = Router();
@@ -17,23 +17,18 @@ const router = Router();
  * GET /api/aps/manifest/:urn
  * Get manifest for a URN (public endpoint for debugging)
  */
-router.get("/manifest/:urn", async (req, res) => {
-  try {
+router.get("/manifest/:urn", asyncHandler(async (req, res) => {
     const { urn } = req.params;
     logger.debug(`[APS_DERIVATIVES] Getting manifest for URN: ${urn}`);
     const manifest = await modelDerivativeService.getManifest(urn);
     res.json(manifest);
-  } catch (error) {
-    handleApsError(error, req, res);
-  }
-});
+}));
 
 /**
  * GET /api/aps/derivative/:urn/:derivativeUrn
  * Download a specific derivative
  */
-router.get("/derivative/:urn/:derivativeUrn", async (req, res) => {
-  try {
+router.get("/derivative/:urn/:derivativeUrn", asyncHandler(async (req, res) => {
     const { urn, derivativeUrn } = req.params;
     const decodedDerivativeUrn = decodeURIComponent(derivativeUrn);
 
@@ -51,9 +46,6 @@ router.get("/derivative/:urn/:derivativeUrn", async (req, res) => {
 
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(buffer);
-  } catch (error) {
-    handleApsError(error, req, res);
-  }
-});
+}));
 
 export default router;

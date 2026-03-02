@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { asyncHandler } from "../../lib/async-handler";
 
 const router = Router();
 
@@ -37,23 +38,19 @@ const router = Router();
  *       401:
  *         description: Invalid session
  */
-router.get("/me", async (req, res) => {
+router.get("/me", asyncHandler(async (req, res) => {
   if (!req.session?.token) {
     return res.json({ authenticated: false });
   }
 
-  try {
-    if (req.session.user) {
-      res.json({
-        authenticated: true,
-        user: req.session.user,
-      });
-    } else {
-      res.json({ authenticated: true });
-    }
-  } catch {
-    res.status(401).json({ error: "Invalid session" });
+  if (req.session.user) {
+    res.json({
+      authenticated: true,
+      user: req.session.user,
+    });
+  } else {
+    res.json({ authenticated: true });
   }
-});
+}));
 
 export default router;

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { cacheService } from "../lib/redis";
-import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { unauthorized } from "../lib/errors";
 
 const router = Router();
 
@@ -17,11 +18,10 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/stats", async (req, res) => {
-  try {
+router.get("/stats", asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      throw unauthorized("Authentication required");
     }
 
     const cacheKey = `cache:dashboard:stats:${userId}`;
@@ -97,12 +97,6 @@ router.get("/stats", async (req, res) => {
     );
 
     res.json(stats);
-  } catch (error: unknown) {
-    logger.error("[DASHBOARD] Stats error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({ error: "Failed to load stats" });
-  }
-});
+}));
 
 export default router;
