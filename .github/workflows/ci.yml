@@ -89,4 +89,4 @@ jobs:
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
       - name: Run Tests
-        run: npm test --workspace=api
+        run: npm test --workspace=apps/api
