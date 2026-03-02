@@ -7,5 +7,6 @@ module.exports = {
   testEnvironment: "node",
   roots: ["<rootDir>/src", "<rootDir>/tests"],
   testMatch: ["**/*.test.ts"],
+  testPathIgnorePatterns: ["/node_modules/", "/_quarantine/"],
   moduleFileExtensions: ["ts", "js", "json", "node"],
 };

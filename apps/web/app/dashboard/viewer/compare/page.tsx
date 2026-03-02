@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import apiClient from "@/lib/axios-config";
+import { authService } from "@/lib/api/services";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { useUser } from "@/context/UserContext";
@@ -116,8 +116,8 @@ function CompareViewerContent() {
         }
 
         // Fetch token
-        const res = await apiClient.get("/api/auth/token");
-        const token = res.data.access_token;
+        const res = await authService.token();
+        const token = res.access_token;
 
         const options = {
           env: "AutodeskProduction",

@@ -5,7 +5,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import apiClient from "@/lib/axios-config";
+import { projectsService } from "@/lib/api/services";
+import { ApiError } from "@/lib/api/types";
 import {
   Plus,
   Folder,
@@ -36,13 +37,14 @@ import { AutodeskProjectBrowser } from "@/components/projects/AutodeskProjectBro
 interface Project {
   id: string;
   name: string;
-  description: string | null;
-  clientName: string | null;
-  location: string | null;
+  description?: string | null;
+  clientName?: string | null;
+  location?: string | null;
   createdAt: string;
   updatedAt: string;
-  _count: {
-    files: number;
+  _count?: {
+    files?: number;
+    members?: number;
   };
 }
 
@@ -77,8 +79,8 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const response = await apiClient.get("/api/projects");
-      setProjects(Array.isArray(response.data) ? response.data : []);
+      const data = await projectsService.list();
+      setProjects(Array.isArray(data) ? data : []);
     } catch (error) {
       showError(error, user?.role, "Failed to load projects");
     } finally {
@@ -94,7 +96,7 @@ export default function ProjectsPage() {
   }) => {
     setImporting(true);
     try {
-      await apiClient.post("/api/projects/import-aps", {
+      await projectsService.importAps({
         name: data.name,
         apsProjectId: data.apsProjectId,
         apsFolderId: data.apsFolderId,
@@ -131,17 +133,18 @@ export default function ProjectsPage() {
 
     setCreating(true);
     try {
-      const response = await apiClient.post("/api/projects", newProject);
-      setProjects([response.data, ...projects]);
+      const created = await projectsService.create(newProject);
+      setProjects([created, ...projects]);
       setIsDialogOpen(false);
       setNewProject({ name: "", description: "" });
       toast.success("Project created successfully!");
-    } catch (error: any) {
+    } catch (error) {
       if (
-        error.response?.data?.details &&
-        Array.isArray(error.response.data.details)
+        error instanceof ApiError &&
+        error.body?.details &&
+        Array.isArray(error.body.details)
       ) {
-        error.response.data.details.forEach((err: any) => {
+        (error.body.details as Array<{ path: string; message: string }>).forEach((err) => {
           toast.error(`${err.path}: ${err.message}`);
         });
       } else {
@@ -156,7 +159,7 @@ export default function ProjectsPage() {
     if (!projectToDelete) return;
     setDeleting(true);
     try {
-      await apiClient.delete(`/api/projects/${projectToDelete}`);
+      await projectsService.delete(projectToDelete);
       setProjects(projects.filter((p) => p.id !== projectToDelete));
       setIsDeleteDialogOpen(false);
       setProjectToDelete(null);
@@ -478,7 +481,7 @@ export default function ProjectsPage() {
                     <div className="flex items-center text-xs text-muted-foreground">
                       <FileText className="mr-1.5 h-3.5 w-3.5" />
                       <span className="font-medium text-foreground">
-                        {project._count.files} Files
+                        {project._count?.files ?? 0} Files
                       </span>
                     </div>
                     <span className="text-[10px] font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border">

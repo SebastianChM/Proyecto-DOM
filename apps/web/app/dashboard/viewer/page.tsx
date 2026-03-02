@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import apiClient from "@/lib/axios-config";
+import { authService, filesService } from "@/lib/api/services";
 import { Box, Upload, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,8 +16,7 @@ interface RecentFile {
   type: string;
   name: string;
   project?: { name: string };
-  apsUrn: string;
-  [key: string]: unknown;
+  apsUrn?: string | null;
 }
 
 function ViewerContent() {
@@ -30,8 +29,8 @@ function ViewerContent() {
   useEffect(() => {
     const fetchToken = async () => {
       try {
-        const response = await apiClient.get("/api/auth/token");
-        setToken(response.data.access_token);
+        const data = await authService.token();
+        setToken(data.access_token);
       } catch (error) {
         logger.error("Failed to fetch viewer token", {
           error: error instanceof Error ? error.message : String(error),
@@ -46,8 +45,8 @@ function ViewerContent() {
     if (!urn) {
       const fetchRecentFiles = async () => {
         try {
-          const response = await apiClient.get("/api/files/recent");
-          setRecentFiles(Array.isArray(response.data) ? response.data : []);
+          const data = await filesService.recent();
+          setRecentFiles(Array.isArray(data) ? data : []);
         } catch (error) {
           showError(error, user?.role, "Failed to load recent files");
         }

@@ -79,17 +79,46 @@ jest.mock("ioredis", () => {
   return Mock;
 });
 
-// Mock bull queue
-jest.mock("bull", () => {
-  return class MockQueue {
+// Mock bullmq (Queue used in lib/queue.ts, Worker/Job used in workers/)
+jest.mock("bullmq", () => {
+  class MockQueue {
     constructor() {}
     async add() {
-      return {};
+      return { id: "mock-job-1" };
     }
-    process() {}
+    async addBulk() {
+      return [];
+    }
+    async close() {}
     on() {
       return this;
     }
+  }
+  class MockWorker extends EventEmitter {
+    constructor() {
+      super();
+    }
     async close() {}
+    on() {
+      return this;
+    }
+  }
+  class MockJob {
+    id = "mock-job-1";
+    data = {};
+    progress = 0;
+    async updateProgress(val: number) {
+      this.progress = val;
+    }
+  }
+  return { Queue: MockQueue, Worker: MockWorker, Job: MockJob };
+});
+
+// Mock uuid (ESM-only in v13+, incompatible with Jest CJS transform)
+jest.mock("uuid", () => {
+  let counter = 0;
+  return {
+    v4: () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`,
+    v1: () => `00000000-0000-1000-8000-${String(++counter).padStart(12, "0")}`,
   };
 });
