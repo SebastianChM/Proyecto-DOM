@@ -5,6 +5,8 @@ import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import prisma from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, unauthorized, notFound } from "../../lib/errors";
 
 const router = Router();
 
@@ -70,17 +72,16 @@ const upload = multer({
 router.post(
   "/upload-et",
   upload.single("file"),
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
       }
 
       const { projectId } = req.body;
       if (!projectId) {
         // Cleanup uploaded file if validation fails
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return res.status(400).json({ error: "projectId is required" });
+        throw badRequest("projectId is required", "MISSING_PROJECT_ID");
       }
 
       // Verify project exists
@@ -91,7 +92,7 @@ router.post(
 
       if (!project) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return res.status(404).json({ error: "Project not found" });
+        throw notFound("Project not found", "PROJECT_NOT_FOUND");
       }
 
       // Determine User ID (Session or Fallback)
@@ -108,7 +109,7 @@ router.post(
 
       if (!userId) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return res.status(401).json({ error: "Authentication required" });
+        throw unauthorized("Authentication required");
       }
 
       // Create File Record
@@ -134,26 +135,7 @@ router.post(
         path: req.file.path,
         createdAt: etDocument.createdAt,
       });
-    } catch (error: unknown) {
-      logger.error("[UPLOAD] Error uploading ET document", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // Attempt cleanup on error
-      if (req.file && fs.existsSync(req.file.path)) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch {
-          /* ignore */
-        }
-      }
-
-      res.status(500).json({
-        error: "Failed to upload ET document",
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  },
+  }),
 );
 
 export default router;

@@ -12,6 +12,8 @@ import * as fs from "fs";
 import prisma from "../lib/prisma";
 import { dataExtractorService } from "../services/data-extractor.service";
 import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, notFound } from "../lib/errors";
 
 const router = Router();
 
@@ -55,19 +57,18 @@ const upload = multer({
 router.post(
   "/extract",
   upload.single("file"),
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { projectId } = req.body;
       const file = req.file;
 
       if (!file) {
-        return res.status(400).json({ error: "No file uploaded" });
+        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
       }
 
       if (!projectId) {
         // Clean up uploaded file
         fs.unlinkSync(file.path);
-        return res.status(400).json({ error: "projectId is required" });
+        throw badRequest("projectId is required", "MISSING_PROJECT_ID");
       }
 
       logger.info(
@@ -111,12 +112,7 @@ router.post(
         metadata: result.metadata,
         errors: result.errors,
       });
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[DATA_SOURCES] Extraction error", { error: err.message });
-      res.status(500).json({ error: err.message });
-    }
-  },
+  }),
 );
 
 /**
@@ -125,8 +121,7 @@ router.post(
  */
 router.post(
   "/extract-from-file/:fileId",
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { fileId } = req.params;
       const { projectId } = req.body;
 
@@ -136,19 +131,17 @@ router.post(
       });
 
       if (!file) {
-        return res.status(404).json({ error: "File not found" });
+        throw notFound("File not found", "FILE_NOT_FOUND");
       }
 
       if (!file.s3Key) {
-        return res
-          .status(400)
-          .json({ error: "File does not have local storage" });
+        throw badRequest("File does not have local storage", "FILE_NO_STORAGE");
       }
 
       const filePath = path.join(__dirname, "../../uploads", file.s3Key);
 
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: "File not found on disk" });
+        throw notFound("File not found on disk", "FILE_NOT_ON_DISK");
       }
 
       logger.info(`[DATA_SOURCES] Extracting from existing file: ${file.name}`);
@@ -162,9 +155,7 @@ router.post(
           file.name,
         );
       } else {
-        return res
-          .status(400)
-          .json({ error: `Unsupported file type: ${file.type}` });
+        throw badRequest(`Unsupported file type: ${file.type}`, "UNSUPPORTED_FILE_TYPE");
       }
 
       // Save to database
@@ -189,24 +180,18 @@ router.post(
         metadata: result.metadata,
         errors: result.errors,
       });
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[DATA_SOURCES] Extraction error", { error: err.message });
-      res.status(500).json({ error: err.message });
-    }
-  },
+  }),
 );
 
 /**
  * GET /api/data-sources
  * List all data sources for a project
  */
-router.get("/", async (req: Request, res: Response) => {
-  try {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.query;
 
     if (!projectId) {
-      return res.status(400).json({ error: "projectId is required" });
+      throw badRequest("projectId is required", "MISSING_PROJECT_ID");
     }
 
     const dataSources = await prisma.dataSource.findMany({
@@ -223,48 +208,36 @@ router.get("/", async (req: Request, res: Response) => {
     });
 
     res.json(dataSources);
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[DATA_SOURCES] Error", { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+}));
 
 /**
  * GET /api/data-sources/:id
  * Get a data source with full extracted data
  */
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const dataSource = await dataExtractorService.getDataSource(id);
 
     if (!dataSource) {
-      return res.status(404).json({ error: "Data source not found" });
+      throw notFound("Data source not found", "DATA_SOURCE_NOT_FOUND");
     }
 
     res.json(dataSource);
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[DATA_SOURCES] Error", { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+}));
 
 /**
  * GET /api/data-sources/:id/tables/:tableIndex
  * Get a specific table from a data source
  */
-router.get("/:id/tables/:tableIndex", async (req: Request, res: Response) => {
-  try {
+router.get("/:id/tables/:tableIndex", asyncHandler(async (req: Request, res: Response) => {
     const { id, tableIndex } = req.params;
     const index = parseInt(tableIndex);
 
     const dataSource = await dataExtractorService.getDataSource(id);
 
     if (!dataSource) {
-      return res.status(404).json({ error: "Data source not found" });
+      throw notFound("Data source not found", "DATA_SOURCE_NOT_FOUND");
     }
 
     const extractedData = dataSource.extractedData as
@@ -273,28 +246,22 @@ router.get("/:id/tables/:tableIndex", async (req: Request, res: Response) => {
     const tables = extractedData?.tables || [];
 
     if (index < 0 || index >= tables.length) {
-      return res.status(404).json({ error: "Table not found" });
+      throw notFound("Table not found", "TABLE_NOT_FOUND");
     }
 
     res.json(tables[index]);
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[DATA_SOURCES] Error", { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+}));
 
 /**
  * PUT /api/data-sources/:id/status
  * Update data source status (e.g., mark as reviewed)
  */
-router.put("/:id/status", async (req: Request, res: Response) => {
-  try {
+router.put("/:id/status", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status } = req.body;
 
     if (!["PENDING", "EXTRACTED", "REVIEWED", "FAILED"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
+      throw badRequest("Invalid status", "INVALID_STATUS");
     }
 
     const updated = await prisma.dataSource.update({
@@ -306,19 +273,13 @@ router.put("/:id/status", async (req: Request, res: Response) => {
     });
 
     res.json(updated);
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[DATA_SOURCES] Error", { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+}));
 
 /**
  * DELETE /api/data-sources/:id
  * Delete a data source
  */
-router.delete("/:id", async (req: Request, res: Response) => {
-  try {
+router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     await prisma.dataSource.delete({
@@ -326,11 +287,6 @@ router.delete("/:id", async (req: Request, res: Response) => {
     });
 
     res.status(204).send();
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[DATA_SOURCES] Error", { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+}));
 
 export default router;

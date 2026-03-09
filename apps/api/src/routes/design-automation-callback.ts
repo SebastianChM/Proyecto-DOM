@@ -109,7 +109,6 @@ router.post(
 
       res.status(500).json({
         error: "Callback processing failed",
-        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   },

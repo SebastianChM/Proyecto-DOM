@@ -308,3 +308,247 @@ describe("Error Contract — Compliance", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Validation error contract tests (Commit 8)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Validation", () => {
+  it("400 — POST /api/validation/validate without required fields", async () => {
+    const res = await request(app)
+      .post("/api/validation/validate")
+      .set("Content-Type", "application/json")
+      .send({});
+
+    // Route may be rate-limited (429) in test env — skip handler assertions
+    if (res.status === 429) return;
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "projectId and etDocumentId are required",
+      type: "BadRequest",
+      code: "MISSING_FIELDS",
+    });
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== VALIDATION 400 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("404/500 — POST /api/validation/validate with non-existent project", async () => {
+    const res = await request(app)
+      .post("/api/validation/validate")
+      .set("Content-Type", "application/json")
+      .send({ projectId: "00000000-0000-0000-0000-000000000000", etDocumentId: "00000000-0000-0000-0000-000000000001" });
+
+    if (res.status === 429) return;
+
+    // Without DB: 500 (Prisma). With DB: 404.
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("requestId");
+    expect(typeof res.body.error).toBe("string");
+  });
+
+  it("contract shape — validation errors include error + type + requestId", async () => {
+    const responses = await Promise.all([
+      request(app).post("/api/validation/validate").set("Content-Type", "application/json").send({}),
+      request(app).get("/api/validation/00000000-0000-0000-0000-000000000000"),
+    ]);
+
+    for (const res of responses) {
+      if (res.status === 429) continue; // rate-limited, skip
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(res.body).toHaveProperty("requestId");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("prisma");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Workflows error contract tests (Commit 8)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Workflows", () => {
+  it("401 — GET /api/workflows/PROJECT/:id without session", async () => {
+    const res = await request(app).get(
+      "/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== WORKFLOWS 401 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("400 — GET /api/workflows/INVALID_TYPE/:id invalid entity type", async () => {
+    const res = await request(app).get(
+      "/api/workflows/INVALID_TYPE/00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      type: "BadRequest",
+      code: "INVALID_ENTITY_TYPE",
+    });
+    expect(res.body).toHaveProperty("error");
+  });
+
+  it("401 — POST /api/workflows/PROJECT/:id/transition without session", async () => {
+    const res = await request(app)
+      .post("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition")
+      .set("Content-Type", "application/json")
+      .send({ transitionName: "approve" });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("contract shape — workflow errors include error + type", async () => {
+    const responses = await Promise.all([
+      request(app).get("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000"),
+      request(app).get("/api/workflows/INVALID_TYPE/fake-id"),
+      request(app).post("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition")
+        .set("Content-Type", "application/json").send({}),
+    ]);
+
+    for (const res of responses) {
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("password");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Conversion error contract tests (Commit 8)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Conversion", () => {
+  it("400 — POST /api/conversion/batch with invalid body (ZodError)", async () => {
+    const res = await request(app)
+      .post("/api/conversion/batch")
+      .set("Content-Type", "application/json")
+      .send({ fileIds: [], format: "invalid" });
+
+    if (res.status === 429) return; // rate-limited
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      type: "BadRequest",
+      code: "VALIDATION_ERROR",
+    });
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("details");
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== CONVERSION 400 (ZOD) EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("400 — POST /api/conversion/:fileId with unsupported format", async () => {
+    const res = await request(app)
+      .post("/api/conversion/some-file-id")
+      .set("Content-Type", "application/json")
+      .send({ format: "bmp" });
+
+    if (res.status === 429) return; // rate-limited
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      type: "BadRequest",
+      code: "INVALID_FORMAT",
+    });
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("contract shape — conversion errors include error + type + requestId", async () => {
+    const responses = await Promise.all([
+      request(app).post("/api/conversion/batch").set("Content-Type", "application/json").send({}),
+      request(app).post("/api/conversion/fake-id").set("Content-Type", "application/json").send({ format: "xyz" }),
+    ]);
+
+    for (const res of responses) {
+      if (res.status === 429) continue; // rate-limited, skip
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(res.body).toHaveProperty("requestId");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("prisma");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Data Sources error contract tests (Commit 8)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Data Sources", () => {
+  it("400 — POST /api/data-sources/extract without content", async () => {
+    const res = await request(app)
+      .post("/api/data-sources/extract")
+      .set("Content-Type", "application/json")
+      .send({});
+
+    if (res.status === 429) return; // rate-limited
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      type: "BadRequest",
+    });
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("404/500 — GET /api/data-sources/:id not found (sanitized)", async () => {
+    const res = await request(app).get(
+      "/api/data-sources/00000000-0000-0000-0000-000000000000",
+    );
+
+    if (res.status === 429) return; // rate-limited
+
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("requestId");
+    // Must NOT leak internal details
+    expect(res.body.error).not.toMatch(/prisma/i);
+    expect(res.body.error).not.toMatch(/ECONNREFUSED/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Translation error contract tests (Commit 8)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Translation", () => {
+  it("404/500 — POST /api/translation/:fileId/translate non-existent file (sanitized)", async () => {
+    const res = await request(app)
+      .post("/api/translation/00000000-0000-0000-0000-000000000000/translate")
+      .set("Content-Type", "application/json")
+      .send({});
+
+    if (res.status === 429) return; // rate-limited
+
+    // Without DB: 500 (Prisma). With DB: 404.
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("requestId");
+    // Must NOT leak APS error details
+    expect(res.body).not.toHaveProperty("apsError");
+    expect(typeof res.body.error).toBe("string");
+  });
+});

@@ -7,6 +7,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { conversionService } from "../services/conversion.service";
 import { z } from "zod";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, notFound } from "../lib/errors";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -16,12 +19,6 @@ const batchSchema = z.object({
   format: z.enum(["pdf", "ifc", "PDF", "IFC"]),
 });
 
-// Async Handler helper to avoid try/catch boilerplate
-const asyncHandler =
-  (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
-
 /**
  * POST /batch
  * Create multiple conversions
@@ -30,21 +27,13 @@ router.post(
   "/batch",
   asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id || "system";
-    try {
-      const { fileIds, format } = batchSchema.parse(req.body);
-      const result = await conversionService.createBatch(
-        userId,
-        fileIds,
-        format.toLowerCase(),
-      );
-      res.json(result);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        res.status(400).json({ error: "Validation Error", details: e.issues });
-        return;
-      }
-      throw e;
-    }
+    const { fileIds, format } = batchSchema.parse(req.body);
+    const result = await conversionService.createBatch(
+      userId,
+      fileIds,
+      format.toLowerCase(),
+    );
+    res.json(result);
   }),
 );
 
@@ -78,8 +67,7 @@ router.post(
 
     // Validate simple format string manually
     if (!["pdf", "ifc", "PDF", "IFC"].includes(format)) {
-      res.status(400).json({ error: "Invalid format. Supported: pdf, ifc" });
-      return;
+      throw badRequest("Invalid format. Supported: pdf, ifc", "INVALID_FORMAT");
     }
 
     const result = await conversionService.createSingle(
@@ -104,8 +92,7 @@ router.get(
     const result = await conversionService.getConversionStatus(conversionId);
 
     if (!result) {
-      res.status(404).json({ error: "Conversion not found" });
-      return;
+      throw notFound("Conversion not found", "CONVERSION_NOT_FOUND");
     }
     res.json(result);
   }),
@@ -118,25 +105,27 @@ router.get(
 router.get(
   "/:conversionId/download",
   asyncHandler(async (req, res) => {
-    try {
-      const { stream, filename, contentType, length } =
-        await conversionService.getDownloadData(req.params.conversionId);
+    const { stream, filename, contentType, length } =
+      await conversionService.getDownloadData(req.params.conversionId);
 
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${filename}"`,
-      );
-      res.setHeader("Content-Type", contentType);
-      if (length) res.setHeader("Content-Length", length);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.setHeader("Content-Type", contentType);
+    if (length) res.setHeader("Content-Length", length);
 
-      stream.pipe(res);
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes("not found")) {
-        res.status(404).json({ error: e.message });
-        return;
+    // Stream safety: handle errors via event, not thrown after headers sent
+    stream.on("error", (err: Error) => {
+      logger.error("[CONVERSION] Download stream error", { error: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Stream error", type: "InternalServerError" });
+      } else {
+        res.destroy();
       }
-      throw e;
-    }
+    });
+
+    stream.pipe(res);
   }),
 );
 

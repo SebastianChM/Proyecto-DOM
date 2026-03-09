@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../../lib/prisma";
-import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, notFound } from "../../lib/errors";
 
 const router = Router();
 
@@ -10,8 +11,7 @@ const router = Router();
  * Create a new validation run
  * POST /api/validation
  */
-router.post("/", async (req: Request, res: Response) => {
-  try {
+router.post("/", asyncHandler(async (req: Request, res: Response) => {
     const {
       fileId,
       fileName,
@@ -38,22 +38,13 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: validationRun });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error creating validation run", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to create validation run" });
-  }
-});
+}));
 
 /**
  * Get all validation runs
  * GET /api/validation?projectId=xxx&fileId=xxx&userId=xxx&limit=10
  */
-router.get("/", async (req: Request, res: Response) => {
-  try {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
     const { projectId, fileId, userId, limit = "50", status } = req.query;
 
     const where: Record<string, string> = {};
@@ -85,23 +76,14 @@ router.get("/", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: validationRuns });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error fetching validation runs", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch validation runs" });
-  }
-});
+}));
 
 /**
  * Get issue statistics for a file or project
  * MOVED UP to avoid conflict with /:id
  * GET /api/validation/stats/summary
  */
-router.get("/stats/summary", async (req: Request, res: Response) => {
-  try {
+router.get("/stats/summary", asyncHandler(async (req: Request, res: Response) => {
     const { fileId, projectId, userId } = req.query;
 
     const where: Record<string, string> = {};
@@ -151,22 +133,13 @@ router.get("/stats/summary", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: stats });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error fetching validation stats", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch validation stats" });
-  }
-});
+}));
 
 /**
  * Compare two validation runs to detect changes
  * GET /api/validation/compare/:id1/:id2
  */
-router.get("/compare/:id1/:id2", async (req: Request, res: Response) => {
-  try {
+router.get("/compare/:id1/:id2", asyncHandler(async (req: Request, res: Response) => {
     const { id1, id2 } = req.params;
 
     const [validation1, validation2] = await Promise.all([
@@ -181,9 +154,7 @@ router.get("/compare/:id1/:id2", async (req: Request, res: Response) => {
     ]);
 
     if (!validation1 || !validation2) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Validation run not found" });
+      throw notFound("Validation run not found", "VALIDATION_RUN_NOT_FOUND");
     }
 
     // Compare issues
@@ -235,22 +206,13 @@ router.get("/compare/:id1/:id2", async (req: Request, res: Response) => {
     };
 
     res.json({ success: true, data: comparison });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error comparing validation runs", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to compare validation runs" });
-  }
-});
+}));
 
 /**
  * Get a specific validation run
  * GET /api/validation/:id
  */
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const validationRun = await prisma.validationRun.findUnique({
@@ -264,28 +226,17 @@ router.get("/:id", async (req: Request, res: Response) => {
     });
 
     if (!validationRun) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Validation run not found" });
+      throw notFound("Validation run not found", "VALIDATION_RUN_NOT_FOUND");
     }
 
     res.json({ success: true, data: validationRun });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error fetching validation run", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch validation run" });
-  }
-});
+}));
 
 /**
  * Update validation run (complete, fail, etc.)
  * PATCH /api/validation/:id
  */
-router.patch("/:id", async (req: Request, res: Response) => {
-  try {
+router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       status,
@@ -313,15 +264,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: validationRun });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error updating validation run", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to update validation run" });
-  }
-});
+}));
 
 // ==================== VALIDATION ISSUES ====================
 
@@ -329,15 +272,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
  * Create validation issues (bulk)
  * POST /api/validation/:id/issues
  */
-router.post("/:id/issues", async (req: Request, res: Response) => {
-  try {
+router.post("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { issues } = req.body;
 
     if (!Array.isArray(issues)) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Issues must be an array" });
+      throw badRequest("Issues must be an array", "INVALID_ISSUES");
     }
 
     // Create issues in bulk
@@ -384,22 +324,13 @@ router.post("/:id/issues", async (req: Request, res: Response) => {
     res
       .status(201)
       .json({ success: true, data: { count: createdIssues.count } });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error creating validation issues", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to create validation issues" });
-  }
-});
+}));
 
 /**
  * Get issues for a validation run
  * GET /api/validation/:id/issues?type=MISSING&status=OPEN
  */
-router.get("/:id/issues", async (req: Request, res: Response) => {
-  try {
+router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { type, status, severity } = req.query;
 
@@ -414,22 +345,13 @@ router.get("/:id/issues", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: issues });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error fetching validation issues", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch validation issues" });
-  }
-});
+}));
 
 /**
  * Update an issue (resolve, acknowledge, etc.)
  * PATCH /api/validation/issues/:issueId
  */
-router.patch("/issues/:issueId", async (req: Request, res: Response) => {
-  try {
+router.patch("/issues/:issueId", asyncHandler(async (req: Request, res: Response) => {
     const { issueId } = req.params;
     const { status, resolvedBy, resolutionNotes, severity } = req.body;
 
@@ -449,14 +371,6 @@ router.patch("/issues/:issueId", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: issue });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION_CRUD] Error updating validation issue", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to update validation issue" });
-  }
-});
+}));
 
 export default router;
