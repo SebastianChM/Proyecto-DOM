@@ -153,27 +153,52 @@ export const NOTIFICATION = {
 
 // =============================================================================
 // LEGACY EXPORT (for backward compatibility)
+// Uses validated env when available, otherwise safe defaults.
 // =============================================================================
+
+// Lazy accessor — env.ts may not be loaded yet at module scope in some test
+// configurations, so we use a getter pattern for values that depend on env.
+function safeEnv(): Record<string, unknown> | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("./env").env;
+  } catch {
+    return null;
+  }
+}
+
 export const APP_CONFIG = {
   APS: {
-    BUCKET_KEY: process.env.APS_BUCKET || APS.DEFAULT_BUCKET,
+    get BUCKET_KEY() {
+      const e = safeEnv();
+      return (e?.APS_BUCKET as string) || APS.DEFAULT_BUCKET;
+    },
     BASE_URL: APS.BASE_URL,
-    WEBHOOK_URL: process.env.APS_WEBHOOK_URL,
+    get WEBHOOK_URL() {
+      const e = safeEnv();
+      return (e?.APS_WEBHOOK_URL as string) || "";
+    },
   },
   UPLOAD: {
     ALLOWED_EXTENSIONS: [...UPLOAD.ALLOWED_EXTENSIONS],
     DESTINATION: UPLOAD.DESTINATION,
   },
   LIMITS: {
-    MAX_FILE_SIZE_BYTES: parseInt(
-      process.env.MAX_FILE_SIZE_BYTES || String(UPLOAD.DEFAULT_MAX_SIZE_BYTES),
-    ),
+    get MAX_FILE_SIZE_BYTES() {
+      const e = safeEnv();
+      return (
+        (e?.MAX_FILE_SIZE_BYTES as number) || UPLOAD.DEFAULT_MAX_SIZE_BYTES
+      );
+    },
     MAX_PROJECTS_PER_USER: LIMITS.MAX_PROJECTS_PER_USER,
     MAX_FILES_PER_PROJECT: LIMITS.MAX_FILES_PER_PROJECT,
     PROJECT_NAME_MIN_LENGTH: LIMITS.PROJECT_NAME_MIN_LENGTH,
     PROJECT_NAME_MAX_LENGTH: LIMITS.PROJECT_NAME_MAX_LENGTH,
   },
-  DEMO_MODE: process.env.DEMO_MODE === "true",
+  get DEMO_MODE() {
+    const e = safeEnv();
+    return (e?.DEMO_MODE as boolean) ?? false;
+  },
 };
 
 // Unified export for easy imports

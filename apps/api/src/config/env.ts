@@ -127,12 +127,36 @@ const envSchema = z
       .default("false")
       .transform((val) => val === "true"),
 
+    // SMTP (optional — all-or-none validated in superRefine)
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().min(1).max(65535).optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_SECURE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((val) => val === "true"),
+    SMTP_FROM: z.string().optional(),
+
+    // Frontend URL (used for OAuth redirects)
+    FRONTEND_URL: z.string().url().optional(),
+
+    // Design Automation
+    APS_DA_NICKNAME: z.string().optional(),
+
+    // Upload & Demo
+    MAX_FILE_SIZE_BYTES: z.coerce.number().min(1).optional(),
+    DEMO_MODE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((val) => val === "true"),
+
     // Conversion Concurrency Limits (Hito 5)
-    CONVERSION_CONCURRENCY: z.coerce.number().min(1).max(20).default(10), // Reduced from 50 to prevent APS rate limiting
-    CONVERSION_MD_CONCURRENCY: z.coerce.number().min(1).max(15).default(8), // Model Derivative concurrency
-    CONVERSION_DA_CONCURRENCY: z.coerce.number().min(1).max(10).default(5), // Design Automation concurrency
-    CONVERSION_MAX_ATTEMPTS: z.coerce.number().default(3), // Retry attempts for failed jobs
-    CONVERSION_BACKOFF_DELAY: z.coerce.number().default(2000), // Initial backoff delay in ms
+    CONVERSION_CONCURRENCY: z.coerce.number().min(1).max(20).default(10),
+    CONVERSION_MD_CONCURRENCY: z.coerce.number().min(1).max(15).default(8),
+    CONVERSION_DA_CONCURRENCY: z.coerce.number().min(1).max(10).default(5),
+    CONVERSION_MAX_ATTEMPTS: z.coerce.number().default(3),
+    CONVERSION_BACKOFF_DELAY: z.coerce.number().default(2000),
     ALLOW_EMPTY_ADMIN_EMAILS: z
       .enum(["true", "false"])
       .default("false")
@@ -200,6 +224,21 @@ const envSchema = z
         path: ["APS_BUCKET"],
       });
     }
+
+    // SMTP all-or-none: if any SMTP var is set, all required ones must be present
+    const smtpVars = [data.SMTP_HOST, data.SMTP_USER, data.SMTP_PASS];
+    const smtpProvided = smtpVars.filter(Boolean).length;
+    if (smtpProvided > 0 && smtpProvided < smtpVars.length) {
+      const missing = [];
+      if (!data.SMTP_HOST) missing.push("SMTP_HOST");
+      if (!data.SMTP_USER) missing.push("SMTP_USER");
+      if (!data.SMTP_PASS) missing.push("SMTP_PASS");
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Partial SMTP configuration detected. Missing: ${missing.join(", ")}. Provide all SMTP vars or none.`,
+        path: ["SMTP_HOST"],
+      });
+    }
   });
 
 const _env = envSchema.safeParse(process.env);
@@ -249,6 +288,19 @@ if (
   process.exit(1);
 }
 
+// Derived: SMTP configured flag (all-or-none already validated above)
+const smtpConfigured = !!(
+  parsedEnv.SMTP_HOST &&
+  parsedEnv.SMTP_USER &&
+  parsedEnv.SMTP_PASS
+);
+
+// Derived: Redis connection mode
+const redisMode = parsedEnv.REDIS_URL ? "URL" : `HOST+PORT`;
+
+// Derived: Frontend URL (validated if explicit, otherwise default)
+const frontendUrl = parsedEnv.FRONTEND_URL || "http://localhost:3000";
+
 // Export parsed values with pre-computed lists
 export const env = {
   ...parsedEnv,
@@ -266,6 +318,20 @@ export const env = {
   LOG_LEVEL: parsedEnv.LOG_LEVEL,
   SKIP_WEBHOOK_VALIDATION: parsedEnv.SKIP_WEBHOOK_VALIDATION,
 
+  // SMTP (validated all-or-none)
+  smtpConfigured,
+  SMTP_FROM: parsedEnv.SMTP_FROM || '"BIM Platform" <noreply@example.com>',
+
+  // Frontend
+  FRONTEND_URL: frontendUrl,
+
+  // Design Automation
+  APS_DA_NICKNAME: parsedEnv.APS_DA_NICKNAME || parsedEnv.APS_CLIENT_ID || "",
+
+  // Upload & Demo
+  MAX_FILE_SIZE_BYTES: parsedEnv.MAX_FILE_SIZE_BYTES || 209715200, // 200MB default
+  DEMO_MODE: parsedEnv.DEMO_MODE,
+
   // Conversion Concurrency (Hito 5)
   CONVERSION_CONCURRENCY: parsedEnv.CONVERSION_CONCURRENCY,
   CONVERSION_MD_CONCURRENCY: parsedEnv.CONVERSION_MD_CONCURRENCY,
@@ -274,8 +340,16 @@ export const env = {
   CONVERSION_BACKOFF_DELAY: parsedEnv.CONVERSION_BACKOFF_DELAY,
 };
 
+// ── Startup banner (safe — no secrets, DSNs, passwords, or tokens) ──
 console.log("✅ [ENV] Validation Success");
-console.log(`   NODE_ENV: ${env.NODE_ENV}`);
-console.log(`   APS_MOCK: ${env.APS_MOCK}`);
-console.log(`   ADMIN_EMAILS: ${env.adminEmails.length} configured`);
-console.log(`   CORS_ORIGINS: ${env.corsOrigins.length} origins`);
+console.log(`   NODE_ENV:      ${env.NODE_ENV}`);
+console.log(`   APS_MOCK:      ${env.APS_MOCK}`);
+console.log(`   Redis:         ${redisMode}`);
+console.log(
+  `   SMTP:          ${smtpConfigured ? "configured" : "not configured"}`,
+);
+console.log(
+  `   Frontend URL:  ${parsedEnv.FRONTEND_URL ? "configured" : "default (localhost:3000)"}`,
+);
+console.log(`   Admin emails:  ${adminEmailsList.length} configured`);
+console.log(`   Transport:     none`);

@@ -10,6 +10,7 @@
 import { Request, Response } from "express";
 import { ApsError } from "../services/aps/aps-error";
 import { CONSTANTS, APP_CONFIG } from "../config/constants";
+import { env } from "../config/env";
 import prisma from "./prisma";
 import { apsDataManagementService } from "../services/aps/data-management.service";
 import { apsOssService } from "../services/aps/oss.service";
@@ -76,11 +77,7 @@ export function handleApsError(
 // Auth Helpers
 // ===================================
 export const getFrontendUrl = (): string => {
-  return (
-    process.env.NEXTAUTH_URL ||
-    process.env.FRONTEND_URL ||
-    CONSTANTS.FRONTEND.DEFAULT_URL
-  );
+  return env.FRONTEND_URL;
 };
 
 export const getDashboardUrl = (): string => {
