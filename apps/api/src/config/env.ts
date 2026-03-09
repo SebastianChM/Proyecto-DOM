@@ -151,6 +151,10 @@ const envSchema = z
       .default("false")
       .transform((val) => val === "true"),
 
+    // External Transport (optional — Sentry error tracking)
+    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+
     // Conversion Concurrency Limits (Hito 5)
     CONVERSION_CONCURRENCY: z.coerce.number().min(1).max(20).default(10),
     CONVERSION_MD_CONCURRENCY: z.coerce.number().min(1).max(15).default(8),
@@ -338,6 +342,10 @@ export const env = {
   CONVERSION_DA_CONCURRENCY: parsedEnv.CONVERSION_DA_CONCURRENCY,
   CONVERSION_MAX_ATTEMPTS: parsedEnv.CONVERSION_MAX_ATTEMPTS,
   CONVERSION_BACKOFF_DELAY: parsedEnv.CONVERSION_BACKOFF_DELAY,
+
+  // External Transport (Sentry)
+  SENTRY_DSN: parsedEnv.SENTRY_DSN,
+  SENTRY_TRACES_SAMPLE_RATE: parsedEnv.SENTRY_TRACES_SAMPLE_RATE,
 };
 
 // ── Startup banner (safe — no secrets, DSNs, passwords, or tokens) ──
@@ -352,4 +360,6 @@ console.log(
   `   Frontend URL:  ${parsedEnv.FRONTEND_URL ? "configured" : "default (localhost:3000)"}`,
 );
 console.log(`   Admin emails:  ${adminEmailsList.length} configured`);
-console.log(`   Transport:     none`);
+console.log(
+  `   Transport:     ${parsedEnv.SENTRY_DSN ? "configured" : "none"}`,
+);

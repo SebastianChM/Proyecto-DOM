@@ -9,6 +9,7 @@ import { rateLimiter } from "./config/rate-limit.config";
 // Load and validate environment variables (Fail fast)
 import { env } from "./config/env";
 import { logger } from "./lib/logger";
+import { initTransport } from "./config/transport";
 import path from "path";
 
 // Routes
@@ -275,6 +276,14 @@ if (env.RUN_WORKERS) {
 if (require.main === module) {
   (async () => {
     try {
+      // Initialize external transport (Sentry) — safe no-op if unconfigured
+      const transportStatus = await initTransport();
+      if (transportStatus !== "none") {
+        logger.info("[TRANSPORT] External transport", {
+          status: transportStatus,
+        });
+      }
+
       // Verify Redis connection BEFORE listening
       await redisClient.ping();
       logger.info("[REDIS] Connected and operational");
