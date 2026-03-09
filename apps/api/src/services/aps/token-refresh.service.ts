@@ -10,11 +10,14 @@ import { redis } from "../../lib/redis";
 import { apsAuthService } from "./auth.service";
 import { ApsError, ApsErrorCode } from "./aps-error";
 import { logger } from "../../lib/logger";
+import { CONSTANTS } from "../../config/constants";
 
-const REFRESH_THRESHOLD_SECONDS = 120; // Refresh when <120s remaining
-const LOCK_TTL_SECONDS = 15; // Lock expires after 15s
-const LOCK_RETRY_MS = 200; // Wait 200ms between retries
-const MAX_LOCK_RETRIES = 10; // Max 2 seconds waiting for lock
+const {
+  THRESHOLD_SECONDS: REFRESH_THRESHOLD_SECONDS,
+  LOCK_TTL_SECONDS,
+  LOCK_RETRY_MS,
+  MAX_LOCK_RETRIES,
+} = CONSTANTS.TOKEN_REFRESH;
 
 export class TokenRefreshService {
   /**
@@ -171,7 +174,7 @@ export class TokenRefreshService {
           event: "token_refresh_invalid_grant",
         });
 
-        // Clear session (safe after null checks)
+        // Destroy session tokens — caller (auth middleware) will send 401
         req.session!.token = undefined;
         req.session!.refreshToken = undefined;
         req.session!.expiresAt = undefined;
@@ -179,7 +182,7 @@ export class TokenRefreshService {
         throw new ApsError(
           ApsErrorCode.APS_REFRESH_REQUIRED,
           401,
-          "Session expired. Please re-authenticate.",
+          "Session expired. Please sign in again.",
           {
             apsStatus: 401,
           },
