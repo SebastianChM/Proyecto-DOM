@@ -16,11 +16,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import {
   workflowService,
-  WorkflowError,
   EntityType,
   UserContext,
 } from "../services/workflow.service";
-import { logger } from "../lib/logger";
 import { asyncHandler } from "../lib/async-handler";
 import { badRequest, unauthorized, forbidden, notFound } from "../lib/errors";
 

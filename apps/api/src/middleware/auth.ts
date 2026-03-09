@@ -50,6 +50,8 @@ export const basicAuth = async (
   // No session = unauthorized
   return res.status(401).json({
     error: "Authentication required",
+    type: "Unauthorized",
     message: "Please sign in with Autodesk",
+    requestId: req.headers["x-request-id"],
   });
 };

@@ -33,7 +33,9 @@ export const requirePermission = (
         });
         return res.status(401).json({
           error: "Authentication required",
+          type: "Unauthorized",
           message: "Debes iniciar sesión para acceder a este recurso",
+          requestId: req.headers["x-request-id"],
         });
       }
 
@@ -53,7 +55,9 @@ export const requirePermission = (
       } else {
         return res.status(400).json({
           error: "Bad request",
+          type: "BadRequest",
           message: "No se pudo determinar el proyecto",
+          requestId: req.headers["x-request-id"],
         });
       }
 
@@ -75,8 +79,10 @@ export const requirePermission = (
         });
         return res.status(403).json({
           error: "Forbidden",
+          type: "Forbidden",
           message: `No tienes permiso para: ${permission}`,
           requiredPermission: permission,
+          requestId: req.headers["x-request-id"],
         });
       }
 
@@ -86,7 +92,9 @@ export const requirePermission = (
       logger.error("[AUTH] Authorization middleware error", { error: msg });
       res.status(500).json({
         error: "Authorization check failed",
+        type: "InternalServerError",
         message: msg,
+        requestId: req.headers["x-request-id"],
       });
     }
   };
@@ -110,6 +118,8 @@ export const requireAdmin = async (
       });
       return res.status(401).json({
         error: "Authentication required",
+        type: "Unauthorized",
+        requestId: req.headers["x-request-id"],
       });
     }
 
@@ -123,7 +133,9 @@ export const requireAdmin = async (
       });
       return res.status(403).json({
         error: "Forbidden",
+        type: "Forbidden",
         message: "Se requiere rol de administrador",
+        requestId: req.headers["x-request-id"],
       });
     }
 
@@ -133,7 +145,9 @@ export const requireAdmin = async (
     logger.error("[AUTH] Admin check error", { error: msg });
     res.status(500).json({
       error: "Authorization check failed",
+      type: "InternalServerError",
       message: msg,
+      requestId: req.headers["x-request-id"],
     });
   }
 };

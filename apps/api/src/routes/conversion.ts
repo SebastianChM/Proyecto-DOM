@@ -4,7 +4,7 @@
  * Replaces the fragmented routes/conversion/ folder.
  * Delegates all logic to ConversionService.
  */
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { conversionService } from "../services/conversion.service";
 import { z } from "zod";
 import { asyncHandler } from "../lib/async-handler";
