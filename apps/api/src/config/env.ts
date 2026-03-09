@@ -360,6 +360,3 @@ console.log(
   `   Frontend URL:  ${parsedEnv.FRONTEND_URL ? "configured" : "default (localhost:3000)"}`,
 );
 console.log(`   Admin emails:  ${adminEmailsList.length} configured`);
-console.log(
-  `   Transport:     ${parsedEnv.SENTRY_DSN ? "configured" : "none"}`,
-);

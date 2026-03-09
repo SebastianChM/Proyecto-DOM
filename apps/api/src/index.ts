@@ -278,11 +278,7 @@ if (require.main === module) {
     try {
       // Initialize external transport (Sentry) — safe no-op if unconfigured
       const transportStatus = await initTransport();
-      if (transportStatus !== "none") {
-        logger.info("[TRANSPORT] External transport", {
-          status: transportStatus,
-        });
-      }
+      logger.info("[TRANSPORT] Status", { status: transportStatus });
 
       // Verify Redis connection BEFORE listening
       await redisClient.ping();
