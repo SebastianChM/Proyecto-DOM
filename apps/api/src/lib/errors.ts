@@ -2,15 +2,15 @@
  * Standardized application error class.
  *
  * Thrown inside route handlers (wrapped by asyncHandler) or services.
- * The global error handler recognises AppError and serialises it as:
- *   { error, message, details?, code?, requestId?, stack? }
+ * The global error handler serialises it as:
+ *   { error: <human message>, type: <category>, code?, details?, requestId?, stack? }
  */
 export class AppError extends Error {
   constructor(
     public readonly statusCode: number,
-    /** Human-readable error category, e.g. "NotFound" */
-    public readonly error: string,
-    /** Descriptive message for the client */
+    /** Error category, e.g. "NotFound", "Unauthorized" */
+    public readonly type: string,
+    /** Human-readable message for the client (becomes the `error` field in the response) */
     message: string,
     /** Machine-readable code, e.g. "PROJECT_NOT_FOUND" */
     public readonly code?: string,

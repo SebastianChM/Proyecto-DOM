@@ -7,8 +7,12 @@ import { ApsError } from "../services/aps/aps-error";
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface ErrorResponse {
+  /** Human-readable error message (backward-compatible with legacy { error } shape) */
   error: string;
-  message: string;
+  /** Error category: "NotFound", "Unauthorized", "BadRequest", etc. */
+  type: string;
+  /** Optional longer description (may duplicate error) */
+  message?: string;
   code?: string;
   details?: unknown;
   requestId?: string;
@@ -45,8 +49,8 @@ export const errorHandler = (
   if (err instanceof AppError) {
     statusCode = err.statusCode;
     body = {
-      error: err.error,
-      message: err.message,
+      error: err.message,
+      type: err.type,
       ...(err.code ? { code: err.code } : {}),
       ...(err.details !== undefined ? { details: err.details } : {}),
     };
@@ -55,8 +59,8 @@ export const errorHandler = (
   } else if (err instanceof WorkflowError) {
     statusCode = err.statusCode;
     body = {
-      error: "WorkflowError",
-      message: err.message,
+      error: err.message,
+      type: "WorkflowError",
       code: err.code,
       ...(err.details ? { details: err.details } : {}),
     };
@@ -65,8 +69,8 @@ export const errorHandler = (
   } else if (err instanceof ApsError) {
     statusCode = err.status;
     body = {
-      error: "ApsError",
-      message: err.message,
+      error: err.message,
+      type: "ApsError",
       code: err.code,
       ...(err.details ? { details: err.details } : {}),
     };
@@ -75,8 +79,8 @@ export const errorHandler = (
   } else if (isZodError(err)) {
     statusCode = 400;
     body = {
-      error: "ValidationError",
-      message: "Request validation failed",
+      error: "Validation failed",
+      type: "BadRequest",
       code: "VALIDATION_ERROR",
       details: err.issues,
     };
@@ -89,11 +93,11 @@ export const errorHandler = (
       500;
     const rawMessage =
       err instanceof Error ? err.message : "Internal Server Error";
+    const humanMessage =
+      statusCode >= 500 && !isDev ? "Internal Server Error" : rawMessage;
     body = {
-      error: "InternalServerError",
-      // In production hide raw messages for 5xx to prevent info leaks
-      message:
-        statusCode >= 500 && !isDev ? "Internal Server Error" : rawMessage,
+      error: humanMessage,
+      type: statusCode >= 500 ? "InternalServerError" : "Error",
     };
   }
 
@@ -104,8 +108,8 @@ export const errorHandler = (
   // ── Structured logging (5xx = error, 4xx = warn) ─────────────
   const logPayload = {
     statusCode,
+    type: body.type,
     error: body.error,
-    message: body.message,
     code: body.code,
     method: req.method,
     path: req.path,
