@@ -95,6 +95,13 @@ describe("Auth middleware — session refresh", () => {
     // If Prisma fails (test env, no real DB) we get 500, not 401
     // The key assertion: auth middleware passed (no 401).
     expect(res.status).not.toBe(401);
+
+    // Verify session was NOT touched (user still present in Redis)
+    const raw = await redis.get(`${SESSION_PREFIX}${sid}`);
+    expect(raw).not.toBeNull();
+    const session = JSON.parse(raw!);
+    expect(session.user).toBeDefined();
+    expect(session.user.id).toBe("test-user-001");
   });
 
   // ── 3. Token near expiry → refresh attempt ────────────────────
@@ -112,18 +119,21 @@ describe("Auth middleware — session refresh", () => {
       .set("Cookie", cookie);
 
     // Auth middleware should have attempted refresh.
-    // In test env the refresh service calls apsAuthService.refreshPublicToken
-    // which is mocked (APS_MOCK=false in tests, but apsAuthService is the real
-    // class which calls the SDK — that will likely throw in test). The auth
-    // middleware catches transient errors and proceeds → not 401.
-    // If it IS 401, check it's not SESSION_EXPIRED for a transient error.
+    // In test env (APS_MOCK=false), apsAuthService.refreshPublicToken calls
+    // the real Autodesk SDK which throws (no valid credentials). The middleware
+    // catches transient errors and proceeds with the stale token → not 401.
     if (res.status === 401) {
       // Transient error should NOT produce SESSION_EXPIRED
-      // (only invalid_grant / APS_REFRESH_REQUIRED does)
       expect(res.body.code).not.toBe("SESSION_EXPIRED");
     } else {
       expect(res.status).not.toBe(401);
     }
+
+    // Session user must still be intact after transient refresh failure
+    const raw = await redis.get(`${SESSION_PREFIX}${sid}`);
+    expect(raw).not.toBeNull();
+    const session = JSON.parse(raw!);
+    expect(session.user).toBeDefined();
   });
 
   // ── 4. No refreshToken → SESSION_EXPIRED ──────────────────────
@@ -157,19 +167,12 @@ describe("Auth middleware — session refresh", () => {
       refreshToken: "stale-refresh-token",
     });
 
-    // The refresh will call apsAuthService.refreshPublicToken (real class in
-    // test mode since APS_MOCK is not set). That hits the Autodesk SDK which
-    // will fail. However: the mock Redis "set" with "NX" returns OK for lock
-    // acquisition, and the SDK call fails with an error. If the error message
-    // matches the invalid_grant pattern, we get SESSION_EXPIRED. If not, it's
-    // treated as transient.
     const res = await request(app)
       .get("/api/dashboard/stats")
       .set("Cookie", cookie);
 
-    // In test env, the SDK call will likely throw a network or config error
-    // (not matching invalid_grant pattern). This is treated as transient.
-    // The important thing: if it IS 401, it must have the right shape.
+    // In test env, the SDK call throws a network/config error which may or may
+    // not match the invalid_grant heuristic. If it IS 401, verify shape.
     if (res.status === 401) {
       expect(res.body).toHaveProperty("type", "Unauthorized");
       expect(typeof res.body.error).toBe("string");
@@ -178,7 +181,6 @@ describe("Auth middleware — session refresh", () => {
 
   // ── 6. APS_MOCK path — verify mock refresh works ─────────────
   it("mock refresh service returns valid token structure", async () => {
-    // Direct unit test of MockAPSAuthService.refreshPublicToken
     const { MockAPSAuthService } = await import("../../src/mocks/aps-mock");
     const mock = new MockAPSAuthService();
     const result = await mock.refreshPublicToken("any-token");
@@ -188,26 +190,93 @@ describe("Auth middleware — session refresh", () => {
     expect(result).toHaveProperty("refresh_token", "mock-refresh-token-new");
     expect(result).toHaveProperty("expires_in");
     expect(typeof result.expires_in).toBe("number");
+    expect(result.expires_in).toBe(3599);
   });
 
-  // ── 7. Concurrent requests — lock prevents duplicate refresh ──
-  it("Redis lock key is used for token refresh (lock structure test)", async () => {
-    // Verify the lock key pattern exists after a refresh attempt
-    const { TokenRefreshService } =
-      await import("../../src/services/aps/token-refresh.service");
-    const service = new TokenRefreshService();
-
-    // acquireRefreshLock is private but we can verify through the
-    // public ensureValidToken path. For a structural test, verify
-    // the constant is correctly wired.
+  // ── 7. Redis lock constants are correctly wired ───────────────
+  it("TOKEN_REFRESH constants are correctly wired", async () => {
     const { CONSTANTS } = await import("../../src/config/constants");
     expect(CONSTANTS.TOKEN_REFRESH.LOCK_TTL_SECONDS).toBe(15);
     expect(CONSTANTS.TOKEN_REFRESH.THRESHOLD_SECONDS).toBe(300);
     expect(CONSTANTS.TOKEN_REFRESH.LOCK_RETRY_MS).toBe(200);
     expect(CONSTANTS.TOKEN_REFRESH.MAX_LOCK_RETRIES).toBe(10);
 
-    // Verify service is instantiable (no runtime import errors)
+    const { TokenRefreshService } =
+      await import("../../src/services/aps/token-refresh.service");
+    const service = new TokenRefreshService();
     expect(service).toBeDefined();
     expect(typeof service.ensureValidToken).toBe("function");
+  });
+
+  // ── 8. Session with user but NO token → passes through (no refresh) ─
+  it("passes through without refresh when session has user but no token", async () => {
+    const sid = "test-no-token-field";
+    const cookie = await plantSession(sid, {
+      token: undefined, // No APS token at all
+      refreshToken: undefined,
+      expiresAt: undefined,
+    });
+
+    const res = await request(app)
+      .get("/api/dashboard/stats")
+      .set("Cookie", cookie);
+
+    // sessionRefresh sees no token → next(). Route handler runs.
+    // Must NOT be SESSION_EXPIRED (nothing to refresh).
+    expect(res.status).not.toBe(401);
+  });
+
+  // ── 9. Redis lock prevents duplicate refresh for same user ────
+  it("Redis NX lock prevents concurrent refresh (second set returns null)", async () => {
+    const userId = "lock-test-user";
+    const lockKey = `aps:refresh-lock:user:${userId}`;
+
+    // First lock acquisition → OK
+    const first = await redis.set(lockKey, "1", "EX", 15, "NX");
+    expect(first).toBe("OK");
+
+    // Second lock acquisition (concurrent) → null (blocked)
+    const second = await redis.set(lockKey, "1", "EX", 15, "NX");
+    expect(second).toBeNull();
+
+    // Cleanup
+    await redis.del(lockKey);
+
+    // After release, lock is available again
+    const third = await redis.set(lockKey, "1", "EX", 15, "NX");
+    expect(third).toBe("OK");
+    await redis.del(lockKey);
+  });
+
+  // ── 10. Multiple routes get same treatment from sessionRefresh ─
+  it("sessionRefresh runs on different route paths consistently", async () => {
+    const sid = "test-multi-route";
+    const cookie = await plantSession(sid, {
+      expiresAt: Date.now() - 1000, // Expired
+      token: "expired-token",
+      refreshToken: undefined, // → SESSION_EXPIRED
+    });
+
+    // Test on /api/dashboard/stats
+    const res1 = await request(app)
+      .get("/api/dashboard/stats")
+      .set("Cookie", cookie);
+
+    expect(res1.status).toBe(401);
+    expect(res1.body.code).toBe("SESSION_EXPIRED");
+
+    // Plant a fresh expired session for another route
+    const sid2 = "test-multi-route-2";
+    const cookie2 = await plantSession(sid2, {
+      expiresAt: Date.now() - 1000,
+      token: "expired-token-2",
+      refreshToken: undefined,
+    });
+
+    // Test on /api/projects
+    const res2 = await request(app).get("/api/projects").set("Cookie", cookie2);
+
+    expect(res2.status).toBe(401);
+    expect(res2.body.code).toBe("SESSION_EXPIRED");
   });
 });
