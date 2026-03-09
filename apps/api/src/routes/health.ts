@@ -3,6 +3,20 @@ import prisma from "../lib/prisma";
 import { redis } from "../lib/redis";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Read version once at startup — works regardless of how the process is launched
+const APP_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(resolve(__dirname, "../../package.json"), "utf-8"),
+    );
+    return pkg.version as string;
+  } catch {
+    return "unknown";
+  }
+})();
 
 const router = Router();
 
@@ -10,7 +24,7 @@ router.get("/", async (req, res) => {
   const health = {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "unknown",
+    version: APP_VERSION,
     services: {
       database: "unknown",
       redis: "unknown",

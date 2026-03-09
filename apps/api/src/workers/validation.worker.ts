@@ -72,7 +72,7 @@ const validationWorker = new Worker<ValidationJobPayload>(
 
       // 2. Execute Validation Logic
       const issuesData: IssueData[] = [];
-      const isDemoMode = process.env.DEMO_MODE === "true";
+      const isDemoMode = env.DEMO_MODE;
 
       if (etData?.length > 0 && modelData?.length > 0) {
         const etTags = new Set(etData.map((item) => item.tag));
