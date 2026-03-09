@@ -1,7 +1,8 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { requireAdmin } from "../middleware/authorization";
-import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest } from "../lib/errors";
 
 const router = Router();
 
@@ -9,8 +10,7 @@ const router = Router();
  * GET /api/users
  * Listar todos los usuarios (solo ADMIN)
  */
-router.get("/", requireAdmin, async (req, res) => {
-  try {
+router.get("/", requireAdmin, asyncHandler(async (req, res) => {
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -27,16 +27,7 @@ router.get("/", requireAdmin, async (req, res) => {
     });
 
     res.json(users);
-  } catch (error: unknown) {
-    logger.error("[USERS] Error listing users", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: "Failed to list users",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 import { z } from "zod";
 
@@ -48,30 +39,23 @@ const updateUserRoleSchema = z.object({
  * PUT /api/admin/users/:id/role
  * Cambiar rol de un usuario (solo ADMIN)
  */
-router.put("/admin/users/:id/role", requireAdmin, async (req, res) => {
-  try {
+router.put("/admin/users/:id/role", requireAdmin, asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Validate input
     const validation = updateUserRoleSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: validation.error.issues.map((e) => ({
-          path: e.path.join("."),
-          message: e.message,
-        })),
-      });
+      throw badRequest("Validation failed", "VALIDATION_ERROR", validation.error.issues.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })));
     }
 
     const { role } = validation.data;
 
     // No permitir que el usuario se cambie su propio rol
     if (id === req.session?.user?.id) {
-      return res.status(400).json({
-        error: "Cannot modify own role",
-        message: "You cannot change your own role",
-      });
+      throw badRequest("You cannot change your own role", "SELF_ROLE_CHANGE");
     }
 
     const user = await prisma.user.update({
@@ -86,15 +70,6 @@ router.put("/admin/users/:id/role", requireAdmin, async (req, res) => {
     });
 
     res.json(user);
-  } catch (error: unknown) {
-    logger.error("[USERS] Error updating user role", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: "Failed to update user role",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 export default router;
