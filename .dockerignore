@@ -1,0 +1,65 @@
+# ── Dependencies (rebuilt inside image) ──────────────────────
+**/node_modules/
+
+# ── Build artifacts ──────────────────────────────────────────
+**/dist/
+**/*.tsbuildinfo
+apps/web/.next/
+
+# ── Secrets & environment ────────────────────────────────────
+**/.env
+**/.env.*
+!**/.env.example
+
+# ── Version control ──────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── Tests & coverage ────────────────────────────────────────
+**/tests/
+**/coverage/
+**/jest.config.js
+
+# ── Documentation & metadata ────────────────────────────────
+docs/
+**/*.md
+LICENSE
+CLAUDE.md
+
+# ── Frontend (only package.json needed for workspace resolution)
+apps/web/app/
+apps/web/components/
+apps/web/context/
+apps/web/examples/
+apps/web/hooks/
+apps/web/lib/
+apps/web/public/
+
+# ── API development-only files ───────────────────────────────
+apps/api/scripts/
+apps/api/mock-data/
+apps/api/aps-plugin/
+apps/api/tools/
+apps/api/logs/
+apps/api/uploads/
+apps/api/downloads/
+
+# ── Development tooling & infrastructure ─────────────────────
+tools/
+infra/
+tmp/
+tmpclaude-*
+
+# ── Storage & runtime data ───────────────────────────────────
+storage/
+cache/
+reports/
+test-documents/
+PDFs Chile/
+
+# ── IDE & OS ─────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

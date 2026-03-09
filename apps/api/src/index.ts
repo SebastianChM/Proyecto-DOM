@@ -88,6 +88,10 @@ app.use(
   }),
 );
 
+// ===== HEALTH (mounted before CORS — Docker healthchecks send no Origin) =====
+import healthRouter from "./routes/health";
+app.use("/health", healthRouter);
+
 // ===== CORS =====
 app.use(cors(getCorsOptions()));
 
@@ -136,9 +140,6 @@ app.get("/", (req, res) => {
     '<h1>🚀 DOM BIM Platform API</h1><p>Status: Online</p><p>Check <a href="/health">/health</a> for status.</p>',
   );
 });
-
-import healthRouter from "./routes/health";
-app.use("/health", healthRouter);
 
 // ===== DEBUG ROUTES (Protected with ADMIN) =====
 if (env.ENABLE_DEBUG_ROUTES) {

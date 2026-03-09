@@ -8,14 +8,20 @@ import { resolve } from "path";
 
 // Read version once at startup — works regardless of how the process is launched
 const APP_VERSION = (() => {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(resolve(__dirname, "../../package.json"), "utf-8"),
-    );
-    return pkg.version as string;
-  } catch {
-    return "unknown";
+  // Try both: compiled (dist/src/routes/) and dev (src/routes/)
+  const candidates = [
+    resolve(__dirname, "../../../package.json"), // dist/src/routes → apps/api/
+    resolve(__dirname, "../../package.json"), // src/routes → apps/api/
+  ];
+  for (const p of candidates) {
+    try {
+      const pkg = JSON.parse(readFileSync(p, "utf-8"));
+      if (pkg.version) return pkg.version as string;
+    } catch {
+      /* try next */
+    }
   }
+  return "unknown";
 })();
 
 const router = Router();
