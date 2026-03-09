@@ -4,11 +4,10 @@ import axios from "axios";
 import * as fs from "fs";
 import FormData from "form-data";
 import { logger } from "../../lib/logger";
+import { env } from "../../config/env";
 
 const DA_BASE_URL = "https://developer.api.autodesk.com/da/us-east/v3";
-// Use configured nickname or fallback to client ID (which is the default if not set)
-const FORGE_CLIENT_ID = process.env.APS_CLIENT_ID || "";
-const NICKNAME = process.env.APS_DA_NICKNAME || FORGE_CLIENT_ID;
+const NICKNAME = env.APS_DA_NICKNAME;
 
 export class APSDesignAutomationService {
   constructor() {

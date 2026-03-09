@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import path from "path";
 import handlebars from "handlebars";
 import { logger } from "../lib/logger";
+import { env } from "../config/env";
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
@@ -14,19 +15,14 @@ export class EmailService {
   }
 
   private initializeTransporter() {
-    // Only initialize if credentials are provided
-    if (
-      process.env.SMTP_HOST &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-    ) {
+    if (env.smtpConfigured) {
       this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || "587"),
-        secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+        host: env.SMTP_HOST!,
+        port: env.SMTP_PORT ?? 587,
+        secure: env.SMTP_SECURE,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+          user: env.SMTP_USER!,
+          pass: env.SMTP_PASS!,
         },
       });
       logger.info("[EMAIL] SMTP configuration loaded");
@@ -94,9 +90,7 @@ export class EmailService {
         year: new Date().getFullYear(),
       });
 
-      // Use env var for from address, example.com as fallback (never real domain)
-      const from =
-        process.env.SMTP_FROM || '"BIM Platform" <noreply@example.com>';
+      const from = env.SMTP_FROM;
 
       await this.transporter.sendMail({
         from,
