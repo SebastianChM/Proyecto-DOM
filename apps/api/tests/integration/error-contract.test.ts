@@ -53,3 +53,81 @@ describe("Error Response Contract", () => {
     console.log("=== 500 EXAMPLE ===", JSON.stringify(res.body, null, 2));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Project & Member error contract tests (Commit 5)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Projects & Members", () => {
+  afterAll(async () => {
+    await redis.quit();
+  });
+
+  it("401 — unauthenticated GET /api/projects", async () => {
+    const res = await request(app).get("/api/projects");
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("401 — unauthenticated POST /api/projects", async () => {
+    const res = await request(app)
+      .post("/api/projects")
+      .send({ name: "Test", clientName: "X" });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+  });
+
+  it("401 — unauthenticated POST /api/projects/import-aps", async () => {
+    const res = await request(app)
+      .post("/api/projects/import-aps")
+      .set("Content-Type", "application/json")
+      .send({ name: "T", apsProjectId: "b.1", apsFolderId: "f:1", hubId: "h:1" });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+  });
+
+  it("401 — unauthenticated GET /api/project-members/:id/permissions", async () => {
+    const res = await request(app).get(
+      "/api/project-members/00000000-0000-0000-0000-000000000000/permissions",
+    );
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+  });
+
+  it("contract shape — all error responses have error + type", async () => {
+    // Gather multiple error responses
+    const endpoints = [
+      request(app).get("/api/projects"),
+      request(app).get("/api/project-members/00000000-0000-0000-0000-000000000000/permissions"),
+      request(app).post("/api/projects").set("Content-Type", "application/json").send({ name: "T" }),
+    ];
+
+    const responses = await Promise.all(endpoints);
+    for (const res of responses) {
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      // No internal details leaked
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("prisma");
+      expect(res.body).not.toHaveProperty("password");
+    }
+  });
+});

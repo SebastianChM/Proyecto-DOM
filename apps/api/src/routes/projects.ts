@@ -9,6 +9,8 @@ import {
 import { z } from "zod";
 import { APP_CONFIG } from "../config/constants";
 import { apsWebhooksService } from "../services/aps/webhooks.service";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, unauthorized, notFound } from "../lib/errors";
 
 const router = Router();
 
@@ -90,20 +92,16 @@ const updateProjectSchema = createProjectSchema.partial();
  *         description: Server error
  */
 // Create project
-router.post("/", async (req, res) => {
-  try {
+router.post("/", asyncHandler(async (req, res) => {
     // Validate input
     const validation = createProjectSchema.safeParse(req.body);
     logger.debug("POST /projects validation", { valid: validation.success });
 
     if (!validation.success) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: validation.error.issues.map((e) => ({
-          path: e.path.join("."),
-          message: e.message,
-        })),
-      });
+      throw badRequest("Validation failed", "VALIDATION_ERROR", validation.error.issues.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })));
     }
 
     const {
@@ -120,7 +118,7 @@ router.post("/", async (req, res) => {
     // Usuario autenticado es el owner
     const userId = req.session?.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      throw unauthorized();
     }
 
     // Check Project Limit
@@ -129,10 +127,10 @@ router.post("/", async (req, res) => {
     });
 
     if (projectCount >= APP_CONFIG.LIMITS.MAX_PROJECTS_PER_USER) {
-      return res.status(400).json({
-        error: "Project limit reached",
-        message: `You cannot create more than ${APP_CONFIG.LIMITS.MAX_PROJECTS_PER_USER} projects.`,
-      });
+      throw badRequest(
+        `You cannot create more than ${APP_CONFIG.LIMITS.MAX_PROJECTS_PER_USER} projects.`,
+        "PROJECT_LIMIT_REACHED",
+      );
     }
 
     const project = await prisma.project.create({
@@ -165,32 +163,13 @@ router.post("/", async (req, res) => {
       },
     });
 
-    // Subscribing to Autodesk Webhooks if this is an Autodesk project
-    if (project.isFromAutodesk && project.apsOwnerId) {
-      // apsOwnerId in this context is likely storing the folder/project ID for external projects?
-      // Actually currently 'create project' is local. When we IMPORT/LINK from Autodesk, that's where we need to hook.
-      // But wait, user said "synchronize projects of autodesk".
-      // We need to find where we LINK/IMPORT projects.
-      // If this route creates basic projects, we might need to look for an 'import' route or similar.
-      // Searching for import logic...
-    }
-
     // Invalidate cache after creating project
     await cacheService
       .invalidatePattern("cache:projects:list:*")
       .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
-  } catch (error: unknown) {
-    logger.error("[PROJECTS] Failed to create project", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: "Failed to create project",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -218,11 +197,10 @@ router.post("/", async (req, res) => {
  *         description: Server error
  */
 // List projects (with cache) - Solo proyectos donde el usuario tiene acceso
-router.get("/", async (req, res) => {
-  try {
+router.get("/", asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      throw unauthorized();
     }
 
     const cacheKey = RedisKeys.projectsList(userId);
@@ -269,15 +247,7 @@ router.get("/", async (req, res) => {
       60,
     );
     res.json(projects);
-  } catch (error: unknown) {
-    logger.error("[PROJECTS] Error fetching projects", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -301,8 +271,7 @@ router.get("/", async (req, res) => {
  *         description: Server error
  */
 // Get project by ID - Requiere permiso de lectura
-router.get("/:id", requireProjectAccess, async (req, res) => {
-  try {
+router.get("/:id", requireProjectAccess, asyncHandler(async (req, res) => {
     const cacheKey = RedisKeys.projectDetail(req.params.id);
 
     // Cache for 1 minute
@@ -327,7 +296,7 @@ router.get("/:id", requireProjectAccess, async (req, res) => {
     );
 
     if (!project) {
-      return res.status(404).json({ error: "Project not found" });
+      throw notFound("Project not found", "PROJECT_NOT_FOUND");
     }
 
     // Check status for translating files - REMOVED FOR PERFORMANCE
@@ -353,12 +322,7 @@ router.get("/:id", requireProjectAccess, async (req, res) => {
     });
 
     res.json({ ...project, files: filesWithProgress });
-  } catch (error: unknown) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -393,19 +357,17 @@ router.get("/:id", requireProjectAccess, async (req, res) => {
  *         description: Server error
  */
 // Update project - Requiere permiso de edición
-router.put("/:id", requirePermission("project:update"), async (req, res) => {
-  try {
+router.put("/:id", requirePermission("project:update"), asyncHandler(async (req, res) => {
     const validation = updateProjectSchema.safeParse(req.body);
     logger.debug("PUT /projects/:id validation", { valid: validation.success });
 
     if (!validation.success) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: validation.error.issues.map((e) => ({
+      throw badRequest("Validation failed", "VALIDATION_ERROR", 
+        validation.error.issues.map((e) => ({
           path: e.path.join("."),
           message: e.message,
-        })),
-      });
+        }))
+      );
     }
 
     const {
@@ -440,12 +402,7 @@ router.put("/:id", requirePermission("project:update"), async (req, res) => {
     ]);
 
     res.json(project);
-  } catch (error: unknown) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -467,8 +424,7 @@ router.put("/:id", requirePermission("project:update"), async (req, res) => {
  *         description: Server error
  */
 // Delete project - Requiere permiso de eliminación
-router.delete("/:id", requirePermission("project:delete"), async (req, res) => {
-  try {
+router.delete("/:id", requirePermission("project:delete"), asyncHandler(async (req, res) => {
     await prisma.project.delete({
       where: { id: req.params.id },
     });
@@ -481,12 +437,7 @@ router.delete("/:id", requirePermission("project:delete"), async (req, res) => {
     ]);
 
     res.json({ success: true });
-  } catch (error: unknown) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 const importApsProjectSchema = z.object({
   name: z.string(),
@@ -506,17 +457,13 @@ const importApsProjectSchema = z.object({
  *     tags: [Projects]
  */
 // Import Autodesk Project & Auto-Subscribe to Webhooks
-router.post("/import-aps", async (req, res) => {
-  try {
+router.post("/import-aps", asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
-    if (!userId)
-      return res.status(401).json({ error: "Authentication required" });
+    if (!userId) throw unauthorized("Authentication required");
 
     const validation = importApsProjectSchema.safeParse(req.body);
     if (!validation.success) {
-      return res
-        .status(400)
-        .json({ error: "Invalid input", details: validation.error });
+      throw badRequest("Invalid input", "VALIDATION_ERROR", validation.error);
     }
 
     const {
@@ -585,15 +532,6 @@ router.post("/import-aps", async (req, res) => {
       .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
-  } catch (error: unknown) {
-    logger.error("[PROJECTS] Import failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: "Failed to import project",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 export default router;

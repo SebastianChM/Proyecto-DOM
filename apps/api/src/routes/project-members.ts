@@ -17,6 +17,8 @@ import { cacheService } from "../lib/redis";
 import { logger } from "../lib/logger";
 import { emailService } from "../services/email.service";
 import { CONSTANTS } from "../config/constants";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, unauthorized, notFound, internal } from "../lib/errors";
 
 const router = Router();
 
@@ -45,14 +47,11 @@ const getProjectIdFromId = (req: Request) => req.params.id;
  * Get current user's permissions in a project
  * Returns: { role, permissions[], isOwner }
  */
-router.get("/:id/permissions", async (req, res) => {
-  try {
+router.get("/:id/permissions", asyncHandler(async (req, res) => {
     const projectId = req.params.id;
     const userId = req.session?.user?.id;
 
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    if (!userId) throw unauthorized("Authentication required");
 
     // Get user permissions
     const permissions = await authorizationService.getUserPermissions(
@@ -100,17 +99,7 @@ router.get("/:id/permissions", async (req, res) => {
       isOwner,
       isAdmin: user?.role === "ADMIN",
     });
-  } catch (error: unknown) {
-    const err = error as Error;
-    logger.error("[PROJECT_MEMBERS] Error getting permissions", {
-      error: err.message,
-    });
-    res.status(500).json({
-      error: "Failed to get permissions",
-      message: err.message,
-    });
-  }
-});
+}));
 
 /**
  * GET /api/projects/:id/members
@@ -120,14 +109,11 @@ router.get("/:id/permissions", async (req, res) => {
 router.get(
   "/:id/members",
   requirePermission("project:read", getProjectIdFromId),
-  async (req, res) => {
-    try {
+  asyncHandler(async (req, res) => {
       const projectId = req.params.id;
       const userId = req.session?.user?.id;
 
-      if (!userId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
+      if (!userId) throw unauthorized("Authentication required");
 
       const data = await authorizationService.getProjectMembers(
         projectId,
@@ -166,17 +152,7 @@ router.get(
       });
 
       res.json(result);
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[PROJECT_MEMBERS] Error listing project members", {
-        error: err.message,
-      });
-      res.status(500).json({
-        error: "Failed to list members",
-        message: err.message,
-      });
-    }
-  },
+  }),
 );
 
 /**
@@ -187,25 +163,21 @@ router.get(
 router.post(
   "/:id/members",
   requirePermission("member:invite", getProjectIdFromId),
-  async (req, res) => {
-    try {
+  asyncHandler(async (req, res) => {
       const projectId = req.params.id;
       const userId = req.session?.user?.id;
 
-      if (!userId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
+      if (!userId) throw unauthorized("Authentication required");
 
       // Validate input
       const validation = inviteMemberSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({
-          error: "Validation failed",
-          details: validation.error.issues.map((e) => ({
+        throw badRequest("Validation failed", "VALIDATION_ERROR",
+          validation.error.issues.map((e) => ({
             path: e.path.join("."),
             message: e.message,
-          })),
-        });
+          }))
+        );
       }
 
       const { email, role } = validation.data;
@@ -234,10 +206,7 @@ router.post(
                 ? (createError as Error).message
                 : String(createError),
           });
-          return res.status(500).json({
-            error: "Failed to create user",
-            message: "No se pudo registrar al usuario invitado",
-          });
+          throw internal("No se pudo registrar al usuario invitado", "USER_PROVISION_FAILED");
         }
       }
 
@@ -248,10 +217,7 @@ router.post(
       });
 
       if (project?.ownerId === targetUser.id) {
-        return res.status(400).json({
-          error: "Cannot share with owner",
-          message: "No puedes compartir un proyecto con su dueño",
-        });
+        throw badRequest("Cannot share with owner", "OWNER_SHARE_FORBIDDEN");
       }
 
       // Send Email Notification
@@ -336,17 +302,7 @@ router.post(
           invitedByUser: invitedBy,
         },
       });
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[PROJECT_MEMBERS] Error sharing project", {
-        error: err.message,
-      });
-      res.status(500).json({
-        error: "Failed to share project",
-        message: err.message,
-      });
-    }
-  },
+  }),
 );
 
 /**
@@ -357,21 +313,19 @@ router.post(
 router.put(
   "/:id/members/:userId",
   requirePermission("member:update", getProjectIdFromId),
-  async (req, res) => {
-    try {
+  asyncHandler(async (req, res) => {
       const projectId = req.params.id;
       const targetUserId = req.params.userId;
 
       // Validate input
       const validation = updateMemberSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({
-          error: "Validation failed",
-          details: validation.error.issues.map((e) => ({
+        throw badRequest("Validation failed", "VALIDATION_ERROR",
+          validation.error.issues.map((e) => ({
             path: e.path.join("."),
             message: e.message,
-          })),
-        });
+          }))
+        );
       }
 
       const { role } = validation.data;
@@ -385,18 +339,12 @@ router.put(
       });
 
       if (!member) {
-        return res.status(404).json({
-          error: "Member not found",
-          message: "El usuario no es miembro de este proyecto",
-        });
+        throw notFound("Member not found", "MEMBER_NOT_FOUND");
       }
 
       // No se puede cambiar rol de OWNER
       if (member.role === "OWNER") {
-        return res.status(400).json({
-          error: "Cannot change owner role",
-          message: "No se puede cambiar el rol del dueño",
-        });
+        throw badRequest("Cannot change owner role", "OWNER_ROLE_IMMUTABLE");
       }
 
       // Actualizar rol
@@ -423,17 +371,7 @@ router.put(
         success: true,
         member: updated,
       });
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[PROJECT_MEMBERS] Error updating member role", {
-        error: err.message,
-      });
-      res.status(500).json({
-        error: "Failed to update role",
-        message: err.message,
-      });
-    }
-  },
+  }),
 );
 
 /**
@@ -444,15 +382,12 @@ router.put(
 router.delete(
   "/:id/members/:userId",
   requirePermission("member:remove", getProjectIdFromId),
-  async (req, res) => {
-    try {
+  asyncHandler(async (req, res) => {
       const projectId = req.params.id;
       const targetUserId = req.params.userId;
       const requesterId = req.session?.user?.id;
 
-      if (!requesterId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
+      if (!requesterId) throw unauthorized("Authentication required");
 
       // Verificar que el miembro existe
       const member = await prisma.projectMember.findFirst({
@@ -463,18 +398,12 @@ router.delete(
       });
 
       if (!member) {
-        return res.status(404).json({
-          error: "Member not found",
-          message: "El usuario no es miembro de este proyecto",
-        });
+        throw notFound("Member not found", "MEMBER_NOT_FOUND");
       }
 
       // No se puede revocar al OWNER
       if (member.role === "OWNER") {
-        return res.status(400).json({
-          error: "Cannot remove owner",
-          message: "No se puede remover al dueño del proyecto",
-        });
+        throw badRequest("Cannot remove owner", "OWNER_REMOVE_FORBIDDEN");
       }
 
       // Revocar acceso
@@ -485,27 +414,14 @@ router.delete(
       );
 
       if (!success) {
-        return res.status(500).json({
-          error: "Failed to revoke access",
-          message: "No se pudo revocar el acceso",
-        });
+        throw internal("No se pudo revocar el acceso", "REVOKE_FAILED");
       }
 
       res.json({
         success: true,
         message: "Acceso revocado correctamente",
       });
-    } catch (error: unknown) {
-      const err = error as Error;
-      logger.error("[PROJECT_MEMBERS] Error revoking access", {
-        error: err.message,
-      });
-      res.status(500).json({
-        error: "Failed to revoke access",
-        message: err.message,
-      });
-    }
-  },
+  }),
 );
 
 export default router;

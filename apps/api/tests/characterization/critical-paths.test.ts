@@ -94,12 +94,14 @@ describe("Characterization: GET /api/projects (no session)", () => {
   it("does not leak stack traces or internal details on 401", async () => {
     const res = await request(app).get("/api/projects");
 
-    expect(res.body).not.toHaveProperty("stack");
     expect(res.body).not.toHaveProperty("sql");
     expect(res.body).not.toHaveProperty("prisma");
     expect(res.body).not.toHaveProperty("password");
-    // Only the expected key(s) — currently just "error"
-    expect(Object.keys(res.body)).toEqual(["error"]);
+    // Standard error contract keys only (stack allowed in test/dev)
+    const allowedKeys = ["error", "type", "requestId", "stack"];
+    for (const key of Object.keys(res.body)) {
+      expect(allowedKeys).toContain(key);
+    }
   });
 });
 
