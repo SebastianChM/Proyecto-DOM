@@ -40,6 +40,7 @@ export const basicAuth = async (
       await cacheService.set(cacheKey, req.session.user, 300);
     } catch (e) {
       logger.warn("[AUTH] Session cache write failed", {
+        ...logger.fromReq(req),
         userId: req.session.user.id,
         error: e instanceof Error ? e.message : String(e),
       });

@@ -122,6 +122,7 @@ router.get(
     // Stream safety: handle errors via event, not thrown after headers sent
     stream.on("error", (err: Error) => {
       logger.error("[CONVERSION] Download stream error", {
+        ...logger.fromReq(req),
         error: err.message,
       });
       if (!res.headersSent) {

@@ -4,6 +4,11 @@
  * Professional logging utility that respects LOG_LEVEL environment variable.
  * Replaces console.log/warn/error with structured, level-aware logging.
  *
+ * All metadata is automatically redacted before serialization:
+ * - Sensitive keys (tokens, secrets, passwords) → "[REDACTED]"
+ * - Emails → masked ("se***@dom.com")
+ * - User IDs → truncated ("550e8400…")
+ *
  * Levels (in order of severity):
  * - debug: Detailed debugging info (development only)
  * - info: General information and success messages
@@ -12,8 +17,9 @@
  */
 
 import { env } from "../config/env";
+import { redactMeta } from "./redact";
 
-type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -28,39 +34,77 @@ function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= currentLevel;
 }
 
-function formatMessage(
+// ── External transport hook (Sentry / Datadog / etc.) ───────────────
+// Call setTransport() once at startup to forward logs to an external service.
+// The transport receives the ALREADY-REDACTED meta so it never sees secrets.
+type TransportFn = (
   level: LogLevel,
   message: string,
   meta?: Record<string, unknown>,
+) => void;
+let externalTransport: TransportFn | null = null;
+
+export function setTransport(fn: TransportFn): void {
+  externalTransport = fn;
+}
+
+// ── Format ──────────────────────────────────────────────────────────
+function formatMessage(
+  level: LogLevel,
+  message: string,
+  safeMeta?: Record<string, unknown>,
 ): string {
   const timestamp = new Date().toISOString();
-  const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+  const metaStr = safeMeta ? ` ${JSON.stringify(safeMeta)}` : "";
   return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+}
+
+function emit(
+  level: LogLevel,
+  message: string,
+  meta?: Record<string, unknown>,
+): void {
+  if (!shouldLog(level)) return;
+  const safe = meta ? redactMeta(meta) : undefined;
+  console[level](formatMessage(level, message, safe));
+  if (externalTransport) externalTransport(level, message, safe);
+}
+
+// ── Request context helper ──────────────────────────────────────────
+interface ReqLike {
+  headers: Record<string, unknown>;
+  method: string;
+  path: string;
+  originalUrl?: string;
 }
 
 export const logger = {
   debug(message: string, meta?: Record<string, unknown>): void {
-    if (shouldLog("debug")) {
-      console.debug(formatMessage("debug", message, meta));
-    }
+    emit("debug", message, meta);
   },
 
   info(message: string, meta?: Record<string, unknown>): void {
-    if (shouldLog("info")) {
-      console.info(formatMessage("info", message, meta));
-    }
+    emit("info", message, meta);
   },
 
   warn(message: string, meta?: Record<string, unknown>): void {
-    if (shouldLog("warn")) {
-      console.warn(formatMessage("warn", message, meta));
-    }
+    emit("warn", message, meta);
   },
 
   error(message: string, meta?: Record<string, unknown>): void {
-    if (shouldLog("error")) {
-      console.error(formatMessage("error", message, meta));
-    }
+    emit("error", message, meta);
+  },
+
+  /**
+   * Extract common request context for log meta.
+   * Spread into any logger call: `logger.info("msg", { ...logger.fromReq(req), extra })`.
+   */
+  fromReq(req: ReqLike): { requestId: unknown; method: string; path: string } {
+    return {
+      requestId: req.headers["x-request-id"],
+      method: req.method,
+      path: req.originalUrl?.split("?")[0] ?? req.path,
+    };
   },
 
   // Worker-specific logging helpers

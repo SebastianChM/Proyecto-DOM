@@ -31,6 +31,7 @@ router.post(
       if (!workItemId || !status) {
         logger.warn(
           "[DA_CALLBACK] Invalid payload: missing workItemId or status",
+          logger.fromReq(req),
         );
         return res
           .status(400)
@@ -39,6 +40,7 @@ router.post(
 
       // Sanitized log (Hito 5 Note 12: NO full body)
       logger.debug("[DA_CALLBACK] Received", {
+        ...logger.fromReq(req),
         workItemId: workItemId.substring(0, 30) + "...",
         status,
         hasReportUrl: !!reportUrl,
@@ -53,6 +55,7 @@ router.post(
 
       if (!conversion) {
         logger.warn("[DA_CALLBACK] Unknown workItemId", {
+          ...logger.fromReq(req),
           workItemId: workItemId.substring(0, 30),
         });
         return res
@@ -98,11 +101,13 @@ router.post(
       });
 
       logger.info("[DA_CALLBACK] Enqueued for processing", {
+        ...logger.fromReq(req),
         conversionId: conversion.id,
         status,
       });
     } catch (error) {
       logger.error("[DA_CALLBACK] Error", {
+        ...logger.fromReq(req),
         error:
           error instanceof Error ? error.message.substring(0, 200) : "Unknown",
       });

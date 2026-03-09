@@ -94,8 +94,15 @@ export const errorHandler = (
       500;
     const rawMessage =
       err instanceof Error ? err.message : "Internal Server Error";
+
+    // Sanitize infrastructure errors even in dev — never leak driver details
+    const isInfraLeak =
+      statusCode >= 500 &&
+      /prisma|ECONNREFUSED|ETIMEDOUT|datasource/i.test(rawMessage);
     const humanMessage =
-      statusCode >= 500 && !isDev ? "Internal Server Error" : rawMessage;
+      statusCode >= 500 && (!isDev || isInfraLeak)
+        ? "Internal Server Error"
+        : rawMessage;
     body = {
       error: humanMessage,
       type: statusCode >= 500 ? "InternalServerError" : "Error",

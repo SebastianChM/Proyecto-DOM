@@ -72,6 +72,7 @@ router.get("/callback", async (req, res) => {
     // Handle errors or user cancellation
     if (error) {
       logger.warn("[AUTH] Callback error", {
+        ...logger.fromReq(req),
         error,
         description: req.query.error_description,
       });
@@ -126,7 +127,10 @@ router.get("/callback", async (req, res) => {
         profileError instanceof Error
           ? profileError.message
           : String(profileError);
-      logger.error("[AUTH] Could not fetch user profile", { error: msg });
+      logger.error("[AUTH] Could not fetch user profile", {
+        ...logger.fromReq(req),
+        error: msg,
+      });
 
       // In production, fail authentication if profile cannot be fetched
       if (env.NODE_ENV === "production") {
@@ -179,16 +183,21 @@ router.get("/callback", async (req, res) => {
     // Log role changes for audit
     if (previousRole && previousRole !== user.role) {
       logger.info("[AUDIT] Role changed", {
+        ...logger.fromReq(req),
         email: user.email,
         from: previousRole,
         to: user.role,
       });
     } else if (!previousRole && user.role === "ADMIN") {
-      logger.info("[AUDIT] New ADMIN user created", { email: user.email });
+      logger.info("[AUDIT] New ADMIN user created", {
+        ...logger.fromReq(req),
+        email: user.email,
+      });
     }
 
     // Log auth callback success
     logger.info("[AUTH] Callback success", {
+      ...logger.fromReq(req),
       email: user.email,
       role: user.role,
     });
@@ -220,7 +229,8 @@ router.get("/callback", async (req, res) => {
       if (env.NODE_ENV !== "production") {
         const sessionSize = JSON.stringify(req.session).length;
         logger.debug("[AUTH] Auth Callback", {
-          user: req.session.user.email,
+          ...logger.fromReq(req),
+          email: req.session.user.email,
           hasToken: !!req.session.token,
           sessionSizeBytes: sessionSize,
           isOverLimit: sessionSize > CONSTANTS.SESSION.MAX_COOKIE_SIZE_BYTES,
@@ -236,7 +246,10 @@ router.get("/callback", async (req, res) => {
     logger.debug("[AUTH] Saving session before redirect...");
     req.session.save((err) => {
       if (err) {
-        logger.error("[AUTH] Session save error", { error: String(err) });
+        logger.error("[AUTH] Session save error", {
+          ...logger.fromReq(req),
+          error: String(err),
+        });
         const frontendUrl = getFrontendUrl();
         return res.redirect(
           `${frontendUrl}?error=session_save_failed&details=${encodeURIComponent(String(err))}`,
@@ -246,7 +259,10 @@ router.get("/callback", async (req, res) => {
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.error("[AUTH] Callback error", { error: msg });
+    logger.error("[AUTH] Callback error", {
+      ...logger.fromReq(req),
+      error: msg,
+    });
     const frontendUrl = getFrontendUrl();
     res.redirect(
       `${frontendUrl}?error=auth_failed&details=${encodeURIComponent(msg)}`,

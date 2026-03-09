@@ -35,7 +35,9 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/recent", asyncHandler(async (req, res) => {
+router.get(
+  "/recent",
+  asyncHandler(async (req, res) => {
     const userId = (req as unknown as RequestWithSession).session?.user?.id;
     if (!userId) {
       throw unauthorized("Authentication required");
@@ -74,10 +76,13 @@ router.get("/recent", asyncHandler(async (req, res) => {
     );
 
     res.json(files);
-}));
+  }),
+);
 
 // List files for a project
-router.get("/project/:projectId", asyncHandler(async (req, res) => {
+router.get(
+  "/project/:projectId",
+  asyncHandler(async (req, res) => {
     const { projectId } = req.params;
     const files = await prisma.file.findMany({
       where: { projectId },
@@ -114,7 +119,10 @@ router.get("/project/:projectId", asyncHandler(async (req, res) => {
         } catch (e) {
           logger.error(
             `[FILES_CRUD] Failed to check manifest for file ${file.id}`,
-            { error: e instanceof Error ? e.message : String(e) },
+            {
+              ...logger.fromReq(req),
+              error: e instanceof Error ? e.message : String(e),
+            },
           );
         }
       }
@@ -139,7 +147,8 @@ router.get("/project/:projectId", asyncHandler(async (req, res) => {
     });
 
     res.json(filesWithProgress);
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -163,7 +172,9 @@ router.get("/project/:projectId", asyncHandler(async (req, res) => {
  *         description: Server error
  */
 // Get file details
-router.get("/:id", asyncHandler(async (req, res) => {
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
       include: {
@@ -212,13 +223,15 @@ router.get("/:id", asyncHandler(async (req, res) => {
         }
       } catch (e) {
         logger.error("[FILES_CRUD] Failed to check manifest", {
+          ...logger.fromReq(req),
           error: e instanceof Error ? e.message : String(e),
         });
       }
     }
 
     res.json(file);
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -242,7 +255,9 @@ router.get("/:id", asyncHandler(async (req, res) => {
  *         description: Server error
  */
 // Get file versions (from APS Data Management for ACC/BIM 360 files)
-router.get("/:id/versions", asyncHandler(async (req, res) => {
+router.get(
+  "/:id/versions",
+  asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
       include: {
@@ -263,11 +278,12 @@ router.get("/:id/versions", asyncHandler(async (req, res) => {
     };
     if (apsFile.apsProjectId && apsFile.apsItemId) {
       // Get 3-legged token from session
-      const accessToken = (req as unknown as RequestWithSession).session?.apsToken;
+      const accessToken = (req as unknown as RequestWithSession).session
+        ?.apsToken;
 
       if (!accessToken) {
         throw unauthorized(
-          "Not authenticated with Autodesk. Please sign in again."
+          "Not authenticated with Autodesk. Please sign in again.",
         );
       }
 
@@ -344,7 +360,8 @@ router.get("/:id/versions", asyncHandler(async (req, res) => {
             ],
       source: "LOCAL",
     });
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -368,7 +385,9 @@ router.get("/:id/versions", asyncHandler(async (req, res) => {
  *         description: Server error
  */
 // Delete file
-router.delete("/:id", asyncHandler(async (req, res) => {
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Check if file exists
@@ -386,6 +405,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
     });
 
     res.json({ success: true });
-}));
+  }),
+);
 
 export default router;

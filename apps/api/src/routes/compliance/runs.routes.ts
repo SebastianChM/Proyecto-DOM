@@ -23,7 +23,9 @@ const bimQueryService = new BimQueryService();
  * POST /api/compliance-v2/runs
  * Execute a new compliance run
  */
-router.post("/", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId, modelUrn, elements } = req.body;
 
     if (!rulesetId) {
@@ -40,6 +42,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
 
     logger.info(
       `[COMPLIANCE_RUNS] Starting run: ruleset=${rulesetId}, elements=${elements.length}`,
+      logger.fromReq(req),
     );
 
     const result = await complianceRunnerService.run(
@@ -50,14 +53,17 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     );
 
     res.status(201).json(result);
-}));
+  }),
+);
 
 /**
  * POST /api/compliance-v2/runs/model
  * Execute compliance run on a REAL model from APS
  * This extracts properties from the model and validates against rules
  */
-router.post("/model", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/model",
+  asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId, modelUrn, modelName } = req.body;
 
     if (!rulesetId) {
@@ -69,6 +75,7 @@ router.post("/model", asyncHandler(async (req: Request, res: Response) => {
     }
 
     logger.info(`[COMPLIANCE_RUNS] Running compliance on real model`, {
+      ...logger.fromReq(req),
       urn: modelUrn,
       rulesetId,
     });
@@ -80,7 +87,7 @@ router.post("/model", asyncHandler(async (req: Request, res: Response) => {
     if (!bimProperties || bimProperties.length === 0) {
       throw badRequest(
         "No properties could be extracted from the model. Make sure the model is processed.",
-        "MODEL_NO_PROPERTIES"
+        "MODEL_NO_PROPERTIES",
       );
     }
 
@@ -107,16 +114,20 @@ router.post("/model", asyncHandler(async (req: Request, res: Response) => {
 
     logger.info(
       `[COMPLIANCE_RUNS] Model compliance complete. Score: ${result.complianceScore}%, Issues: ${result.issues?.length || 0}`,
+      logger.fromReq(req),
     );
 
     res.status(201).json(result);
-}));
+  }),
+);
 
 /**
  * POST /api/compliance-v2/runs/demo
  * Execute a compliance run with demo/test data
  */
-router.post("/demo", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/demo",
+  asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId } = req.body;
 
     if (!rulesetId) {
@@ -136,7 +147,10 @@ router.post("/demo", asyncHandler(async (req: Request, res: Response) => {
     // Create demo elements matching the rules
     const demoElements: BimElement[] = generateDemoElements(ruleset);
 
-    logger.info(`[COMPLIANCE_RUNS] Demo run: ${demoElements.length} elements`);
+    logger.info(
+      `[COMPLIANCE_RUNS] Demo run: ${demoElements.length} elements`,
+      logger.fromReq(req),
+    );
 
     const result = await complianceRunnerService.run(
       demoElements,
@@ -146,13 +160,16 @@ router.post("/demo", asyncHandler(async (req: Request, res: Response) => {
     );
 
     res.status(201).json(result);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/runs
  * List compliance runs for a project
  */
-router.get("/", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
     const { projectId, limit = "10" } = req.query;
 
     if (!projectId) {
@@ -165,13 +182,16 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
     );
 
     res.json(runs);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/runs/models
  * Get available models from a project for compliance checking
  */
-router.get("/models", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/models",
+  asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.query;
 
     if (!projectId) {
@@ -204,13 +224,16 @@ router.get("/models", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.json(models);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/runs/projects
  * Get available projects for compliance checking
  */
-router.get("/projects", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/projects",
+  asyncHandler(async (req: Request, res: Response) => {
     const projects = await prisma.project.findMany({
       select: {
         id: true,
@@ -228,13 +251,16 @@ router.get("/projects", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.json(projects);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/runs/:id
  * Get a specific compliance run
  */
-router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const run = await prisma.complianceRun.findUnique({
@@ -252,13 +278,16 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
     }
 
     res.json(run);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/runs/:id/issues
  * Get issues for a specific run
  */
-router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id/issues",
+  asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { severity, category } = req.query;
 
@@ -278,13 +307,16 @@ router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.json(issues);
-}));
+  }),
+);
 
 /**
  * PUT /api/compliance-v2/runs/issues/:issueId/status
  * Update issue status (e.g., mark as resolved)
  */
-router.put("/issues/:issueId/status", asyncHandler(async (req: Request, res: Response) => {
+router.put(
+  "/issues/:issueId/status",
+  asyncHandler(async (req: Request, res: Response) => {
     const { issueId } = req.params;
     const { status, resolutionNote } = req.body;
 
@@ -298,7 +330,8 @@ router.put("/issues/:issueId/status", asyncHandler(async (req: Request, res: Res
     });
 
     res.json(updated);
-}));
+  }),
+);
 
 /**
  * Generate demo elements for testing
