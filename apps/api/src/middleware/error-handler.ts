@@ -24,11 +24,12 @@ interface ErrorResponse {
 const isDev = process.env.NODE_ENV !== "production";
 
 /** Duck-type check for ZodError (works with both Zod v3 and v4). */
-function isZodError(err: unknown): err is Error & { issues: unknown[] } {
+function isZodError(err: unknown): err is { name: string; issues: unknown[] } {
   return (
-    err instanceof Error &&
-    err.name === "ZodError" &&
-    Array.isArray((err as unknown as Record<string, unknown>).issues)
+    typeof err === "object" &&
+    err !== null &&
+    (err as Record<string, unknown>).name === "ZodError" &&
+    Array.isArray((err as Record<string, unknown>).issues)
   );
 }
 

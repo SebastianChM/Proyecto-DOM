@@ -105,21 +105,29 @@ router.get(
 router.get(
   "/:conversionId/download",
   asyncHandler(async (req, res) => {
+    const conversion = await conversionService.getConversionStatus(
+      req.params.conversionId,
+    );
+    if (!conversion || !conversion.resultUrn) {
+      throw notFound("Conversion result not found", "CONVERSION_NOT_FOUND");
+    }
+
     const { stream, filename, contentType, length } =
       await conversionService.getDownloadData(req.params.conversionId);
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`,
-    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", contentType);
     if (length) res.setHeader("Content-Length", length);
 
     // Stream safety: handle errors via event, not thrown after headers sent
     stream.on("error", (err: Error) => {
-      logger.error("[CONVERSION] Download stream error", { error: err.message });
+      logger.error("[CONVERSION] Download stream error", {
+        error: err.message,
+      });
       if (!res.headersSent) {
-        res.status(500).json({ error: "Stream error", type: "InternalServerError" });
+        res
+          .status(500)
+          .json({ error: "Stream error", type: "InternalServerError" });
       } else {
         res.destroy();
       }
