@@ -38,7 +38,8 @@ export function parseCorsOrigins(raw: string): string[] {
     .filter((o) => o.length > 0);
 }
 
-const envSchema = z
+/** @internal Exported for test use — do not import in production code */
+export const envSchema = z
   .object({
     NODE_ENV: z
       .enum(["development", "production", "test"])
