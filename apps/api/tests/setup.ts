@@ -17,6 +17,47 @@ process.env.CORS_ORIGINS = "http://localhost:3000";
 process.env.APS_WARMUP_ON_START = "false";
 process.env.RUN_WORKERS = "false";
 
+// Chainable pipeline mock for rate-limiter and cache bulk ops
+class MockPipeline {
+  private ops: number = 0;
+  zremrangebyscore(): this {
+    this.ops++;
+    return this;
+  }
+  zcard(): this {
+    this.ops++;
+    return this;
+  }
+  zadd(): this {
+    this.ops++;
+    return this;
+  }
+  expire(): this {
+    this.ops++;
+    return this;
+  }
+  setex(): this {
+    this.ops++;
+    return this;
+  }
+  del(): this {
+    this.ops++;
+    return this;
+  }
+  get(): this {
+    this.ops++;
+    return this;
+  }
+  set(): this {
+    this.ops++;
+    return this;
+  }
+  async exec(): Promise<Array<[null, unknown]>> {
+    // Return [null, value] pairs — null means no error
+    return Array.from({ length: this.ops }, () => [null, 0]);
+  }
+}
+
 // Manual Redis mock - no external dependencies
 class MockRedis extends EventEmitter {
   private data: Map<string, string> = new Map();
@@ -50,6 +91,35 @@ class MockRedis extends EventEmitter {
   async keys(pattern: string): Promise<string[]> {
     const regex = new RegExp(pattern.replace(/\*/g, ".*"));
     return Array.from(this.data.keys()).filter((k) => regex.test(k));
+  }
+
+  async setex(key: string, _ttl: number, value: string): Promise<"OK"> {
+    this.data.set(key, value);
+    return "OK";
+  }
+
+  async expire(): Promise<number> {
+    return 1;
+  }
+
+  async zadd(): Promise<number> {
+    return 1;
+  }
+
+  async zcard(): Promise<number> {
+    return 0;
+  }
+
+  async zremrangebyscore(): Promise<number> {
+    return 0;
+  }
+
+  async zrange(): Promise<string[]> {
+    return [];
+  }
+
+  pipeline(): MockPipeline {
+    return new MockPipeline();
   }
 
   async ping(): Promise<string> {
