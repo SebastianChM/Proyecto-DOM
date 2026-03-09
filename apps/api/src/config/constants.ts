@@ -123,6 +123,25 @@ export const VIEWER_TOKEN = {
 } as const;
 
 // =============================================================================
+// OBSERVABILITY
+// =============================================================================
+export const OBSERVABILITY = {
+  /** Paths whose HTTP lifecycle logs are demoted to debug level */
+  QUIET_PATHS: [
+    "/health",
+    "/favicon.ico",
+    "/api-docs",
+    "/downloads",
+  ] as readonly string[],
+  /** Max recursion depth for redactMeta() */
+  REDACT_MAX_DEPTH: 3,
+  /** Visible prefix chars when masking emails ("se***@dom.com") */
+  EMAIL_VISIBLE_CHARS: 2,
+  /** Chars to keep when truncating IDs ("550e8400…") */
+  ID_TRUNCATE_LENGTH: 8,
+} as const;
+
+// =============================================================================
 // NOTIFICATION THRESHOLDS
 // =============================================================================
 export const NOTIFICATION = {
@@ -170,4 +189,5 @@ export const CONSTANTS = {
   REDIS,
   VIEWER_TOKEN,
   NOTIFICATION,
+  OBSERVABILITY,
 } as const;
