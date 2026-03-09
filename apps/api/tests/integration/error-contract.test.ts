@@ -214,3 +214,97 @@ describe("Error Contract — Files", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Compliance error contract tests (Commit 7)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Compliance", () => {
+  it("400 — POST /api/compliance-v2/runs without rulesetId", async () => {
+    const res = await request(app)
+      .post("/api/compliance-v2/runs")
+      .set("Content-Type", "application/json")
+      .send({ projectId: "p1", elements: [{ id: "1" }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "rulesetId is required",
+      type: "BadRequest",
+      code: "MISSING_FIELDS",
+    });
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== COMPLIANCE 400 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("400 — POST /api/compliance-v2/rulesets missing name/discipline", async () => {
+    const res = await request(app)
+      .post("/api/compliance-v2/rulesets")
+      .set("Content-Type", "application/json")
+      .send({ description: "test" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "Name and discipline are required",
+      type: "BadRequest",
+      code: "MISSING_FIELDS",
+    });
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("404/500 — GET /api/compliance-v2/rulesets/:id not found (sanitized)", async () => {
+    const res = await request(app).get(
+      "/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000"
+    );
+
+    // Without DB: 500 (Prisma can't connect). With DB: 404.
+    // Either way, contract shape must hold.
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("requestId");
+    expect(typeof res.body.error).toBe("string");
+
+    console.log("=== COMPLIANCE 404/500 EXAMPLE ===", JSON.stringify({ status: res.status, type: res.body.type }, null, 2));
+  });
+
+  it("404/500 — GET /api/compliance-v2/runs/:id not found (sanitized)", async () => {
+    const res = await request(app).get(
+      "/api/compliance-v2/runs/00000000-0000-0000-0000-000000000000"
+    );
+
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("requestId");
+    expect(typeof res.body.error).toBe("string");
+  });
+
+  it("400 — POST /api/compliance/verify without file or URN", async () => {
+    const res = await request(app)
+      .post("/api/compliance/verify")
+      .field("urn", "");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("error");
+    expect(res.body).toHaveProperty("type", "BadRequest");
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("contract shape — compliance errors include error + type + requestId", async () => {
+    const responses = await Promise.all([
+      request(app).post("/api/compliance-v2/runs").set("Content-Type", "application/json").send({}),
+      request(app).get("/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000"),
+      request(app).post("/api/compliance-v2/rulesets").set("Content-Type", "application/json").send({}),
+    ]);
+
+    for (const res of responses) {
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(res.body).toHaveProperty("requestId");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("prisma");
+    }
+  });
+});
