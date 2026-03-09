@@ -2,8 +2,6 @@ import express from "express";
 import dashboardRouter from "./routes/dashboard";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
-// import cookieSession from "cookie-session"; // Replaced by express-session
 import crypto from "crypto";
 
 import { rateLimiter } from "./config/rate-limit.config";
@@ -92,8 +90,9 @@ app.use(
 // ===== CORS =====
 app.use(cors(getCorsOptions()));
 
-// ===== LOGGING =====
-app.use(morgan("dev"));
+// ===== HTTP LIFECYCLE LOGGING =====
+import { httpLogger } from "./middleware/http-logger";
+app.use(httpLogger);
 
 // ===== BODY PARSERS =====
 // Reduced limits from 50mb for security
