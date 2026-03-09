@@ -4,6 +4,8 @@ import { modelDerivativeService } from "../../services/aps/model-derivative.serv
 import prisma from "../../lib/prisma";
 import { cacheService } from "../../lib/redis";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { unauthorized, notFound } from "../../lib/errors";
 
 // Define RequestWithSession locally since it's not exported globally yet
 interface SessionData {
@@ -29,11 +31,10 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/recent", async (req, res) => {
-  try {
-    const userId = (req as RequestWithSession).session?.user?.id;
+router.get("/recent", asyncHandler(async (req, res) => {
+    const userId = (req as unknown as RequestWithSession).session?.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      throw unauthorized("Authentication required");
     }
 
     const cacheKey = `cache:files:recent:${userId}`;
@@ -69,16 +70,10 @@ router.get("/recent", async (req, res) => {
     );
 
     res.json(files);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 // List files for a project
-router.get("/project/:projectId", async (req, res) => {
-  try {
+router.get("/project/:projectId", asyncHandler(async (req, res) => {
     const { projectId } = req.params;
     const files = await prisma.file.findMany({
       where: { projectId },
@@ -140,12 +135,7 @@ router.get("/project/:projectId", async (req, res) => {
     });
 
     res.json(filesWithProgress);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -169,8 +159,7 @@ router.get("/project/:projectId", async (req, res) => {
  *         description: Server error
  */
 // Get file details
-router.get("/:id", async (req, res) => {
-  try {
+router.get("/:id", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
       include: {
@@ -180,7 +169,7 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     // Check translation status if currently translating
@@ -225,11 +214,6 @@ router.get("/:id", async (req, res) => {
     }
 
     res.json(file);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 export default router;

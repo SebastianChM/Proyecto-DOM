@@ -131,3 +131,86 @@ describe("Error Contract — Projects & Members", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Files error contract tests (Commit 6)
+// ---------------------------------------------------------------------------
+describe("Error Contract — Files", () => {
+  it("401 — unauthenticated GET /api/files/recent", async () => {
+    const res = await request(app).get("/api/files/recent");
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: "Authentication required",
+      type: "Unauthorized",
+    });
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== FILES 401 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("400 — POST /api/files/sync-status without fileIds", async () => {
+    const res = await request(app)
+      .post("/api/files/sync-status")
+      .set("Content-Type", "application/json")
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "No file IDs provided",
+      type: "BadRequest",
+      code: "MISSING_FILE_IDS",
+    });
+    expect(res.body).toHaveProperty("requestId");
+
+    console.log("=== FILES 400 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+  });
+
+  it("400 — POST /api/files/upload without file", async () => {
+    const res = await request(app)
+      .post("/api/files/upload")
+      .field("projectId", "test-project");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "No file uploaded",
+      type: "BadRequest",
+      code: "FILE_UPLOAD_INVALID",
+    });
+    expect(res.body).toHaveProperty("requestId");
+  });
+
+  it("400 — POST /api/files/import-aps missing fields", async () => {
+    const res = await request(app)
+      .post("/api/files/import-aps")
+      .set("Content-Type", "application/json")
+      .send({ projectId: "p1" }); // missing name + urn
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: "Missing required fields",
+      type: "BadRequest",
+      code: "MISSING_FIELDS",
+    });
+  });
+
+  it("contract shape — files error responses always include error + type + requestId", async () => {
+    const responses = await Promise.all([
+      request(app).get("/api/files/recent"),
+      request(app).post("/api/files/sync-status").set("Content-Type", "application/json").send({}),
+      request(app).post("/api/files/upload").field("projectId", "p"),
+    ]);
+
+    for (const res of responses) {
+      expect(res.body).toHaveProperty("error");
+      expect(res.body).toHaveProperty("type");
+      expect(res.body).toHaveProperty("requestId");
+      expect(typeof res.body.error).toBe("string");
+      expect(typeof res.body.type).toBe("string");
+      // No internal details leaked
+      expect(res.body).not.toHaveProperty("sql");
+      expect(res.body).not.toHaveProperty("prisma");
+      expect(res.body).not.toHaveProperty("password");
+    }
+  });
+});
