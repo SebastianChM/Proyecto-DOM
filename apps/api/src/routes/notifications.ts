@@ -1,6 +1,7 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import prisma from "../lib/prisma";
-import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest } from "../lib/errors";
 
 const router = Router();
 
@@ -10,14 +11,11 @@ const router = Router();
  * Get all notifications for a user
  * GET /api/notifications?userId=xxx&read=false&limit=50
  */
-router.get("/", async (req: Request, res: Response) => {
-  try {
+router.get("/", asyncHandler(async (req, res) => {
     const { userId, read, type, limit = "100" } = req.query;
 
     if (!userId) {
-      return res
-        .status(400)
-        .json({ success: false, error: "userId is required" });
+      throw badRequest("userId is required", "MISSING_USER_ID");
     }
 
     const where: Record<string, unknown> = { userId: userId as string };
@@ -58,22 +56,13 @@ router.get("/", async (req: Request, res: Response) => {
         unreadCount,
       },
     });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error fetching notifications", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch notifications" });
-  }
-});
+}));
 
 /**
  * Create a notification
  * POST /api/notifications
  */
-router.post("/", async (req: Request, res: Response) => {
-  try {
+router.post("/", asyncHandler(async (req, res) => {
     const {
       userId,
       type,
@@ -88,10 +77,10 @@ router.post("/", async (req: Request, res: Response) => {
     } = req.body;
 
     if (!userId || !type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        error: "userId, type, title, and message are required",
-      });
+      throw badRequest(
+        "userId, type, title, and message are required",
+        "MISSING_REQUIRED_FIELDS",
+      );
     }
 
     const notification = await prisma.notification.create({
@@ -110,22 +99,13 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: notification });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error creating notification", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to create notification" });
-  }
-});
+}));
 
 /**
  * Mark a notification as read
  * PATCH /api/notifications/:id/read
  */
-router.patch("/:id/read", async (req: Request, res: Response) => {
-  try {
+router.patch("/:id/read", asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     const notification = await prisma.notification.update({
@@ -137,29 +117,20 @@ router.patch("/:id/read", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: notification });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error marking notification as read", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to mark notification as read" });
-  }
-});
+}));
 
 /**
  * Mark multiple notifications as read
  * PATCH /api/notifications/mark-read
  */
-router.patch("/mark-read/bulk", async (req: Request, res: Response) => {
-  try {
+router.patch("/mark-read/bulk", asyncHandler(async (req, res) => {
     const { notificationIds, userId } = req.body;
 
     if (!notificationIds && !userId) {
-      return res.status(400).json({
-        success: false,
-        error: "Either notificationIds or userId is required",
-      });
+      throw badRequest(
+        "Either notificationIds or userId is required",
+        "MISSING_REQUIRED_FIELDS",
+      );
     }
 
     const where: Record<string, unknown> = {};
@@ -179,22 +150,13 @@ router.patch("/mark-read/bulk", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: { count: result.count } });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error marking notifications as read", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to mark notifications as read" });
-  }
-});
+}));
 
 /**
  * Delete a notification
  * DELETE /api/notifications/:id
  */
-router.delete("/:id", async (req: Request, res: Response) => {
-  try {
+router.delete("/:id", asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     await prisma.notification.delete({
@@ -202,22 +164,13 @@ router.delete("/:id", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, message: "Notification deleted" });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error deleting notification", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to delete notification" });
-  }
-});
+}));
 
 /**
  * Delete all notifications for a user
  * DELETE /api/notifications/user/:userId
  */
-router.delete("/user/:userId", async (req: Request, res: Response) => {
-  try {
+router.delete("/user/:userId", asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { read } = req.query;
 
@@ -229,22 +182,13 @@ router.delete("/user/:userId", async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: { count: result.count } });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error deleting notifications", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to delete notifications" });
-  }
-});
+}));
 
 /**
  * Get notification statistics for a user
  * GET /api/notifications/stats/:userId
  */
-router.get("/stats/:userId", async (req: Request, res: Response) => {
-  try {
+router.get("/stats/:userId", asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
     const [total, unread, byType, byPriority] = await Promise.all([
@@ -283,15 +227,7 @@ router.get("/stats/:userId", async (req: Request, res: Response) => {
     };
 
     res.json({ success: true, data: stats });
-  } catch (error: unknown) {
-    logger.error("[NOTIFICATIONS] Error fetching notification stats", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch notification stats" });
-  }
-});
+}));
 
 // ==================== UTILITY FUNCTIONS ====================
 

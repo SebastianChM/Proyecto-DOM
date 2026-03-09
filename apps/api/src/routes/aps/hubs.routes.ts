@@ -7,7 +7,7 @@
 
 import { Router } from "express";
 import { apsIntegrationService } from "../../services/aps/aps-integration.service";
-import { handleApsError } from "../../lib/utils";
+import { asyncHandler } from "../../lib/async-handler";
 
 const router = Router();
 
@@ -15,35 +15,26 @@ const router = Router();
  * GET /api/aps/hubs
  * List hubs for the authenticated user
  */
-router.get("/hubs", async (req, res) => {
-  try {
+router.get("/hubs", asyncHandler(async (req, res) => {
     const hubs = await apsIntegrationService.getHubsForUser(req);
     res.json(hubs);
-  } catch (error) {
-    handleApsError(error, req, res);
-  }
-});
+}));
 
 /**
  * GET /api/aps/hubs/:hubId/projects
  * List projects in a hub
  */
-router.get("/hubs/:hubId/projects", async (req, res) => {
-  try {
+router.get("/hubs/:hubId/projects", asyncHandler(async (req, res) => {
     const { hubId } = req.params;
     const projects = await apsIntegrationService.getProjectsForHub(req, hubId);
     res.json(projects);
-  } catch (error) {
-    handleApsError(error, req, res);
-  }
-});
+}));
 
 /**
  * GET /api/aps/projects/:projectId/folders/:folderId
  * Get folder contents
  */
-router.get("/projects/:projectId/folders/:folderId", async (req, res) => {
-  try {
+router.get("/projects/:projectId/folders/:folderId", asyncHandler(async (req, res) => {
     const { projectId, folderId } = req.params;
     const contents = await apsIntegrationService.getFolderContents(
       req,
@@ -51,9 +42,6 @@ router.get("/projects/:projectId/folders/:folderId", async (req, res) => {
       folderId,
     );
     res.json(contents);
-  } catch (error) {
-    handleApsError(error, req, res);
-  }
-});
+}));
 
 export default router;

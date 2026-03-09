@@ -9,6 +9,8 @@ import { modelDerivativeService } from "../../services/aps/model-derivative.serv
 import { cacheService, RedisKeys } from "../../lib/redis";
 import { prisma } from "../../lib/utils";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest } from "../../lib/errors";
 
 const router = Router();
 
@@ -37,12 +39,11 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.post("/sync-status", async (req, res) => {
-  try {
+router.post("/sync-status", asyncHandler(async (req, res) => {
     const { fileIds } = req.body;
 
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
-      return res.status(400).json({ error: "No file IDs provided" });
+      throw badRequest("No file IDs provided", "MISSING_FILE_IDS");
     }
 
     const files = await prisma.file.findMany({
@@ -137,16 +138,6 @@ router.post("/sync-status", async (req, res) => {
       updates,
       files: allFiles,
     });
-  } catch (error: unknown) {
-    logger.error("[FILES_SYNC] Sync status error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res
-      .status(500)
-      .json({ error: "Failed to sync status", details: errorMessage });
-  }
-});
+}));
 
 export default router;

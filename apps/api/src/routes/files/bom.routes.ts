@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import prisma from "../../lib/prisma";
 import { BimQueryService } from "../../services/bim-query.service";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, notFound, conflict } from "../../lib/errors";
 
 const router = Router();
 const bimQueryService = new BimQueryService();
@@ -34,22 +36,21 @@ const bimQueryService = new BimQueryService();
  *         description: Server error
  */
 // Get BOM (Metadata + Properties)
-router.get("/:id/bom", async (req: Request, res: Response) => {
-  try {
+router.get("/:id/bom", asyncHandler(async (req: Request, res: Response) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
     });
 
     if (!file || !file.apsUrn) {
-      return res.status(404).json({ error: "File not found or not processed" });
+      throw notFound("File not found or not processed", "FILE_NOT_FOUND");
     }
 
     // Check if file is ready
     if (file.status !== "READY") {
-      return res.status(400).json({
-        error:
-          "File not ready for BOM extraction. Current status: " + file.status,
-      });
+      throw badRequest(
+        "File not ready for BOM extraction. Current status: " + file.status,
+        "FILE_NOT_READY"
+      );
     }
 
     // If Local Mode, return mock BOM
@@ -96,32 +97,19 @@ router.get("/:id/bom", async (req: Request, res: Response) => {
 
     logger.debug(`[FILES_BOM] Using URN: ${file.apsUrn}`);
 
-    // Use Unified Service
-    const bom = await bimQueryService.getBOM(file.apsUrn);
-
-    logger.info(`[FILES_BOM] Processed ${bom.length} elements`);
-    res.json(bom);
-  } catch (error: unknown) {
-    logger.error("[FILES_BOM] BOM extraction failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-
-    // Handle APS Not Ready specific error
-    if (errorMessage.includes("APS_MODEL_NOT_READY")) {
-      return res
-        .status(409)
-        .json({
-          error: "Model Processing",
-          message: "Model properties are not yet extracted.",
-        });
+    try {
+      const bom = await bimQueryService.getBOM(file.apsUrn);
+      logger.info(`[FILES_BOM] Processed ${bom.length} elements`);
+      res.json(bom);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      // Handle APS Not Ready specific error
+      if (errorMessage.includes("APS_MODEL_NOT_READY")) {
+        throw conflict("Model properties are not yet extracted.", "APS_MODEL_NOT_READY");
+      }
+      throw error;
     }
-
-    res
-      .status(500)
-      .json({ error: "BOM extraction failed", details: errorMessage });
-  }
-});
+}));
 
 export default router;

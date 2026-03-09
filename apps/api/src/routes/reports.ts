@@ -2,12 +2,13 @@ import { Router } from "express";
 import prisma from "../lib/prisma";
 import { reportService } from "../services/reporting/report.service";
 import { ValidationIssue } from "@prisma/client";
+import { asyncHandler } from "../lib/async-handler";
+import { notFound } from "../lib/errors";
 
 const router = Router();
 
 // GET /api/reports/validation/:runId
-router.get("/validation/:runId", async (req, res, next) => {
-  try {
+router.get("/validation/:runId", asyncHandler(async (req, res) => {
     const { runId } = req.params;
 
     // 1. Fetch Data
@@ -21,8 +22,7 @@ router.get("/validation/:runId", async (req, res, next) => {
     });
 
     if (!run) {
-      res.status(404).json({ error: "Validation run not found" });
-      return;
+      throw notFound("Validation run not found", "VALIDATION_RUN_NOT_FOUND");
     }
 
     // Fetch Project Name separately since relation is not defined in ValidationRun model for inclusion
@@ -71,9 +71,6 @@ router.get("/validation/:runId", async (req, res, next) => {
       `attachment; filename=validation-report-${runId.substring(0, 8)}.pdf`,
     );
     res.send(pdfBuffer);
-  } catch (error) {
-    next(error);
-  }
-});
+}));
 
 export default router;

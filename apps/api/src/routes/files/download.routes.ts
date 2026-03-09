@@ -13,6 +13,8 @@ import {
   prisma,
 } from "../../lib/utils";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, unauthorized, notFound, forbidden } from "../../lib/errors";
 
 const router = Router();
 
@@ -37,21 +39,18 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/:id/download", async (req, res) => {
-  try {
+router.get("/:id/download", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     // Handle Local Mode
     if (file.apsUrn?.startsWith("local-")) {
-      return res
-        .status(404)
-        .json({ error: "Local file download not implemented" });
+      throw notFound("Local file download not implemented", "LOCAL_DOWNLOAD_UNSUPPORTED");
     }
 
     // Get user token for imported files
@@ -64,81 +63,71 @@ router.get("/:id/download", async (req, res) => {
     if (!signedUrl) {
       // Check specific reasons
       if (file.s3Key === "IMPORTED_FROM_APS" && !userAccessToken) {
-        return res.status(401).json({
-          error: "Authentication required",
-          details:
-            "Please log in with your Autodesk account to view files from ACC/BIM360.",
-        });
+        throw unauthorized(
+          "Please log in with your Autodesk account to view files from ACC/BIM360."
+        );
       }
-      return res.status(404).json({
-        error: "Download unavailable",
-        details:
-          "Unable to retrieve download URL. The file may no longer be accessible.",
-      });
+      throw notFound(
+        "Unable to retrieve download URL. The file may no longer be accessible.",
+        "DOWNLOAD_UNAVAILABLE"
+      );
     }
 
-    // Proxy the file download
+    // Proxy the file download — errors after this point are stream errors
     const headers: Record<string, string> = {};
     if (file.s3Key === "IMPORTED_FROM_APS" && userAccessToken) {
       headers["Authorization"] = `Bearer ${userAccessToken}`;
     }
 
-    const response = await axios.get(signedUrl, {
-      responseType: "stream",
-      headers,
-    });
+    try {
+      const response = await axios.get(signedUrl, {
+        responseType: "stream",
+        headers,
+      });
 
-    // Set headers
-    const contentType =
-      file.type === "PDF" || file.name.toLowerCase().endsWith(".pdf")
-        ? "application/pdf"
-        : "application/octet-stream";
-    res.setHeader("Content-Type", contentType);
+      // Set headers
+      const contentType =
+        file.type === "PDF" || file.name.toLowerCase().endsWith(".pdf")
+          ? "application/pdf"
+          : "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
 
-    const safeFilename = file.name.replace(/"/g, "");
-    res.setHeader("Content-Disposition", `inline; filename="${safeFilename}"`);
+      const safeFilename = file.name.replace(/"/g, "");
+      res.setHeader("Content-Disposition", `inline; filename="${safeFilename}"`);
 
-    res.removeHeader("X-Frame-Options");
-    res.setHeader("Content-Security-Policy", "frame-ancestors 'self' *");
+      res.removeHeader("X-Frame-Options");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'self' *");
 
-    response.data.pipe(res);
-  } catch (e: unknown) {
-    logger.error("[FILES_DOWNLOAD] Download error", {
-      error: e instanceof Error ? e.message : String(e),
-    });
+      response.data.pipe(res);
+    } catch (e: unknown) {
+      // Stream/download errors — classify by upstream status
+      const axiosError = e as {
+        response?: { status?: number };
+        statusCode?: number;
+        message?: string;
+      };
+      const errorMessage = e instanceof Error ? e.message : String(e);
 
-    // Typed Axios error checking
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    const axiosError = e as {
-      response?: { status?: number };
-      statusCode?: number;
-    };
-
-    if (
-      errorMessage.includes("404") ||
-      axiosError.response?.status === 404 ||
-      axiosError.statusCode === 404
-    ) {
-      return res.status(404).json({
-        error: "File expired or not found",
-        details:
+      if (
+        errorMessage.includes("404") ||
+        axiosError.response?.status === 404 ||
+        axiosError.statusCode === 404
+      ) {
+        throw notFound(
           "The content is no longer available in Autodesk storage. Please re-upload or re-sync.",
-        code: "FILE_EXPIRED",
-      });
-    }
+          "FILE_EXPIRED"
+        );
+      }
 
-    if (axiosError.response?.status === 403) {
-      return res.status(403).json({
-        error: "Access Denied",
-        details: "You do not have permission to access this file in APS.",
-      });
-    }
+      if (axiosError.response?.status === 403) {
+        throw forbidden(
+          "You do not have permission to access this file in APS."
+        );
+      }
 
-    res
-      .status(500)
-      .json({ error: "Failed to process download", details: errorMessage });
-  }
-});
+      throw e;
+    }
+}));
 
 /**
  * @swagger
@@ -163,12 +152,11 @@ router.get("/:id/download", async (req, res) => {
  *       200:
  *         description: ZIP file containing requested files
  */
-router.post("/batch-download", async (req, res) => {
-  try {
+router.post("/batch-download", asyncHandler(async (req, res) => {
     const { fileIds } = req.body;
 
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
-      return res.status(400).json({ error: "No file IDs provided" });
+      throw badRequest("No file IDs provided", "MISSING_FILE_IDS");
     }
 
     const files = await prisma.file.findMany({
@@ -176,7 +164,7 @@ router.post("/batch-download", async (req, res) => {
     });
 
     if (files.length === 0) {
-      return res.status(404).json({ error: "No files found" });
+      throw notFound("No files found", "FILES_NOT_FOUND");
     }
 
     // Set headers for ZIP download
@@ -196,12 +184,11 @@ router.post("/batch-download", async (req, res) => {
       logger.error("[FILES_DOWNLOAD] Archiver error", {
         error: err instanceof Error ? (err as Error).message : String(err),
       });
-      // Logic to handle error if headers not sent... unlikely here as we pipe
     });
 
     archive.pipe(res);
 
-    // Process files sequentially
+    // Process files sequentially — stream is already started
     const userAccessToken = (req as RequestWithSession).session?.user
       ?.apsAccessToken;
 
@@ -252,14 +239,6 @@ router.post("/batch-download", async (req, res) => {
     }
 
     await archive.finalize();
-  } catch (error: unknown) {
-    logger.error("[FILES_DOWNLOAD] Batch download error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Batch download failed" });
-    }
-  }
-});
+}));
 
 export default router;

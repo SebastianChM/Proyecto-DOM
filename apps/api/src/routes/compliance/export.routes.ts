@@ -7,7 +7,8 @@
 
 import { Router, Request, Response } from "express";
 import prisma from "../../lib/prisma";
-import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { notFound } from "../../lib/errors";
 
 const router = Router();
 
@@ -15,8 +16,7 @@ const router = Router();
  * GET /api/compliance-v2/export/:runId/excel
  * Export compliance run results to Excel format (CSV for simplicity)
  */
-router.get("/:runId/excel", async (req: Request, res: Response) => {
-  try {
+router.get("/:runId/excel", asyncHandler(async (req: Request, res: Response) => {
     const { runId } = req.params;
 
     const run = await prisma.complianceRun.findUnique({
@@ -30,7 +30,7 @@ router.get("/:runId/excel", async (req: Request, res: Response) => {
     });
 
     if (!run) {
-      return res.status(404).json({ error: "Run not found" });
+      throw notFound("Run not found", "RUN_NOT_FOUND");
     }
 
     // Generate CSV content
@@ -78,22 +78,13 @@ router.get("/:runId/excel", async (req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csvContent);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_EXPORT] Excel export error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/export/:runId/pdf
  * Export compliance run results to PDF format (HTML for now)
  */
-router.get("/:runId/pdf", async (req: Request, res: Response) => {
-  try {
+router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
     const { runId } = req.params;
 
     const run = await prisma.complianceRun.findUnique({
@@ -107,7 +98,7 @@ router.get("/:runId/pdf", async (req: Request, res: Response) => {
     });
 
     if (!run) {
-      return res.status(404).json({ error: "Run not found" });
+      throw notFound("Run not found", "RUN_NOT_FOUND");
     }
 
     // Group issues by severity
@@ -245,22 +236,13 @@ router.get("/:runId/pdf", async (req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(htmlContent);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_EXPORT] PDF (HTML) export error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * PUT /api/compliance-v2/export/:runId/save
  * Save run with model version and notes for historical tracking
  */
-router.put("/:runId/save", async (req: Request, res: Response) => {
-  try {
+router.put("/:runId/save", asyncHandler(async (req: Request, res: Response) => {
     const { runId } = req.params;
     const { runName, modelVersion, modelName } = req.body;
 
@@ -277,14 +259,6 @@ router.put("/:runId/save", async (req: Request, res: Response) => {
       message: "Validación guardada en el historial",
       run: updated,
     });
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_EXPORT] Save error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 export default router;

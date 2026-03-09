@@ -8,7 +8,8 @@
 import { Router, Request, Response } from "express";
 import prisma from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
-import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, notFound } from "../../lib/errors";
 
 const router = Router();
 
@@ -20,8 +21,7 @@ const router = Router();
  * GET /api/compliance/rulesets
  * List all rulesets, optionally filtered by discipline or project
  */
-router.get("/rulesets", async (req: Request, res: Response) => {
-  try {
+router.get("/rulesets", asyncHandler(async (req: Request, res: Response) => {
     const { discipline, projectId, includeDefault } = req.query;
 
     const where: Prisma.RulesetWhereInput = {};
@@ -31,7 +31,6 @@ router.get("/rulesets", async (req: Request, res: Response) => {
     }
 
     if (projectId && typeof projectId === "string") {
-      // Include project-specific and default rulesets
       where.OR = [{ projectId: projectId }, { isDefault: true }];
     } else if (includeDefault === "true") {
       where.isDefault = true;
@@ -57,22 +56,13 @@ router.get("/rulesets", async (req: Request, res: Response) => {
     });
 
     res.json(rulesets);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error fetching rulesets", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance/rulesets/:id
  * Get a single ruleset with all its rules
  */
-router.get("/rulesets/:id", async (req: Request, res: Response) => {
-  try {
+router.get("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const ruleset = await prisma.ruleset.findUnique({
@@ -85,32 +75,21 @@ router.get("/rulesets/:id", async (req: Request, res: Response) => {
     });
 
     if (!ruleset) {
-      return res.status(404).json({ error: "Ruleset not found" });
+      throw notFound("Ruleset not found", "RULESET_NOT_FOUND");
     }
 
     res.json(ruleset);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error fetching ruleset", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/compliance/rulesets
  * Create a new ruleset
  */
-router.post("/rulesets", async (req: Request, res: Response) => {
-  try {
+router.post("/rulesets", asyncHandler(async (req: Request, res: Response) => {
     const { name, description, discipline, projectId, isDefault } = req.body;
 
     if (!name || !discipline) {
-      return res
-        .status(400)
-        .json({ error: "Name and discipline are required" });
+      throw badRequest("Name and discipline are required", "MISSING_FIELDS");
     }
 
     const ruleset = await prisma.ruleset.create({
@@ -124,22 +103,13 @@ router.post("/rulesets", async (req: Request, res: Response) => {
     });
 
     res.status(201).json(ruleset);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error creating ruleset", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * PUT /api/compliance/rulesets/:id
  * Update a ruleset
  */
-router.put("/rulesets/:id", async (req: Request, res: Response) => {
-  try {
+router.put("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, description, discipline, isDefault } = req.body;
 
@@ -154,22 +124,13 @@ router.put("/rulesets/:id", async (req: Request, res: Response) => {
     });
 
     res.json(ruleset);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error updating ruleset", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * DELETE /api/compliance/rulesets/:id
  * Delete a ruleset and all its rules
  */
-router.delete("/rulesets/:id", async (req: Request, res: Response) => {
-  try {
+router.delete("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     await prisma.ruleset.delete({
@@ -177,15 +138,7 @@ router.delete("/rulesets/:id", async (req: Request, res: Response) => {
     });
 
     res.status(204).send();
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error deleting ruleset", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 // ============================================================
 // RULES
@@ -195,8 +148,7 @@ router.delete("/rulesets/:id", async (req: Request, res: Response) => {
  * GET /api/compliance/rules
  * List all rules, optionally filtered
  */
-router.get("/rules", async (req: Request, res: Response) => {
-  try {
+router.get("/rules", asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, targetCategory, severity, isActive } = req.query;
 
     const where: Prisma.RuleWhereInput = {};
@@ -218,22 +170,13 @@ router.get("/rules", async (req: Request, res: Response) => {
     });
 
     res.json(rules);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error fetching rules", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance/rules/:id
  * Get a single rule
  */
-router.get("/rules/:id", async (req: Request, res: Response) => {
-  try {
+router.get("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const rule = await prisma.rule.findUnique({
@@ -244,26 +187,17 @@ router.get("/rules/:id", async (req: Request, res: Response) => {
     });
 
     if (!rule) {
-      return res.status(404).json({ error: "Rule not found" });
+      throw notFound("Rule not found", "RULE_NOT_FOUND");
     }
 
     res.json(rule);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error fetching rule", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/compliance/rules
  * Create a new rule
  */
-router.post("/rules", async (req: Request, res: Response) => {
-  try {
+router.post("/rules", asyncHandler(async (req: Request, res: Response) => {
     const {
       name,
       description,
@@ -290,10 +224,10 @@ router.post("/rules", async (req: Request, res: Response) => {
       !expectedValue ||
       !rulesetId
     ) {
-      return res.status(400).json({
-        error:
-          "Required fields: name, targetCategory, propertyName, operator, expectedValue, rulesetId",
-      });
+      throw badRequest(
+        "Required fields: name, targetCategory, propertyName, operator, expectedValue, rulesetId",
+        "MISSING_FIELDS"
+      );
     }
 
     // Verify ruleset exists
@@ -301,7 +235,7 @@ router.post("/rules", async (req: Request, res: Response) => {
       where: { id: rulesetId },
     });
     if (!ruleset) {
-      return res.status(404).json({ error: "Ruleset not found" });
+      throw notFound("Ruleset not found", "RULESET_NOT_FOUND");
     }
 
     const rule = await prisma.rule.create({
@@ -324,22 +258,13 @@ router.post("/rules", async (req: Request, res: Response) => {
     });
 
     res.status(201).json(rule);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error creating rule", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * PUT /api/compliance/rules/:id
  * Update a rule
  */
-router.put("/rules/:id", async (req: Request, res: Response) => {
-  try {
+router.put("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       name,
@@ -377,22 +302,13 @@ router.put("/rules/:id", async (req: Request, res: Response) => {
     });
 
     res.json(rule);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error updating rule", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * DELETE /api/compliance/rules/:id
  * Delete a rule
  */
-router.delete("/rules/:id", async (req: Request, res: Response) => {
-  try {
+router.delete("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     await prisma.rule.delete({
@@ -400,28 +316,17 @@ router.delete("/rules/:id", async (req: Request, res: Response) => {
     });
 
     res.status(204).send();
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error deleting rule", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/compliance/rules/bulk
  * Create multiple rules at once
  */
-router.post("/rules/bulk", async (req: Request, res: Response) => {
-  try {
+router.post("/rules/bulk", asyncHandler(async (req: Request, res: Response) => {
     const { rules, rulesetId } = req.body;
 
     if (!Array.isArray(rules) || !rulesetId) {
-      return res
-        .status(400)
-        .json({ error: "rules array and rulesetId are required" });
+      throw badRequest("rules array and rulesetId are required", "MISSING_FIELDS");
     }
 
     // Verify ruleset exists
@@ -429,7 +334,7 @@ router.post("/rules/bulk", async (req: Request, res: Response) => {
       where: { id: rulesetId },
     });
     if (!ruleset) {
-      return res.status(404).json({ error: "Ruleset not found" });
+      throw notFound("Ruleset not found", "RULESET_NOT_FOUND");
     }
 
     const createdRules = await prisma.rule.createMany({
@@ -476,15 +381,7 @@ router.post("/rules/bulk", async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ count: createdRules.count });
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RULES] Error creating rules in bulk", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 // ============================================================
 // CATEGORIES (Helper endpoint)

@@ -16,11 +16,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import {
   workflowService,
-  WorkflowError,
   EntityType,
   UserContext,
 } from "../services/workflow.service";
-import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, unauthorized, forbidden, notFound } from "../lib/errors";
 
 const router = Router();
 
@@ -37,10 +37,9 @@ function validateEntityType(req: Request, res: Response, next: NextFunction) {
 
   if (!validTypes.includes(entityType as EntityType)) {
     return res.status(400).json({
-      error: "Invalid entity type",
+      error: `Entity type must be one of: ${validTypes.join(", ")}`,
+      type: "BadRequest",
       code: "INVALID_ENTITY_TYPE",
-      message: `Entity type must be one of: ${validTypes.join(", ")}`,
-      received: entityType,
     });
   }
 
@@ -131,29 +130,6 @@ async function getEntityRole(
   return "NONE";
 }
 
-/**
- * Error handler for workflow errors
- */
-function handleWorkflowError(error: unknown, res: Response) {
-  if (error instanceof WorkflowError) {
-    return res.status(error.statusCode).json({
-      error: error.name,
-      code: error.code,
-      message: error.message,
-      details: error.details,
-    });
-  }
-
-  logger.error("[WORKFLOWS] Unexpected workflow error", {
-    error: error instanceof Error ? error.message : String(error),
-  });
-  return res.status(500).json({
-    error: "InternalServerError",
-    code: "INTERNAL_ERROR",
-    message: "An unexpected error occurred while processing your request",
-  });
-}
-
 // ============================================
 // TEMPLATE ROUTES
 // ============================================
@@ -165,8 +141,7 @@ function handleWorkflowError(error: unknown, res: Response) {
  * Query params:
  * - entityType: Filter by entity type (PROJECT, FILE, VALIDATION)
  */
-router.get("/templates", async (req: Request, res: Response) => {
-  try {
+router.get("/templates", asyncHandler(async (req: Request, res: Response) => {
     const { entityType } = req.query;
 
     const templates = await workflowService.getTemplates(
@@ -174,34 +149,23 @@ router.get("/templates", async (req: Request, res: Response) => {
     );
 
     res.json(templates);
-  } catch (error) {
-    handleWorkflowError(error, res);
-  }
-});
+}));
 
 /**
  * GET /api/workflows/templates/:templateId
  * Get a specific template with states and transitions
  */
-router.get("/templates/:templateId", async (req: Request, res: Response) => {
-  try {
+router.get("/templates/:templateId", asyncHandler(async (req: Request, res: Response) => {
     const { templateId } = req.params;
 
     const template = await workflowService.getTemplateById(templateId);
 
     if (!template) {
-      return res.status(404).json({
-        error: "NotFound",
-        code: "TEMPLATE_NOT_FOUND",
-        message: `Template with ID "${templateId}" not found`,
-      });
+      throw notFound(`Template with ID "${templateId}" not found`, "TEMPLATE_NOT_FOUND");
     }
 
     res.json(template);
-  } catch (error) {
-    handleWorkflowError(error, res);
-  }
-});
+}));
 
 // ============================================
 // WORKFLOW INSTANCE ROUTES
@@ -214,17 +178,12 @@ router.get("/templates/:templateId", async (req: Request, res: Response) => {
 router.get(
   "/:entityType/:entityId",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       // Get user's role for this entity
@@ -235,11 +194,7 @@ router.get(
       );
 
       if (userRole === "NONE") {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "ACCESS_DENIED",
-          message: "You do not have access to this entity",
-        });
+        throw forbidden("You do not have access to this entity");
       }
 
       let instance = await workflowService.getInstance(
@@ -269,10 +224,7 @@ router.get(
         availableTransitions,
         userRole,
       });
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 /**
@@ -282,17 +234,12 @@ router.get(
 router.get(
   "/:entityType/:entityId/transitions",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       const userRole = await getEntityRole(
@@ -302,11 +249,7 @@ router.get(
       );
 
       if (userRole === "NONE") {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "ACCESS_DENIED",
-          message: "You do not have access to this entity",
-        });
+        throw forbidden("You do not have access to this entity");
       }
 
       const transitions = await workflowService.getAvailableTransitions(
@@ -316,10 +259,7 @@ router.get(
       );
 
       res.json(transitions);
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 /**
@@ -334,27 +274,18 @@ router.get(
 router.post(
   "/:entityType/:entityId/transition",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const { transitionName, comment, metadata } = req.body;
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       // Validate required fields
       if (!transitionName || typeof transitionName !== "string") {
-        return res.status(400).json({
-          error: "ValidationError",
-          code: "MISSING_TRANSITION_NAME",
-          message: "transitionName is required and must be a string",
-        });
+        throw badRequest("transitionName is required and must be a string", "MISSING_TRANSITION_NAME");
       }
 
       // Get user's role
@@ -365,11 +296,7 @@ router.post(
       );
 
       if (userRole === "NONE") {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "ACCESS_DENIED",
-          message: "You do not have access to this entity",
-        });
+        throw forbidden("You do not have access to this entity");
       }
 
       // Update user context with entity role
@@ -402,10 +329,7 @@ router.post(
           userRole,
         },
       });
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 /**
@@ -418,18 +342,13 @@ router.post(
 router.get(
   "/:entityType/:entityId/history",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       const userRole = await getEntityRole(
@@ -439,11 +358,7 @@ router.get(
       );
 
       if (userRole === "NONE") {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "ACCESS_DENIED",
-          message: "You do not have access to this entity",
-        });
+        throw forbidden("You do not have access to this entity");
       }
 
       const history = await workflowService.getHistory(
@@ -453,10 +368,7 @@ router.get(
       );
 
       res.json(history);
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 // ============================================
@@ -473,18 +385,13 @@ router.get(
 router.post(
   "/:entityType/:entityId/cancel",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const { reason } = req.body;
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       const userRole = await getEntityRole(
@@ -495,11 +402,7 @@ router.post(
 
       // Only admin or owner can cancel
       if (!["ADMIN", "OWNER"].includes(userRole)) {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "INSUFFICIENT_PERMISSIONS",
-          message: "Only administrators or owners can cancel workflows",
-        });
+        throw forbidden("Only administrators or owners can cancel workflows");
       }
 
       const userWithRole: UserContext = { ...user, role: userRole };
@@ -516,10 +419,7 @@ router.post(
         message: "Workflow cancelled successfully",
         workflow: instance,
       });
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 /**
@@ -532,18 +432,13 @@ router.post(
 router.post(
   "/:entityType/:entityId/reset",
   validateEntityType,
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { entityType, entityId } = req.params;
       const { reason } = req.body;
       const user = getUserContext(req);
 
       if (!user) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          code: "AUTH_REQUIRED",
-          message: "Authentication required",
-        });
+        throw unauthorized("Authentication required");
       }
 
       const userRole = await getEntityRole(
@@ -554,11 +449,7 @@ router.post(
 
       // Only admin can reset
       if (userRole !== "ADMIN") {
-        return res.status(403).json({
-          error: "Forbidden",
-          code: "ADMIN_REQUIRED",
-          message: "Only administrators can reset workflows",
-        });
+        throw forbidden("Only administrators can reset workflows");
       }
 
       const userWithRole: UserContext = { ...user, role: userRole };
@@ -587,10 +478,7 @@ router.post(
           userRole,
         },
       });
-    } catch (error) {
-      handleWorkflowError(error, res);
-    }
-  },
+  }),
 );
 
 export default router;

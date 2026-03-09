@@ -13,6 +13,8 @@ import {
 } from "../../services/compliance-runner.service";
 import { BimQueryService } from "../../services/bim-query.service";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, notFound, conflict } from "../../lib/errors";
 
 const router = Router();
 const bimQueryService = new BimQueryService();
@@ -21,20 +23,19 @@ const bimQueryService = new BimQueryService();
  * POST /api/compliance-v2/runs
  * Execute a new compliance run
  */
-router.post("/", async (req: Request, res: Response) => {
-  try {
+router.post("/", asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId, modelUrn, elements } = req.body;
 
     if (!rulesetId) {
-      return res.status(400).json({ error: "rulesetId is required" });
+      throw badRequest("rulesetId is required", "MISSING_FIELDS");
     }
 
     if (!projectId) {
-      return res.status(400).json({ error: "projectId is required" });
+      throw badRequest("projectId is required", "MISSING_FIELDS");
     }
 
     if (!elements || !Array.isArray(elements) || elements.length === 0) {
-      return res.status(400).json({ error: "elements array is required" });
+      throw badRequest("elements array is required", "MISSING_FIELDS");
     }
 
     logger.info(
@@ -49,31 +50,22 @@ router.post("/", async (req: Request, res: Response) => {
     );
 
     res.status(201).json(result);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Run error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/compliance-v2/runs/model
  * Execute compliance run on a REAL model from APS
  * This extracts properties from the model and validates against rules
  */
-router.post("/model", async (req: Request, res: Response) => {
-  try {
+router.post("/model", asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId, modelUrn, modelName } = req.body;
 
     if (!rulesetId) {
-      return res.status(400).json({ error: "rulesetId is required" });
+      throw badRequest("rulesetId is required", "MISSING_FIELDS");
     }
 
     if (!modelUrn) {
-      return res.status(400).json({ error: "modelUrn is required" });
+      throw badRequest("modelUrn is required", "MISSING_FIELDS");
     }
 
     logger.info(`[COMPLIANCE_RUNS] Running compliance on real model`, {
@@ -86,10 +78,10 @@ router.post("/model", async (req: Request, res: Response) => {
     const bimProperties = await bimQueryService.queryModel(modelUrn);
 
     if (!bimProperties || bimProperties.length === 0) {
-      return res.status(400).json({
-        error:
-          "No properties could be extracted from the model. Make sure the model is processed.",
-      });
+      throw badRequest(
+        "No properties could be extracted from the model. Make sure the model is processed.",
+        "MODEL_NO_PROPERTIES"
+      );
     }
 
     logger.info(
@@ -118,38 +110,17 @@ router.post("/model", async (req: Request, res: Response) => {
     );
 
     res.status(201).json(result);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Model run error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    // Provide more helpful error messages
-    if (
-      error instanceof Error &&
-      error.message?.includes("No Property Database")
-    ) {
-      return res.status(400).json({
-        error:
-          "Model properties not yet available. Please wait for model processing to complete.",
-      });
-    }
-
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/compliance-v2/runs/demo
  * Execute a compliance run with demo/test data
  */
-router.post("/demo", async (req: Request, res: Response) => {
-  try {
+router.post("/demo", asyncHandler(async (req: Request, res: Response) => {
     const { rulesetId, projectId } = req.body;
 
     if (!rulesetId) {
-      return res.status(400).json({ error: "rulesetId is required" });
+      throw badRequest("rulesetId is required", "MISSING_FIELDS");
     }
 
     // Generate demo elements based on ruleset discipline
@@ -159,7 +130,7 @@ router.post("/demo", async (req: Request, res: Response) => {
     });
 
     if (!ruleset) {
-      return res.status(404).json({ error: "Ruleset not found" });
+      throw notFound("Ruleset not found", "RULESET_NOT_FOUND");
     }
 
     // Create demo elements matching the rules
@@ -175,26 +146,17 @@ router.post("/demo", async (req: Request, res: Response) => {
     );
 
     res.status(201).json(result);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Demo run error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/runs
  * List compliance runs for a project
  */
-router.get("/", async (req: Request, res: Response) => {
-  try {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
     const { projectId, limit = "10" } = req.query;
 
     if (!projectId) {
-      return res.status(400).json({ error: "projectId is required" });
+      throw badRequest("projectId is required", "MISSING_FIELDS");
     }
 
     const runs = await complianceRunnerService.getRuns(
@@ -203,29 +165,19 @@ router.get("/", async (req: Request, res: Response) => {
     );
 
     res.json(runs);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] List runs error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/runs/models
  * Get available models from a project for compliance checking
  */
-router.get("/models", async (req: Request, res: Response) => {
-  try {
+router.get("/models", asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.query;
 
     if (!projectId) {
-      return res.status(400).json({ error: "projectId is required" });
+      throw badRequest("projectId is required", "MISSING_FIELDS");
     }
 
-    // Get project files that are models (RVT, IFC, NWC, DWG)
     const models = await prisma.file.findMany({
       where: {
         projectId: projectId as string,
@@ -252,23 +204,13 @@ router.get("/models", async (req: Request, res: Response) => {
     });
 
     res.json(models);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Models error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/runs/projects
  * Get available projects for compliance checking
  */
-router.get("/projects", async (req: Request, res: Response) => {
-  try {
-    // Get all projects (not just those with ready models, to show all options)
+router.get("/projects", asyncHandler(async (req: Request, res: Response) => {
     const projects = await prisma.project.findMany({
       select: {
         id: true,
@@ -286,22 +228,13 @@ router.get("/projects", async (req: Request, res: Response) => {
     });
 
     res.json(projects);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Projects error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/runs/:id
  * Get a specific compliance run
  */
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const run = await prisma.complianceRun.findUnique({
@@ -315,26 +248,17 @@ router.get("/:id", async (req: Request, res: Response) => {
     });
 
     if (!run) {
-      return res.status(404).json({ error: "Run not found" });
+      throw notFound("Run not found", "RUN_NOT_FOUND");
     }
 
     res.json(run);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Get run error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * GET /api/compliance-v2/runs/:id/issues
  * Get issues for a specific run
  */
-router.get("/:id/issues", async (req: Request, res: Response) => {
-  try {
+router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { severity, category } = req.query;
 
@@ -354,27 +278,18 @@ router.get("/:id/issues", async (req: Request, res: Response) => {
     });
 
     res.json(issues);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Get issues error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * PUT /api/compliance-v2/runs/issues/:issueId/status
  * Update issue status (e.g., mark as resolved)
  */
-router.put("/issues/:issueId/status", async (req: Request, res: Response) => {
-  try {
+router.put("/issues/:issueId/status", asyncHandler(async (req: Request, res: Response) => {
     const { issueId } = req.params;
     const { status, resolutionNote } = req.body;
 
     if (!["OPEN", "RESOLVED", "IGNORED", "FALSE_POSITIVE"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
+      throw badRequest("Invalid status", "INVALID_STATUS");
     }
 
     const updated = await prisma.complianceIssue.update({
@@ -383,15 +298,7 @@ router.put("/issues/:issueId/status", async (req: Request, res: Response) => {
     });
 
     res.json(updated);
-  } catch (error: unknown) {
-    logger.error("[COMPLIANCE_RUNS] Update issue status error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * Generate demo elements for testing

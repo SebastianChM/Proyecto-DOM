@@ -16,6 +16,8 @@ import { HierarchicalSpecProcessor } from "../../services/hierarchical-spec-proc
 import { NormativeParserService } from "../../services/normative-parser.service";
 import { SupremacyEngineService } from "../../services/supremacy-engine.service";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, conflict } from "../../lib/errors";
 
 const router = Router();
 const upload = multer({ dest: "uploads/" });
@@ -101,35 +103,31 @@ async function downloadProjectFile(
 /**
  * GET /api/compliance/model-status
  */
-router.get("/model-status", async (req: Request, res: Response) => {
-  try {
+router.get("/model-status", asyncHandler(async (req: Request, res: Response) => {
     const urn = req.query.urn as string;
-    if (!urn) return res.status(400).json({ error: "URN required" });
+    if (!urn) throw badRequest("URN required", "MISSING_FIELDS");
 
     const safeUrn = toSafeUrn(urn);
-    const manifest = await modelDerivativeService.getManifest(safeUrn);
 
-    res.json({
-      status: manifest.status,
-      progress: manifest.progress,
-      region: manifest.region,
-      messages: manifest.messages,
-    });
-  } catch (error: unknown) {
-    const err = error as { message?: string; response?: { status?: number } };
-    logger.error("[COMPLIANCE_V1] Manifest check error", {
-      error: err.message || "Unknown error",
-    });
-
-    if (err.response?.status === 404) {
-      return res.json({
-        status: "failed",
-        messages: [{ type: "error", message: "Model Not Found (404)" }],
+    try {
+      const manifest = await modelDerivativeService.getManifest(safeUrn);
+      res.json({
+        status: manifest.status,
+        progress: manifest.progress,
+        region: manifest.region,
+        messages: manifest.messages,
       });
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { status?: number } };
+      if (err.response?.status === 404) {
+        return res.json({
+          status: "failed",
+          messages: [{ type: "error", message: "Model Not Found (404)" }],
+        });
+      }
+      throw error;
     }
-    res.status(500).json({ error: "Failed to check status" });
-  }
-});
+}));
 
 /**
  * POST /api/compliance/analyze/mop
@@ -137,10 +135,9 @@ router.get("/model-status", async (req: Request, res: Response) => {
 router.post(
   "/analyze/mop",
   upload.single("file"),
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
       }
 
       const filePath = req.file.path;
@@ -170,15 +167,7 @@ router.post(
         },
         data: structuralSections,
       });
-    } catch (error: unknown) {
-      logger.error("[COMPLIANCE_V1] MOP analysis error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  },
+  }),
 );
 
 /**
@@ -190,8 +179,7 @@ router.post(
     { name: "file", maxCount: 1 },
     { name: "normativeFile", maxCount: 1 },
   ]),
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       let specFile = files?.["file"]?.[0] || null;
       const normFile = files?.["normativeFile"]?.[0] || null;
@@ -202,19 +190,20 @@ router.post(
         try {
           specFile = await downloadProjectFile(projectFileId);
         } catch (err) {
-          return res.status(400).json({
-            error:
-              err instanceof Error
-                ? err.message
-                : "Failed to download project file",
-          });
+          throw badRequest(
+            err instanceof Error
+              ? err.message
+              : "Failed to download project file",
+            "PROJECT_FILE_DOWNLOAD_FAILED"
+          );
         }
       }
 
       if (!specFile && !normFile) {
-        return res
-          .status(400)
-          .json({ error: "No specification or normative file provided" });
+        throw badRequest(
+          "No specification or normative file provided",
+          "FILE_UPLOAD_INVALID"
+        );
       }
 
       // 1. Parse Project Spec
@@ -281,15 +270,7 @@ router.post(
         stats,
         data: finalRequirements,
       });
-    } catch (error: unknown) {
-      logger.error("[COMPLIANCE_V1] Spec analysis error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  },
+  }),
 );
 
 /**
@@ -298,17 +279,17 @@ router.post(
 router.post(
   "/verify",
   upload.single("file"),
-  async (req: Request, res: Response) => {
-    try {
+  asyncHandler(async (req: Request, res: Response) => {
       const { urn, checklist } = req.body;
 
       if (!req.file && !checklist) {
-        return res
-          .status(400)
-          .json({ error: "No specification file OR checklist provided" });
+        throw badRequest(
+          "No specification file OR checklist provided",
+          "FILE_UPLOAD_INVALID"
+        );
       }
       if (!urn) {
-        return res.status(400).json({ error: "No Model URN provided" });
+        throw badRequest("No Model URN provided", "MISSING_FIELDS");
       }
 
       const safeUrn = toSafeUrn(urn);
@@ -323,7 +304,7 @@ router.post(
           requirements =
             typeof checklist === "string" ? JSON.parse(checklist) : checklist;
         } catch {
-          return res.status(400).json({ error: "Invalid checklist format" });
+          throw badRequest("Invalid checklist format", "INVALID_CHECKLIST");
         }
       } else if (req.file) {
         // Classic file mode
@@ -361,7 +342,16 @@ router.post(
       }
 
       // 2. Extraction & 3. Evaluation
-      const modelProps = await bimQuery.queryModel(safeUrn);
+      let modelProps;
+      try {
+        modelProps = await bimQuery.queryModel(safeUrn);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes("APS_MODEL_NOT_READY")) {
+          throw conflict("Model is still processing", "APS_MODEL_NOT_READY");
+        }
+        throw error;
+      }
       const incidents = kernel.evaluate(requirements, modelProps);
 
       res.json({
@@ -394,26 +384,7 @@ router.post(
           category: p.category,
         })),
       });
-    } catch (error: unknown) {
-      const err = error as {
-        message?: string;
-        response?: { status?: number; data?: unknown };
-      };
-      logger.error("[COMPLIANCE_V1] Verify error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      if (err.message?.includes("APS_MODEL_NOT_READY")) {
-        return res
-          .status(409)
-          .json({
-            error: "Model Processing",
-            message: "Model is still processing",
-          });
-      }
-      res.status(500).json({ error: err.message || "Unknown error" });
-    }
-  },
+  }),
 );
 
 export default router;

@@ -16,6 +16,8 @@ import {
   prisma,
 } from "../../lib/utils";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest } from "../../lib/errors";
 
 const router = Router();
 const upload = multer({ dest: "uploads/" });
@@ -46,17 +48,20 @@ const upload = multer({ dest: "uploads/" });
  *       500:
  *         description: Server error
  */
-router.post("/upload", upload.single("file"), async (req, res, next) => {
-  try {
+router.post("/upload", upload.single("file"), asyncHandler(async (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
     }
 
     const { projectId } = req.body;
     const forceLocal = req.query.forceLocal === "true";
 
     if (!projectId) {
-      return res.status(400).json({ error: "Project ID is required" });
+      // Clean up uploaded file
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      throw badRequest("Project ID is required", "MISSING_PROJECT_ID");
     }
 
     // Server-side validation
@@ -65,44 +70,46 @@ router.post("/upload", upload.single("file"), async (req, res, next) => {
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
-      return res.status(400).json({
-        error: "Unsupported file format",
-        details: `Allowed formats: ${getAllowedExtensionsString()}`,
+      throw badRequest(
+        "Unsupported file format",
+        "FILE_FORMAT_UNSUPPORTED",
+        `Allowed formats: ${getAllowedExtensionsString()}`
+      );
+    }
+
+    try {
+      const result = await fileService.handleFileUpload(
+        req.file,
+        projectId,
+        forceLocal,
+      );
+
+      // Invalidate caches
+      await Promise.all([
+        cacheService.del(RedisKeys.projectDetail(projectId)),
+        cacheService.invalidatePattern("cache:dashboard:stats:*"),
+        cacheService.invalidatePattern("cache:files:recent:*"),
+      ]);
+
+      res.json({
+        success: true,
+        file: result.dbFile,
+        urn: result.apsUrn,
+        warning: result.uploadWarning,
+        mode:
+          result.fileStatus === "UPLOADING"
+            ? "UPLOADING (background upload in progress)"
+            : "APS",
+        message: result.message,
       });
+    } catch (error: unknown) {
+      // Clean up local file if it exists
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      throw error;
     }
-
-    const result = await fileService.handleFileUpload(
-      req.file,
-      projectId,
-      forceLocal,
-    );
-
-    // Invalidate caches
-    await Promise.all([
-      cacheService.del(RedisKeys.projectDetail(projectId)),
-      cacheService.invalidatePattern("cache:dashboard:stats:*"),
-      cacheService.invalidatePattern("cache:files:recent:*"),
-    ]);
-
-    res.json({
-      success: true,
-      file: result.dbFile,
-      urn: result.apsUrn,
-      warning: result.uploadWarning,
-      mode:
-        result.fileStatus === "UPLOADING"
-          ? "UPLOADING (background upload in progress)"
-          : "APS",
-      message: result.message,
-    });
-  } catch (error: unknown) {
-    // Clean up local file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    next(error instanceof Error ? error : new Error(String(error)));
-  }
-});
+}));
 
 /**
  * @swagger
@@ -135,8 +142,7 @@ router.post("/upload", upload.single("file"), async (req, res, next) => {
  *       500:
  *         description: Server error
  */
-router.post("/import-aps", async (req, res) => {
-  try {
+router.post("/import-aps", asyncHandler(async (req, res) => {
     const {
       projectId,
       name,
@@ -150,7 +156,7 @@ router.post("/import-aps", async (req, res) => {
     } = req.body;
 
     if (!projectId || !name || !urn) {
-      return res.status(400).json({ error: "Missing required fields" });
+      throw badRequest("Missing required fields", "MISSING_FIELDS");
     }
 
     // Check if file already exists in this project (by APS Item ID)
@@ -197,14 +203,6 @@ router.post("/import-aps", async (req, res) => {
       success: true,
       file: dbFile,
     });
-  } catch (error: unknown) {
-    logger.error("[FILES_UPLOAD] Import error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: "Import failed", details: errorMessage });
-  }
-});
+}));
 
 export default router;

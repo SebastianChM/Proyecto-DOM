@@ -5,6 +5,8 @@ import { apsOssService } from "../../services/aps/oss.service";
 import prisma from "../../lib/prisma";
 import { cacheService } from "../../lib/redis";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { unauthorized, notFound } from "../../lib/errors";
 
 // Define RequestWithSession locally since it's not exported globally yet
 interface SessionData {
@@ -33,11 +35,10 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/recent", async (req, res) => {
-  try {
-    const userId = (req as RequestWithSession).session?.user?.id;
+router.get("/recent", asyncHandler(async (req, res) => {
+    const userId = (req as unknown as RequestWithSession).session?.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      throw unauthorized("Authentication required");
     }
 
     const cacheKey = `cache:files:recent:${userId}`;
@@ -73,16 +74,10 @@ router.get("/recent", async (req, res) => {
     );
 
     res.json(files);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 // List files for a project
-router.get("/project/:projectId", async (req, res) => {
-  try {
+router.get("/project/:projectId", asyncHandler(async (req, res) => {
     const { projectId } = req.params;
     const files = await prisma.file.findMany({
       where: { projectId },
@@ -144,12 +139,7 @@ router.get("/project/:projectId", async (req, res) => {
     });
 
     res.json(filesWithProgress);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -173,8 +163,7 @@ router.get("/project/:projectId", async (req, res) => {
  *         description: Server error
  */
 // Get file details
-router.get("/:id", async (req, res) => {
-  try {
+router.get("/:id", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
       include: {
@@ -184,7 +173,7 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     // Check translation status if currently translating
@@ -229,12 +218,7 @@ router.get("/:id", async (req, res) => {
     }
 
     res.json(file);
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: errorMessage });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -258,8 +242,7 @@ router.get("/:id", async (req, res) => {
  *         description: Server error
  */
 // Get file versions (from APS Data Management for ACC/BIM 360 files)
-router.get("/:id/versions", async (req, res) => {
-  try {
+router.get("/:id/versions", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
       where: { id: req.params.id },
       include: {
@@ -270,7 +253,7 @@ router.get("/:id/versions", async (req, res) => {
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     // If file is from APS (has apsProjectId and apsItemId), fetch real versions
@@ -280,63 +263,50 @@ router.get("/:id/versions", async (req, res) => {
     };
     if (apsFile.apsProjectId && apsFile.apsItemId) {
       // Get 3-legged token from session
-      const accessToken = (req as RequestWithSession).session?.apsToken;
+      const accessToken = (req as unknown as RequestWithSession).session?.apsToken;
 
       if (!accessToken) {
-        return res.status(401).json({
-          error: "Not authenticated with Autodesk. Please sign in again.",
-        });
+        throw unauthorized(
+          "Not authenticated with Autodesk. Please sign in again."
+        );
       }
 
-      try {
-        const versions = await apsDataManagementService.getItemVersions(
-          apsFile.apsProjectId,
-          apsFile.apsItemId,
-          accessToken,
-        );
+      const versions = await apsDataManagementService.getItemVersions(
+        apsFile.apsProjectId,
+        apsFile.apsItemId,
+        accessToken,
+      );
 
-        // Transform to our format
-        const formattedVersions = versions.map(
-          (v: {
-            id: string;
-            baseVersion: number;
-            name: string;
-            lastModified: string;
-            urn: string;
-          }) => ({
-            id: v.id,
-            versionNumber: v.baseVersion,
-            displayName: v.name,
-            createTime: v.lastModified,
-            createUserName: "Unknown", // Service doesn't return user name currently
-            storageId: null, // Service doesn't return explicit storage ID, just URN
-            urn: v.urn ? apsOssService.getDerivativeUrn(v.urn) : null,
-            size: 0, // Service doesn't return size currently
-            status: "READY", // Assume ready since it's from APS
-          }),
-        );
+      // Transform to our format
+      const formattedVersions = versions.map(
+        (v: {
+          id: string;
+          baseVersion: number;
+          name: string;
+          lastModified: string;
+          urn: string;
+        }) => ({
+          id: v.id,
+          versionNumber: v.baseVersion,
+          displayName: v.name,
+          createTime: v.lastModified,
+          createUserName: "Unknown", // Service doesn't return user name currently
+          storageId: null, // Service doesn't return explicit storage ID, just URN
+          urn: v.urn ? apsOssService.getDerivativeUrn(v.urn) : null,
+          size: 0, // Service doesn't return size currently
+          status: "READY", // Assume ready since it's from APS
+        }),
+      );
 
-        return res.json({
-          file: {
-            id: file.id,
-            name: file.name,
-            projectId: file.projectId,
-          },
-          versions: formattedVersions,
-          source: "APS",
-        });
-      } catch (apsError: unknown) {
-        logger.error("[FILES_CRUD] Failed to fetch APS versions", {
-          error:
-            apsError instanceof Error ? apsError.message : String(apsError),
-        });
-        const errorMessage =
-          apsError instanceof Error ? apsError.message : "Unknown error";
-        return res.status(500).json({
-          error: "Failed to fetch versions from Autodesk",
-          details: errorMessage,
-        });
-      }
+      return res.json({
+        file: {
+          id: file.id,
+          name: file.name,
+          projectId: file.projectId,
+        },
+        versions: formattedVersions,
+        source: "APS",
+      });
     }
 
     // Fallback: Return local versions from database
@@ -374,17 +344,7 @@ router.get("/:id/versions", async (req, res) => {
             ],
       source: "LOCAL",
     });
-  } catch (error: unknown) {
-    logger.error("[FILES_CRUD] Get versions error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res
-      .status(500)
-      .json({ error: "Failed to get versions", details: errorMessage });
-  }
-});
+}));
 
 /**
  * @swagger
@@ -408,8 +368,7 @@ router.get("/:id/versions", async (req, res) => {
  *         description: Server error
  */
 // Delete file
-router.delete("/:id", async (req, res) => {
-  try {
+router.delete("/:id", asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Check if file exists
@@ -418,7 +377,7 @@ router.delete("/:id", async (req, res) => {
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     // Delete from DB
@@ -427,16 +386,6 @@ router.delete("/:id", async (req, res) => {
     });
 
     res.json({ success: true });
-  } catch (error: unknown) {
-    logger.error("[FILES_CRUD] Delete file error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    res
-      .status(500)
-      .json({ error: "Failed to delete file", details: errorMessage });
-  }
-});
+}));
 
 export default router;

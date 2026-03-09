@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { CONSTANTS } from "../../config/constants";
-import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { unauthorized } from "../../lib/errors";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ const router = Router();
  *       500:
  *         description: Failed to get viewer token
  */
-router.get("/token", async (req, res) => {
+router.get("/token", asyncHandler(async (req, res) => {
   // Hito 3.1: Alias to unified viewer token endpoint
   const { viewerTokenService } =
     await import("../../services/viewer/viewer-token.service");
@@ -40,19 +41,9 @@ router.get("/token", async (req, res) => {
   res.setHeader("Deprecation", "true");
   res.setHeader("Link", '</api/viewer/token>; rel="successor-version"');
 
-  try {
-    const tokenResponse = await viewerTokenService.getViewerToken(requestId);
-    res.json(tokenResponse);
-  } catch {
-    res.status(500).json({
-      error: "VIEWER_TOKEN_ERROR",
-      code: "VIEWER_TOKEN_FAILED",
-      message: "Failed to generate viewer token",
-      requestId,
-      status: 500,
-    });
-  }
-});
+  const tokenResponse = await viewerTokenService.getViewerToken(requestId);
+  res.json(tokenResponse);
+}));
 
 /**
  * @swagger
@@ -113,83 +104,46 @@ const userTokenLimiter = rateLimit({
   },
 });
 
-router.get("/user-token", userTokenLimiter, async (req, res) => {
+router.get("/user-token", userTokenLimiter, asyncHandler(async (req, res) => {
   // Hito 3.3: Strict validation for user tokens
   const requestId = req.headers["x-request-id"] as string | undefined;
 
   // 1. Require valid session
   if (!req.session || !req.session.user) {
-    return res.status(401).json({
-      error: "USER_TOKEN_ERROR",
-      code: "USER_SESSION_REQUIRED",
-      message: "Valid user session required. Please login.",
-      requestId,
-      status: 401,
-    });
+    throw unauthorized("Valid user session required. Please login.");
   }
 
   // 2. Require token in session
   if (!req.session.token) {
-    return res.status(401).json({
-      error: "USER_TOKEN_ERROR",
-      code: "USER_SESSION_REQUIRED",
-      message: "No user token in session. Please re-authenticate.",
-      requestId,
-      status: 401,
-    });
+    throw unauthorized("No user token in session. Please re-authenticate.");
   }
 
   // 3. Require refreshToken for token renewal capability
   if (!req.session.refreshToken) {
-    return res.status(401).json({
-      error: "USER_TOKEN_ERROR",
-      code: "USER_SESSION_REQUIRED",
-      message:
-        "Session does not support token refresh. Please re-authenticate.",
-      requestId,
-      status: 401,
-    });
+    throw unauthorized("Session does not support token refresh. Please re-authenticate.");
   }
 
   // 4. Ensure token with refresh service (auto-refresh if needed)
-  try {
-    const { tokenRefreshService } =
-      await import("../../services/aps/token-refresh.service");
-    const validToken = await tokenRefreshService.ensureValidToken(req);
+  const { tokenRefreshService } =
+    await import("../../services/aps/token-refresh.service");
+  const validToken = await tokenRefreshService.ensureValidToken(req);
 
-    const expiresAt = req.session.expiresAt || 0;
-    const expiresIn = Math.floor((expiresAt - Date.now()) / 1000);
+  const expiresAt = req.session.expiresAt || 0;
+  const expiresIn = Math.floor((expiresAt - Date.now()) / 1000);
 
-    // Define session type locally to avoid 'any'
-    interface ApsSession {
-      scope?: string;
-    }
-    const scope = (req.session as unknown as ApsSession).scope || "data:read";
-
-    res.json({
-      access_token: validToken,
-      expires_in: Math.max(0, expiresIn),
-      expires_at: expiresAt,
-      scope,
-      requestId,
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    logger.error("[USER_TOKEN] Token validation failed", {
-      error: errorMessage.substring(0, 200),
-      userId: req.session.user.id?.substring(0, 8),
-      requestId,
-    });
-
-    res.status(401).json({
-      error: "USER_TOKEN_ERROR",
-      code: "USER_SESSION_REQUIRED",
-      message: "Failed to validate user token. Please re-authenticate.",
-      requestId,
-      status: 401,
-    });
+  // Define session type locally to avoid 'any'
+  interface ApsSession {
+    scope?: string;
   }
-});
+  const scope = (req.session as unknown as ApsSession).scope || "data:read";
+
+  res.json({
+    access_token: validToken,
+    expires_in: Math.max(0, expiresIn),
+    expires_at: expiresAt,
+    scope,
+    requestId,
+  });
+}));
 
 export default router;

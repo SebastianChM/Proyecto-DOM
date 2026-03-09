@@ -11,6 +11,8 @@ import {
   ValidationResult as ApiValidationResult,
 } from "../../services/validation/validation.service";
 import { logger } from "../../lib/logger";
+import { asyncHandler } from "../../lib/async-handler";
+import { badRequest, notFound } from "../../lib/errors";
 
 const router = Router();
 
@@ -20,8 +22,7 @@ const router = Router();
  * POST /api/validation/run
  * Perform a full validation (Async via Worker)
  */
-router.post("/run", async (req: Request, res: Response) => {
-  try {
+router.post("/run", asyncHandler(async (req: Request, res: Response) => {
     const {
       fileId,
       fileName,
@@ -67,31 +68,18 @@ router.post("/run", async (req: Request, res: Response) => {
         status: "PENDING",
       },
     });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION] Error queuing validation", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      success: false,
-      error: "Failed to queue validation",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 /**
  * POST /api/validation/validate
  * Run validation comparing ET document with models (Legacy Synchronous Mode)
  * REFACTORED: Logic moved to ValidationService
  */
-router.post("/validate", async (req: Request, res: Response) => {
-  try {
+router.post("/validate", asyncHandler(async (req: Request, res: Response) => {
     const { projectId, etDocumentId } = req.body;
 
     if (!projectId || !etDocumentId) {
-      return res
-        .status(400)
-        .json({ error: "projectId and etDocumentId are required" });
+      throw badRequest("projectId and etDocumentId are required", "MISSING_FIELDS");
     }
 
     const project = await prisma.project.findUnique({
@@ -107,7 +95,7 @@ router.post("/validate", async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      return res.status(404).json({ error: "Project not found" });
+      throw notFound("Project not found", "PROJECT_NOT_FOUND");
     }
 
     const etDocument = await prisma.file.findUnique({
@@ -115,7 +103,7 @@ router.post("/validate", async (req: Request, res: Response) => {
     });
 
     if (!etDocument) {
-      return res.status(404).json({ error: "ET document not found" });
+      throw notFound("ET document not found", "ET_DOCUMENT_NOT_FOUND");
     }
 
     logger.info(
@@ -235,15 +223,6 @@ router.post("/validate", async (req: Request, res: Response) => {
       summary,
       results: allResults,
     });
-  } catch (error: unknown) {
-    logger.error("[VALIDATION] Validation error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      error: "Validation failed",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+}));
 
 export default router;

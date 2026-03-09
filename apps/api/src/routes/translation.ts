@@ -2,6 +2,8 @@ import { Router } from "express";
 import prisma from "../lib/prisma";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
 import { logger } from "../lib/logger";
+import { asyncHandler } from "../lib/async-handler";
+import { badRequest, notFound } from "../lib/errors";
 
 const router = Router();
 
@@ -27,8 +29,7 @@ const router = Router();
  *         description: Server error
  */
 // Retry translation for a file stuck in UPLOADED state
-router.post("/:fileId/translate", async (req, res) => {
-  try {
+router.post("/:fileId/translate", asyncHandler(async (req, res) => {
     const { fileId } = req.params;
 
     const file = await prisma.file.findUnique({
@@ -36,13 +37,11 @@ router.post("/:fileId/translate", async (req, res) => {
     });
 
     if (!file) {
-      return res.status(404).json({ error: "File not found" });
+      throw notFound("File not found", "FILE_NOT_FOUND");
     }
 
     if (!file.apsUrn) {
-      return res
-        .status(400)
-        .json({ error: "File has no APS URN. Cannot translate." });
+      throw badRequest("File has no APS URN. Cannot translate.", "MISSING_APS_URN");
     }
 
     if (file.status === "READY") {
@@ -84,10 +83,10 @@ router.post("/:fileId/translate", async (req, res) => {
     const isLocalMock = file.apsUrn.startsWith("local-");
 
     if (!supportedExtensions.includes(fileExt) && !isLocalMock) {
-      return res.status(400).json({
-        error: `File type ${fileExt} is not supported for 3D translation.`,
-        details: "Supported formats: " + supportedExtensions.join(", "),
-      });
+      throw badRequest(
+        `File type ${fileExt} is not supported for 3D translation.`,
+        "UNSUPPORTED_FILE_TYPE",
+      );
     }
 
     // Start translation
@@ -153,23 +152,6 @@ router.post("/:fileId/translate", async (req, res) => {
       fileId,
       status: "TRANSLATING",
     });
-  } catch (error: unknown) {
-    const err = error as {
-      response?: { data?: unknown; status?: number };
-      message?: string;
-    };
-    logger.error("[TRANSLATION] Translation retry failed", {
-      error: err.message,
-      apsError: err.response?.data,
-    });
-
-    const statusCode = err.response?.status || 500;
-    res.status(statusCode).json({
-      error: "Failed to start translation",
-      details: err.message,
-      apsError: err.response?.data,
-    });
-  }
-});
+}));
 
 export default router;
