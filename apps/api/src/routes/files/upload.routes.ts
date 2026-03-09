@@ -48,7 +48,10 @@ const upload = multer({ dest: "uploads/" });
  *       500:
  *         description: Server error
  */
-router.post("/upload", upload.single("file"), asyncHandler(async (req, res) => {
+router.post(
+  "/upload",
+  upload.single("file"),
+  asyncHandler(async (req, res) => {
     if (!req.file) {
       throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
     }
@@ -73,7 +76,7 @@ router.post("/upload", upload.single("file"), asyncHandler(async (req, res) => {
       throw badRequest(
         "Unsupported file format",
         "FILE_FORMAT_UNSUPPORTED",
-        `Allowed formats: ${getAllowedExtensionsString()}`
+        `Allowed formats: ${getAllowedExtensionsString()}`,
       );
     }
 
@@ -109,7 +112,8 @@ router.post("/upload", upload.single("file"), asyncHandler(async (req, res) => {
       }
       throw error;
     }
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -142,7 +146,9 @@ router.post("/upload", upload.single("file"), asyncHandler(async (req, res) => {
  *       500:
  *         description: Server error
  */
-router.post("/import-aps", asyncHandler(async (req, res) => {
+router.post(
+  "/import-aps",
+  asyncHandler(async (req, res) => {
     const {
       projectId,
       name,
@@ -171,6 +177,7 @@ router.post("/import-aps", asyncHandler(async (req, res) => {
       if (existingFile) {
         logger.info(
           `[FILES_UPLOAD] File ${name} already imported (ID: ${existingFile.id}). Returning existing record.`,
+          logger.fromReq(req),
         );
         return res.json({
           success: true,
@@ -203,6 +210,7 @@ router.post("/import-aps", asyncHandler(async (req, res) => {
       success: true,
       file: dbFile,
     });
-}));
+  }),
+);
 
 export default router;

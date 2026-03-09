@@ -31,12 +31,13 @@ export const httpLogger = (
   next: NextFunction,
 ): void => {
   const start = Date.now();
+  const fullPath = req.originalUrl.split("?")[0];
 
   // Use the "finish" event — fires when the response is fully written.
   res.on("finish", () => {
     const duration = Date.now() - start;
     const status = res.statusCode;
-    const quiet = isQuietPath(req.path);
+    const quiet = isQuietPath(fullPath);
 
     // Determine level
     let level: "debug" | "info" | "warn" | "error";
@@ -67,7 +68,7 @@ export const httpLogger = (
       meta.userId = truncateId(userId);
     }
 
-    logger[level](`${req.method} ${req.path} ${status} ${duration}ms`, meta);
+    logger[level](`${req.method} ${fullPath} ${status} ${duration}ms`, meta);
   });
 
   next();

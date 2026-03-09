@@ -10,6 +10,7 @@ import {
   Permission,
 } from "../services/authorization.service";
 import { logger } from "../lib/logger";
+import { maskEmail } from "../lib/redact";
 
 /**
  * Middleware que requiere un permiso específico para acceder a la ruta
@@ -26,10 +27,8 @@ export const requirePermission = (
       // Verificar que el usuario esté autenticado
       if (!req.session?.user?.id) {
         logger.warn("[AUTH] 401 - Unauthenticated access", {
-          method: req.method,
-          path: req.path,
+          ...logger.fromReq(req),
           ip: req.ip,
-          requestId: req.headers["x-request-id"],
         });
         return res.status(401).json({
           error: "Authentication required",
@@ -70,12 +69,10 @@ export const requirePermission = (
 
       if (!hasPermission) {
         logger.warn("[AUTH] 403 - Permission denied", {
-          method: req.method,
-          path: req.path,
-          user: req.session.user.email,
+          ...logger.fromReq(req),
+          email: maskEmail(req.session.user.email),
           requiredPermission: permission,
           projectId,
-          requestId: req.headers["x-request-id"],
         });
         return res.status(403).json({
           error: "Forbidden",
@@ -89,7 +86,10 @@ export const requirePermission = (
       next();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.error("[AUTH] Authorization middleware error", { error: msg });
+      logger.error("[AUTH] Authorization middleware error", {
+        ...logger.fromReq(req),
+        error: msg,
+      });
       res.status(500).json({
         error: "Authorization check failed",
         type: "InternalServerError",
@@ -111,10 +111,8 @@ export const requireAdmin = async (
   try {
     if (!req.session?.user?.id) {
       logger.warn("[AUTH] 401 - Unauthenticated access", {
-        method: req.method,
-        path: req.path,
+        ...logger.fromReq(req),
         ip: req.ip,
-        requestId: req.headers["x-request-id"],
       });
       return res.status(401).json({
         error: "Authentication required",
@@ -125,11 +123,9 @@ export const requireAdmin = async (
 
     if (req.session.user.role !== "ADMIN") {
       logger.warn("[AUTH] 403 - Admin required", {
-        method: req.method,
-        path: req.path,
-        user: req.session.user.email,
+        ...logger.fromReq(req),
+        email: maskEmail(req.session.user.email),
         role: req.session.user.role,
-        requestId: req.headers["x-request-id"],
       });
       return res.status(403).json({
         error: "Forbidden",
@@ -142,7 +138,10 @@ export const requireAdmin = async (
     next();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.error("[AUTH] Admin check error", { error: msg });
+    logger.error("[AUTH] Admin check error", {
+      ...logger.fromReq(req),
+      error: msg,
+    });
     res.status(500).json({
       error: "Authorization check failed",
       type: "InternalServerError",

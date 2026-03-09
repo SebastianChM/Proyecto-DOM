@@ -75,6 +75,7 @@ interface ReqLike {
   headers: Record<string, unknown>;
   method: string;
   path: string;
+  originalUrl?: string;
 }
 
 export const logger = {
@@ -102,7 +103,7 @@ export const logger = {
     return {
       requestId: req.headers["x-request-id"],
       method: req.method,
-      path: req.path,
+      path: req.originalUrl?.split("?")[0] ?? req.path,
     };
   },
 
