@@ -19,7 +19,7 @@ export const captureRawBody = (
   });
 
   req.on("end", () => {
-    (req as any).rawBody = Buffer.concat(chunks);
+    req.rawBody = Buffer.concat(chunks);
     next();
   });
 

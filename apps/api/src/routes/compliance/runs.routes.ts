@@ -14,7 +14,7 @@ import {
 import { BimQueryService } from "../../services/bim-query.service";
 import { logger } from "../../lib/logger";
 import { asyncHandler } from "../../lib/async-handler";
-import { badRequest, notFound, conflict } from "../../lib/errors";
+import { badRequest, notFound } from "../../lib/errors";
 
 const router = Router();
 const bimQueryService = new BimQueryService();

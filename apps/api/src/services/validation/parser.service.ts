@@ -48,8 +48,6 @@ export class ParserService {
 
   private async parsePdf(filePath: string): Promise<ParsedDocument> {
     const dataBuffer = fs.readFileSync(filePath);
-    // PDFParse expects Unit8Array or Buffer
-    const instance = new PDFParse(dataBuffer);
 
     // Some versions of pdf-parse-fork return text directly or via PROMISE?
     // The original document-parser code used instance.load() pattern which is weird for standard pdf-parse.

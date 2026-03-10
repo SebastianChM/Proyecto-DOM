@@ -57,7 +57,7 @@ export const validateApsWebhookSignature = (
   const receivedSignature = signatureHeader.replace(/^sha1hash=/, "");
 
   // Get raw body (must be captured by captureRawBody middleware)
-  const rawBody = (req as any).rawBody;
+  const rawBody = req.rawBody;
   if (!rawBody) {
     logger.error("[WEBHOOK_HMAC] Raw body not captured", { requestId });
     return res.status(500).json({

@@ -6,5 +6,6 @@ declare module "express" {
       jwt?: string;
       [key: string]: unknown;
     } | null;
+    rawBody?: Buffer;
   }
 }
