@@ -58,21 +58,15 @@ npm run dev
 
 ## Consideraciones
 
-- **Directorio de respaldos:** `packages/database/backups/`
-- **Convención de nombres:** `backup_YYYYMMDD_HHMMSS.dump`
+- **Directorio de respaldos:** `storage/backups/`
+- **Convención de nombres:** `<dbname>_YYYY-MM-DD_HH-MM-SS.dump`
 - **Retención recomendada:** últimos 5 respaldos
 - **Formatos soportados:**
-  - `.dump` - Formato custom de PostgreSQL (recomendado)
-  - `.sql` - SQL plano (más grande, pero legible)
+  - `.dump` - Formato custom de PostgreSQL (recomendado, `--format=custom`)
+  - `.sql` - SQL plano (`--format=sql`, más grande, pero legible)
 - **⚠️ CRÍTICO:** No ejecutar `prisma migrate reset` sin respaldo previo
 - **⚠️ CRÍTICO:** Verificar que no hay conexiones activas antes de restaurar
 
 ## Variables de Entorno Requeridas
 
-```env
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=dom
-POSTGRES_DB=dom_bim
-PGPASSWORD=<tu_password>  # O usar .pgpass
-```
+El script lee `DATABASE_URL` del entorno o de `apps/api/.env` automáticamente. No requiere configuración adicional.
