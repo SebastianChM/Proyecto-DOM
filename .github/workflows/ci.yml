@@ -94,6 +94,9 @@ jobs:
   prisma:
     name: Prisma Schema Validation
     runs-on: ubuntu-latest
+    env:
+      # Dummy URL — prisma validate resolves env("DATABASE_URL") but never connects
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
     steps:
       - uses: actions/checkout@v4
 
@@ -121,17 +124,46 @@ jobs:
       - name: Build API image
         run: docker build -f apps/api/Dockerfile -t dom-bim-api:ci-${{ github.sha }} .
 
-      - name: Verify health endpoint exists
+      - name: Start Redis sidecar
         run: |
-          docker run --rm -d --name ci-smoke \
+          docker network create ci-net
+          docker run -d --name ci-redis --network ci-net redis:7-alpine
+          # Wait for Redis to be ready
+          for i in 1 2 3 4 5; do
+            docker exec ci-redis redis-cli ping && break || sleep 1
+          done
+
+      - name: Smoke-test API container
+        run: |
+          docker run -d --name ci-smoke --network ci-net \
             -e NODE_ENV=development \
             -e PORT=8080 \
             -e SESSION_SECRET=ci-test-session-secret-32chars-min \
             -e CORS_ORIGINS=http://localhost:3000 \
             -e APS_MOCK=true \
-            -e REDIS_HOST=localhost \
-            -e DATABASE_URL=postgresql://test:test@localhost:5432/test \
+            -e REDIS_HOST=ci-redis \
+            -e REDIS_PORT=6379 \
+            -e DATABASE_URL=postgresql://ci:ci@localhost:5432/ci \
             dom-bim-api:ci-${{ github.sha }}
-          sleep 3
-          docker logs ci-smoke 2>&1 | head -20
-          docker stop ci-smoke
+          # Give the server time to start (matches Dockerfile HEALTHCHECK start-period)
+          sleep 5
+          echo "=== Container status ==="
+          docker ps -a --filter name=ci-smoke
+          echo "=== Container logs ==="
+          docker logs ci-smoke 2>&1 | tail -30
+          # Accept 200 (all up) or 503 (DB down but server started) as valid
+          HTTP_CODE=$(docker exec ci-smoke wget -q -O /dev/null -S http://localhost:8080/health 2>&1 | grep 'HTTP/' | awk '{print $2}' | tail -1) || true
+          echo "Health endpoint returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "503" ]; then
+            echo "✅ Smoke test passed (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Smoke test failed — expected 200 or 503, got: $HTTP_CODE"
+            docker logs ci-smoke 2>&1
+            exit 1
+          fi
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker rm -f ci-smoke ci-redis 2>/dev/null || true
+          docker network rm ci-net 2>/dev/null || true
