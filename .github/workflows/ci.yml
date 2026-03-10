@@ -151,8 +151,19 @@ jobs:
           docker ps -a --filter name=ci-smoke
           echo "=== Container logs ==="
           docker logs ci-smoke 2>&1 | tail -30
-          # Accept 200 (all up) or 503 (DB down but server started) as valid
-          HTTP_CODE=$(docker exec ci-smoke wget -q -O /dev/null -S http://localhost:8080/health 2>&1 | grep 'HTTP/' | awk '{print $2}' | tail -1) || true
+          # Health check: use Node (guaranteed in container) — BusyBox wget lacks -S flag
+          # stdout (status code) → captured in $HTTP_CODE; stderr (body) → CI log
+          HTTP_CODE=$(docker exec ci-smoke node -e "
+            const http = require('http');
+            http.get('http://localhost:8080/health', res => {
+              let body = '';
+              res.on('data', d => body += d);
+              res.on('end', () => {
+                process.stderr.write('Health body: ' + body + '\n');
+                console.log(res.statusCode);
+              });
+            }).on('error', e => { process.stderr.write('Request error: ' + e.message + '\n'); console.log('FAIL'); });
+          ")
           echo "Health endpoint returned: $HTTP_CODE"
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "503" ]; then
             echo "✅ Smoke test passed (HTTP $HTTP_CODE)"
