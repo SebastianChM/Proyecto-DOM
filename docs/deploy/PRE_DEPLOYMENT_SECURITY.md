@@ -59,15 +59,14 @@ Follow the complete guide in [`docs/deploy/BACKUPS.md`](./BACKUPS.md).
 
 ```bash
 # Run backup
-node scripts/backup-db.js
+node tools/scripts/backup-db.js
 
 # Verify backup created
-ls -lh backups/backup_*.dump | tail -1
+ls -lh storage/backups/*.dump | tail -1
 # Expected: Recent backup file (e.g., 42 MB)
 
-# Test restore (creates test DB, restores, verifies, cleans up)
-node scripts/test-restore.js --backup=latest
-# Expected: ✅ Restore test PASSED
+# Test restore (interactive confirmation)
+node tools/scripts/restore-db.js storage/backups/<latest-file>
 ```
 
 ---
@@ -108,8 +107,8 @@ See [`docs/deploy/BACKUPS.md`](./BACKUPS.md) for complete backup and restore gui
 
 **Quick verification:**
 
-- [ ] Run backup: `node scripts/backup-db.js`
-- [ ] Verify backup file created in `backups/` directory
+- [ ] Run backup: `node tools/scripts/backup-db.js`
+- [ ] Verify backup file created in `storage/backups/` directory
 - [ ] Test restore: Follow "Restore Testing & Verification" in BACKUPS.md
 - [ ] Verify table count matches production
 - [ ] Verify migration count matches production

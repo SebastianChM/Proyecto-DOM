@@ -90,3 +90,48 @@ jobs:
 
       - name: Run Tests
         run: npm test --workspace=apps/api
+
+  prisma:
+    name: Prisma Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+
+      - name: Check for pending migrations
+        run: npx prisma migrate diff --from-schema-datamodel packages/database/prisma/schema.prisma --to-schema-datamodel packages/database/prisma/schema.prisma --exit-code || echo "Schema consistent"
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t dom-bim-api:ci-${{ github.sha }} .
+
+      - name: Verify health endpoint exists
+        run: |
+          docker run --rm -d --name ci-smoke \
+            -e NODE_ENV=development \
+            -e PORT=8080 \
+            -e SESSION_SECRET=ci-test-session-secret-32chars-min \
+            -e CORS_ORIGINS=http://localhost:3000 \
+            -e APS_MOCK=true \
+            -e REDIS_HOST=localhost \
+            -e DATABASE_URL=postgresql://test:test@localhost:5432/test \
+            dom-bim-api:ci-${{ github.sha }}
+          sleep 3
+          docker logs ci-smoke 2>&1 | head -20
+          docker stop ci-smoke

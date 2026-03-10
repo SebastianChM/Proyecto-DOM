@@ -89,7 +89,8 @@ apps/api/downloads/
 apps/api/uploads/*
 !apps/api/uploads/.gitkeep
 
-# Prisma backups
+# Backups (canonical path is storage/backups/, covered by storage/ above)
+# Legacy paths kept for safety
 packages/database/prisma/backups/
 backups/
 
