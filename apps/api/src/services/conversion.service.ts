@@ -15,7 +15,6 @@
 
 import prisma from "../lib/prisma";
 import { modelDerivativeService } from "./aps/model-derivative.service";
-import { designAutomationService } from "./aps/design-automation.service";
 import { apsOssService } from "./aps/oss.service";
 import { Queues, ConversionJobData } from "../lib/queue";
 import axios from "axios";
@@ -328,7 +327,7 @@ export class ConversionService {
 
     // Convert stream to buffer for upload (OSS service expects buffer currently)
     // TODO: Refactor OSS Service to accept Streams for better performance
-    const chunks: any[] = [];
+    const chunks: Buffer[] = [];
     for await (const chunk of download.stream) {
       chunks.push(chunk);
     }
