@@ -113,6 +113,20 @@ export const REDIS = {
 } as const;
 
 // =============================================================================
+// TOKEN REFRESH (User 3-legged tokens)
+// =============================================================================
+export const TOKEN_REFRESH = {
+  /** Refresh when token expires in less than this many seconds */
+  THRESHOLD_SECONDS: 300,
+  /** Redis lock TTL in seconds (prevents concurrent refresh) */
+  LOCK_TTL_SECONDS: 15,
+  /** Wait between lock retries in ms */
+  LOCK_RETRY_MS: 200,
+  /** Max retries when waiting for another refresh to complete */
+  MAX_LOCK_RETRIES: 10,
+} as const;
+
+// =============================================================================
 // VIEWER TOKEN
 // =============================================================================
 export const VIEWER_TOKEN = {
@@ -212,6 +226,7 @@ export const CONSTANTS = {
   LIMITS,
   WORKFLOW_ROLES,
   REDIS,
+  TOKEN_REFRESH,
   VIEWER_TOKEN,
   NOTIFICATION,
   OBSERVABILITY,

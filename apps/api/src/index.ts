@@ -56,7 +56,7 @@ const PORT = env.PORT;
 // Import configurations
 import { getCorsOptions } from "./config/cors.config";
 import { redis as redisClient } from "./lib/redis";
-import { basicAuth } from "./middleware/auth";
+import { basicAuth, sessionRefresh } from "./middleware/auth";
 import { requireAdmin } from "./middleware/authorization";
 
 // ===== REQUEST ID MIDDLEWARE =====
@@ -182,6 +182,11 @@ app.get(
     });
   },
 );
+
+// ===== SESSION REFRESH (global) =====
+// Transparently refreshes APS tokens approaching expiry.
+// Never blocks unauthenticated requests — those pass through to route handlers.
+app.use(sessionRefresh);
 
 // ===== CORE ROUTES =====
 // Auth routes: Strict rate limiting with NO fallback

@@ -75,7 +75,18 @@ class MockRedis extends EventEmitter {
     return this.data.get(key) || null;
   }
 
-  async set(key: string, value: string): Promise<"OK"> {
+  async set(
+    key: string,
+    value: string,
+    ...args: (string | number)[]
+  ): Promise<"OK" | null> {
+    // Support NX (set-if-not-exists) semantics for Redis lock tests
+    const hasNX = args.some(
+      (a) => typeof a === "string" && a.toUpperCase() === "NX",
+    );
+    if (hasNX && this.data.has(key)) {
+      return null; // Key already exists — NX fails
+    }
     this.data.set(key, value);
     return "OK";
   }
