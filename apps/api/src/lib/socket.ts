@@ -2,18 +2,15 @@ import { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import { redis } from "./redis";
 import { logger } from "./logger";
-import { CONSTANTS } from "../config/constants";
+import { env } from "../config/env";
 
 export class SocketService {
   private io: Server | null = null;
 
   initialize(httpServer: HttpServer) {
-    const isDev = process.env.NODE_ENV !== "production";
-    const frontendUrl =
-      process.env.FRONTEND_URL ||
-      (isDev ? CONSTANTS.FRONTEND.DEFAULT_URL : undefined);
+    const frontendUrl = env.FRONTEND_URL;
 
-    if (!frontendUrl && !isDev) {
+    if (env.NODE_ENV === "production" && !frontendUrl) {
       logger.warn("[SOCKET] FRONTEND_URL not set in production");
     }
 

@@ -3,6 +3,7 @@ import { logger } from "../lib/logger";
 import { AppError } from "../lib/errors";
 import { WorkflowError } from "../services/workflow.service";
 import { ApsError } from "../services/aps/aps-error";
+import { env } from "../config/env";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ interface ErrorResponse {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-const isDev = process.env.NODE_ENV !== "production";
+const isDev = env.NODE_ENV !== "production";
 
 /** Duck-type check for ZodError (works with both Zod v3 and v4). */
 function isZodError(err: unknown): err is { name: string; issues: unknown[] } {

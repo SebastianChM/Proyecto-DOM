@@ -6,96 +6,67 @@ description: Database backup procedure before schema migrations
 
 Procedimiento estándar para respaldo de base de datos PostgreSQL antes de ejecutar migraciones de Prisma.
 
+Backups se guardan en `storage/backups/`. Ver guía completa en `docs/deploy/BACKUPS.md`.
+
 ## Pre-Migration Backup
 
-### 1. Crear respaldo con pg_dump
+### 1. Crear respaldo
 
-```powershell
-# turbo
-$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$backupDir = "packages\database\backups"
-if (!(Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir }
-pg_dump -h localhost -U dom -d dom_bim -F c -f "$backupDir\backup_$timestamp.dump"
+```bash
+# Desde la raíz del proyecto
+node tools/scripts/backup-db.js
 ```
 
-**Nota:** Requiere que `PGPASSWORD` esté configurado como variable de entorno o usar `.pgpass`.
+El script auto-detecta `pg_dump` local o Docker (`dom-bim-db`).
+Genera un archivo `.dump` en `storage/backups/`.
 
-### 2. Verificar integridad del respaldo
+### 2. Verificar integridad
 
-```powershell
-# turbo
-Get-ChildItem "packages\database\backups\" -Filter "*.dump" | Sort-Object LastWriteTime -Descending | Select-Object -First 5 | Format-Table Name, Length, LastWriteTime
+```bash
+ls -lh storage/backups/*.dump | tail -5
 ```
 
 ### 3. Ejecutar migración
 
-```powershell
-cd packages\database
-npx prisma migrate dev --name <nombre_descriptivo>
+```bash
+npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 ```
 
 ## Rollback Procedure
 
 En caso de fallo durante la migración:
 
-### 1. Detener servicios
-
-```powershell
-# Terminar procesos de API y Frontend antes de restaurar
-Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
-```
-
-### 2. Restaurar respaldo
-
-```powershell
-# Restaurar desde dump
-pg_restore -h localhost -U dom -d dom_bim -c "packages\database\backups\backup_<TIMESTAMP>.dump"
-```
-
-**Alternativa: Restaurar SQL plano**
-
-```powershell
-psql -h localhost -U dom -d dom_bim -f "packages\database\backups\backup_<TIMESTAMP>.sql"
-```
-
-### 3. Regenerar cliente Prisma
-
-```powershell
-cd packages\database
-npx prisma generate
-```
-
-### 4. Reiniciar servicios
-
-```powershell
-npm run dev
-```
-
-## Backup Automático con Docker
-
-Si usas Docker, puedes usar este comando:
+### 1. Restaurar respaldo
 
 ```bash
-docker exec dom-bim-db pg_dump -U dom -d dom_bim -F c > backup_$(date +%Y%m%d_%H%M%S).dump
+node tools/scripts/restore-db.js storage/backups/<backup-file>
+```
+
+El script pide confirmación interactiva. En producción requiere `--i-know-what-i-am-doing`.
+
+### 2. Regenerar cliente Prisma
+
+```bash
+npx prisma generate --schema packages/database/prisma/schema.prisma
+```
+
+### 3. Reiniciar servicios
+
+```bash
+npm run dev
 ```
 
 ## Consideraciones
 
-- **Directorio de respaldos:** `packages/database/backups/`
-- **Convención de nombres:** `backup_YYYYMMDD_HHMMSS.dump`
+- **Directorio de respaldos:** `storage/backups/`
+- **Convención de nombres:** `<dbname>_YYYY-MM-DD_HH-MM-SS.dump`
 - **Retención recomendada:** últimos 5 respaldos
 - **Formatos soportados:**
-  - `.dump` - Formato custom de PostgreSQL (recomendado)
-  - `.sql` - SQL plano (más grande, pero legible)
+  - `.dump` - Formato custom de PostgreSQL (recomendado, `--format=custom`)
+  - `.sql` - SQL plano (`--format=sql`, más grande, pero legible)
 - **⚠️ CRÍTICO:** No ejecutar `prisma migrate reset` sin respaldo previo
 - **⚠️ CRÍTICO:** Verificar que no hay conexiones activas antes de restaurar
 
 ## Variables de Entorno Requeridas
 
-```env
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=dom
-POSTGRES_DB=dom_bim
-PGPASSWORD=<tu_password>  # O usar .pgpass
-```
+El script lee `DATABASE_URL` del entorno o de `apps/api/.env` automáticamente. No requiere configuración adicional.

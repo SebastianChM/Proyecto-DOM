@@ -1,17 +1,71 @@
+# ─────────────────────────────────────────────────────────────
+# DOM BIM Platform — API & Worker image
+# Build context: monorepo root  (docker-compose sets context: ../..)
+# ─────────────────────────────────────────────────────────────
+
+# ── Stage 1: builder ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
+WORKDIR /app
+
+# 1. Copy every workspace package.json (npm ci validates the full lockfile)
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/database/package.json packages/database/
+
+# 2. Prisma schema (required by prisma generate)
+COPY packages/database/prisma/ packages/database/prisma/
+
+# 3. Install ALL deps (devDeps needed for tsc + prisma CLI)
+RUN npm ci
+
+# 4. Generate Prisma client
+RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
+
+# 5. Copy API source and compile
+COPY apps/api/tsconfig.json apps/api/
+COPY apps/api/src/ apps/api/src/
+RUN npm run build --workspace=apps/api
+
+
+# ── Stage 2: production ──────────────────────────────────────
 FROM node:20-alpine
+WORKDIR /app
 
-WORKDIR /usr/src/app
+# OpenSSL 3.x — required by Prisma query engine at runtime
+RUN apk add --no-cache openssl
 
-COPY package*.json ./
-COPY tsconfig.json ./
-COPY prisma ./prisma/
+# Non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser  -u 1001 -S nodejs -G nodejs
 
-RUN npm install
+# 1. Re-install production-only dependencies
+COPY --chown=nodejs:nodejs package.json package-lock.json ./
+COPY --chown=nodejs:nodejs apps/api/package.json apps/api/
+COPY --chown=nodejs:nodejs apps/web/package.json apps/web/
+COPY --chown=nodejs:nodejs packages/database/package.json packages/database/
+RUN npm ci --omit=dev --ignore-scripts
 
-COPY . .
+# 2. Generated Prisma client (prisma CLI is a devDep, so we copy the output)
+COPY --chown=nodejs:nodejs --from=builder /app/node_modules/.prisma/ node_modules/.prisma/
 
-RUN npm run build
+# 3. Prisma schema (needed at runtime for connection string resolution)
+COPY --chown=nodejs:nodejs packages/database/prisma/ packages/database/prisma/
+
+# 4. Compiled TypeScript
+COPY --chown=nodejs:nodejs --from=builder /app/apps/api/dist/ apps/api/dist/
+
+# 5. Runtime directories (only these need nodejs ownership — not all of /app)
+RUN mkdir -p apps/api/uploads apps/api/downloads apps/api/logs && \
+    chown nodejs:nodejs apps/api/uploads apps/api/downloads apps/api/logs
+
+USER nodejs
+WORKDIR /app/apps/api
 
 EXPOSE 8080
 
-CMD ["npm", "start"]
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=30s \
+  CMD ["wget","--no-verbose","--tries=1","--spider","http://localhost:8080/health"]
+
+CMD ["node", "dist/src/index.js"]

@@ -1,0 +1,35 @@
+# ── Secrets & environment ────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Dependencies (rebuilt inside image) ─────────────────────
+node_modules/
+
+# ── Build artifacts ─────────────────────────────────────────
+dist/
+*.tsbuildinfo
+
+# ── Tests ────────────────────────────────────────────────────
+tests/
+jest.config.js
+coverage/
+
+# ── Development files ────────────────────────────────────────
+scripts/
+mock-data/
+tools/
+*.md
+LICENSE
+
+# ── Logs & runtime data ────────────────────────────────────
+logs/
+uploads/*
+downloads/*
+*.log
+
+# ── IDE & OS ────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
