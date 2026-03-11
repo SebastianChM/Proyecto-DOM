@@ -6,28 +6,28 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 **What is resolved**: All 12 items from the original refined PR plan's critical/high-priority fixes are merged to main (PrismaClient singleton, workItemId match, polling backoff, rate-limiter fallback, route aliases, DB indexes, ProjectDetail split, frontend API service layer, error handling standardization, quarantine of dead code, Docker health checks, APS mock mode). Observability logging (PR #7), platform runtime hardening (PR #8), platform ops hardening (PR #9), and repo housekeeping (PR #10) are also merged.
 
-**What is pending**: Session refresh (PR #11) is now merged. The major remaining work is: parser consolidation (9→6 files), unifying ValidationRun/ComplianceRun schema duplication, completing Design Automation integration, and production readiness (CI/CD, monitoring, tests).
+**What is pending**: Session refresh (PR #11) and parser consolidation phase 1 (PR #12) are merged. The major remaining work is: parser consolidation phase 2 (file-reader extraction), unifying ValidationRun/ComplianceRun schema duplication, completing Design Automation integration, and production readiness (CI/CD, monitoring, tests).
 
 **Active branches**: None. All feature branches are merged.
 
-**Recommended next PR**: `refactor/parser-consolidation` — consolidate 9 parser files to 6, eliminate duplication.
+**Recommended next PR**: `refactor/unify-validation-compliance` — unify ValidationRun/ComplianceRun schema + routes.
 
 ## 2. Current Repository State
 
-| Item            | Value          | Evidence                                    |
-| --------------- | -------------- | ------------------------------------------- |
-| Current branch  | `main`         | `git branch --show-current`                 |
-| main HEAD       | `fceac27`      | Merge PR #11 from feat/session-refresh      |
-| Working tree    | Clean          | `git status`                                |
-| Node.js         | 20.x           | `.nvmrc` → `20.11.0`                        |
-| Husky           | 9.1.7          | `node_modules/husky/package.json`           |
-| Package manager | npm workspaces | `apps/api`, `apps/web`, `packages/database` |
+| Item            | Value          | Evidence                                        |
+| --------------- | -------------- | ----------------------------------------------- |
+| Current branch  | `main`         | `git branch --show-current`                     |
+| main HEAD       | `13cd588`      | Merge PR #12 from refactor/parser-consolidation |
+| Working tree    | Clean          | `git status`                                    |
+| Node.js         | 20.x           | `.nvmrc` → `20.11.0`                            |
+| Husky           | 9.1.7          | `node_modules/husky/package.json`               |
+| Package manager | npm workspaces | `apps/api`, `apps/web`, `packages/database`     |
 
 ### Local branches
 
 | Branch                            | HEAD      | Tracking                                 | Status                  |
 | --------------------------------- | --------- | ---------------------------------------- | ----------------------- |
-| `main`                            | `fceac27` | `origin/main`                            | Up to date              |
+| `main`                            | `13cd588` | `origin/main`                            | Up to date              |
 | `feat/session-refresh`            | `e3a7e83` | `origin/feat/session-refresh`            | Merged as PR #11, stale |
 | `chore/repo-housekeeping`         | `abc24c9` | `origin/chore/repo-housekeeping`         | Merged to main, stale   |
 | `feat/platform-ops-hardening`     | `47ea5b1` | `origin/feat/platform-ops-hardening`     | Merged to main, stale   |
@@ -44,26 +44,27 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ## 3. Merged PRs / Completed Work
 
-| PR       | Branch                                     | Merge Commit | Scope                                                           | Notes                    |
-| -------- | ------------------------------------------ | ------------ | --------------------------------------------------------------- | ------------------------ |
-| (pre-PR) | `fix/webhook-workitemid-match`             | `053718f`    | workItemId exact match                                          | Plan PR 2                |
-| (pre-PR) | `refactor/remove-validation-route-aliases` | `37e18fd`    | Remove `/api/validations` aliases                               | Plan PR 5                |
-| (pre-PR) | `fix/rate-limiter-memory-fallback`         | `7c5dead`    | Per-endpoint memory fallback thresholds                         | Plan PR 4                |
-| (pre-PR) | `chore/gitignore-local-ai-artifacts`       | `71e95a2`    | .gitignore cleanup                                              | Housekeeping             |
-| (pre-PR) | `chore/add-missing-db-indexes`             | `aa812df`    | DB indexes + workItemId @unique                                 | Plan PR 6                |
-| (pre-PR) | `fix/polling-backoff-max-retries`          | `0eb5987`    | Polling exponential backoff                                     | Plan PR 3                |
-| (pre-PR) | `chore/quarantine-dead-code`               | `95462c1`    | Quarantine workflow/comparison/supremacy                        | Plan PR 11               |
-| (pre-PR) | `chore/docker-healthchecks`                | `4f82f06`    | Docker health checks + restart policies                         | Plan PR 12               |
-| #2       | `chore/audit-quickwins`                    | `44569a0`    | PrismaClient singleton + cache await                            | Plan PR 1                |
-| #3       | `feat/aps-mock-mode`                       | `8d132fd`    | APS mock mode for local dev                                     | Additional               |
-| #4       | `refactor/project-detail-split`            | `361ed7b`    | ProjectDetail → hooks + sub-components                          | Plan PR 7                |
-| #5       | `feat/web-api-service-layer`               | `aefbf15`    | Typed API service layer + CI fixes                              | Plan PR 10               |
-| #6       | `fix/api-error-handling`                   | `d755602`    | asyncHandler + AppError + standardized errors                   | Plan PR (error handling) |
-| #7       | `feat/observability-logging`               | `def93ee`    | Structured logger, redaction, requestId propagation             | Additional               |
-| #8       | `feat/platform-runtime-hardening`          | `b32a622`    | Sentry transport, env Zod schema, morgan removal                | Additional               |
-| #9       | `feat/platform-ops-hardening`              | `4b079a4`    | Dockerfile, backups, CI, staging runbook                        | Additional               |
-| #10      | `chore/repo-housekeeping`                  | `ec6e5cc`    | SETUP.md, ESLint 0 warnings, Husky v9, PROJECT_STATUS           | Additional               |
-| #11      | `feat/session-refresh`                     | `fceac27`    | Token refresh middleware, SESSION_EXPIRED interceptor, CI fixes | Additional               |
+| PR       | Branch                                     | Merge Commit | Scope                                                                              | Notes                    |
+| -------- | ------------------------------------------ | ------------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| (pre-PR) | `fix/webhook-workitemid-match`             | `053718f`    | workItemId exact match                                                             | Plan PR 2                |
+| (pre-PR) | `refactor/remove-validation-route-aliases` | `37e18fd`    | Remove `/api/validations` aliases                                                  | Plan PR 5                |
+| (pre-PR) | `fix/rate-limiter-memory-fallback`         | `7c5dead`    | Per-endpoint memory fallback thresholds                                            | Plan PR 4                |
+| (pre-PR) | `chore/gitignore-local-ai-artifacts`       | `71e95a2`    | .gitignore cleanup                                                                 | Housekeeping             |
+| (pre-PR) | `chore/add-missing-db-indexes`             | `aa812df`    | DB indexes + workItemId @unique                                                    | Plan PR 6                |
+| (pre-PR) | `fix/polling-backoff-max-retries`          | `0eb5987`    | Polling exponential backoff                                                        | Plan PR 3                |
+| (pre-PR) | `chore/quarantine-dead-code`               | `95462c1`    | Quarantine workflow/comparison/supremacy                                           | Plan PR 11               |
+| (pre-PR) | `chore/docker-healthchecks`                | `4f82f06`    | Docker health checks + restart policies                                            | Plan PR 12               |
+| #2       | `chore/audit-quickwins`                    | `44569a0`    | PrismaClient singleton + cache await                                               | Plan PR 1                |
+| #3       | `feat/aps-mock-mode`                       | `8d132fd`    | APS mock mode for local dev                                                        | Additional               |
+| #4       | `refactor/project-detail-split`            | `361ed7b`    | ProjectDetail → hooks + sub-components                                             | Plan PR 7                |
+| #5       | `feat/web-api-service-layer`               | `aefbf15`    | Typed API service layer + CI fixes                                                 | Plan PR 10               |
+| #6       | `fix/api-error-handling`                   | `d755602`    | asyncHandler + AppError + standardized errors                                      | Plan PR (error handling) |
+| #7       | `feat/observability-logging`               | `def93ee`    | Structured logger, redaction, requestId propagation                                | Additional               |
+| #8       | `feat/platform-runtime-hardening`          | `b32a622`    | Sentry transport, env Zod schema, morgan removal                                   | Additional               |
+| #9       | `feat/platform-ops-hardening`              | `4b079a4`    | Dockerfile, backups, CI, staging runbook                                           | Additional               |
+| #10      | `chore/repo-housekeeping`                  | `ec6e5cc`    | SETUP.md, ESLint 0 warnings, Husky v9, PROJECT_STATUS                              | Additional               |
+| #11      | `feat/session-refresh`                     | `fceac27`    | Token refresh middleware, SESSION_EXPIRED interceptor, CI fixes                    | Additional               |
+| #12      | `refactor/parser-consolidation`            | `13cd588`    | Delete dead table-parser, inline normative-parser, extract CategoryInferer utility | Additional               |
 
 ## 4. Open / Pushed / In-Progress Branches
 
@@ -97,14 +98,14 @@ _No open branches. All feature work is merged to main._
 
 ### Phase 2 — Code Quality
 
-| #   | Item                           | Status          | Severity | Evidence                                                                                                                                              | Notes                                         |
-| --- | ------------------------------ | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 6   | Frontend API service layer     | **merged**      | High     | PR #5 `aefbf15`                                                                                                                                       | `apps/web/lib/api/` with typed services       |
-| 7   | ProjectDetail refactor         | **merged**      | Critical | PR #4 `361ed7b`                                                                                                                                       | See Phase 1 #5                                |
-| 8   | Parser consolidation (9→4)     | **not started** | High     | 5 parser files still present (hierarchical, normative, table, mop, validation/parser) + spec-compiler/ + data-extractor + hierarchical-spec-processor | Target: 4 files                               |
-| 9   | DB indexes                     | **merged**      | Medium   | `aa812df`                                                                                                                                             | apsUrn, apsUserId indexed; workItemId @unique |
-| 10  | Error handling standardization | **merged**      | High     | PR #6 `d755602`                                                                                                                                       | asyncHandler + AppError across all routes     |
-| 11  | PrismaClient singleton         | **merged**      | High     | `62e20f7` via PR #2                                                                                                                                   | Only `lib/prisma.ts` has `new PrismaClient`   |
+| #   | Item                           | Status             | Severity | Evidence                                                                                                           | Notes                                         |
+| --- | ------------------------------ | ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| 6   | Frontend API service layer     | **merged**         | High     | PR #5 `aefbf15`                                                                                                    | `apps/web/lib/api/` with typed services       |
+| 7   | ProjectDetail refactor         | **merged**         | Critical | PR #4 `361ed7b`                                                                                                    | See Phase 1 #5                                |
+| 8   | Parser consolidation (9→7+1)   | **partially done** | High     | PR #12 `13cd588`: deleted dead `table-parser`, inlined `normative-parser`, extracted `category-inferer.ts` utility | Phase 2: file-reader extraction pending       |
+| 9   | DB indexes                     | **merged**         | Medium   | `aa812df`                                                                                                          | apsUrn, apsUserId indexed; workItemId @unique |
+| 10  | Error handling standardization | **merged**         | High     | PR #6 `d755602`                                                                                                    | asyncHandler + AppError across all routes     |
+| 11  | PrismaClient singleton         | **merged**         | High     | `62e20f7` via PR #2                                                                                                | Only `lib/prisma.ts` has `new PrismaClient`   |
 
 ### Phase 3 — Incomplete Features
 
@@ -145,7 +146,7 @@ _No open branches. All feature work is merged to main._
 ### Core Functional Architecture
 
 1. **Unify ValidationRun/ComplianceRun** — Two parallel systems for BIM validation. Both models + routes + services exist. This is the biggest remaining schema debt. Depends on nothing; blocks clean compliance features.
-2. **Parser consolidation (9→4)** — 5 parser files + spec-compiler/ + data-extractor + hierarchical-spec-processor. Duplicated category detection in 5+ services. Fragile regex. Not blocking but slows feature work.
+2. ~~**Parser consolidation phase 1**~~ — ✅ Done (PR #12). Deleted dead `table-parser.service.ts`, inlined `normative-parser`, extracted shared `category-inferer.ts`. Phase 2 (file-reader utility extraction) still pending.
 3. **Design Automation real integration** — DA worker creates placeholder workItemId. Frontend shows conversion tracker but DA doesn't actually work. Requires Autodesk DA credentials and sandbox testing.
 4. **DataSource → compliance rules bridge** — `DataSource` model extracts specs from PDFs/Excel but is never connected to `Rule` model. Compliance engine can't auto-generate rules from specs.
 5. **Socket.IO completion** — Missing Redis adapter (won't scale to multiple instances), missing room validation (userId/projectId not verified on join).
@@ -175,12 +176,12 @@ _No open branches. All feature work is merged to main._
 
 ## 7. Recommended Next PRs
 
-| Priority | Suggested PR                        | Branch                                 | Scope                                   | Risk   | Why Now                                             |
-| -------- | ----------------------------------- | -------------------------------------- | --------------------------------------- | ------ | --------------------------------------------------- |
-| 1        | **PR: parser consolidation**        | `refactor/parser-consolidation`        | 9→6 parser files, eliminate duplication | Medium | Reduces code surface for compliance work            |
-| 2        | **PR: unify validation/compliance** | `refactor/unify-validation-compliance` | Schema migration + route consolidation  | High   | Largest remaining debt; cleans DB model duplication |
-| 3        | **PR: Spanish → English errors**    | `chore/standardize-error-messages`     | Translate remaining Spanish strings     | Low    | Quick cleanup                                       |
-| 4        | **PR: stale branch cleanup**        | (no branch needed)                     | Delete merged local + remote branches   | Low    | Repo hygiene                                        |
+| Priority | Suggested PR                         | Branch                                 | Scope                                              | Risk | Why Now                                             |
+| -------- | ------------------------------------ | -------------------------------------- | -------------------------------------------------- | ---- | --------------------------------------------------- |
+| 1        | **PR: unify validation/compliance**  | `refactor/unify-validation-compliance` | Schema migration + route consolidation             | High | Largest remaining debt; cleans DB model duplication |
+| 2        | **PR: parser consolidation phase 2** | `refactor/parser-consolidation-p2`     | Extract file-reader utility from validation/parser | Low  | Continues cleanup from PR #12                       |
+| 3        | **PR: Spanish → English errors**     | `chore/standardize-error-messages`     | Translate remaining Spanish strings                | Low  | Quick cleanup                                       |
+| 4        | **PR: stale branch cleanup**         | (no branch needed)                     | Delete merged local + remote branches              | Low  | Repo hygiene                                        |
 
 ## 8. Known Risks / Follow-ups
 
@@ -217,10 +218,10 @@ _No open branches. All feature work is merged to main._
 
 ## 11. Last Updated
 
-| Field                | Value                                                          |
-| -------------------- | -------------------------------------------------------------- |
-| Date                 | 2026-03-10                                                     |
-| Branch               | `main`                                                         |
-| Last relevant commit | `fceac27` (main HEAD, merge of PR #11)                         |
-| Agent                | Antigravity (Claude)                                           |
-| Context              | PR #11 merged; post-merge closure applied to PROJECT_STATUS.md |
+| Field                | Value                                                                      |
+| -------------------- | -------------------------------------------------------------------------- |
+| Date                 | 2026-03-11                                                                 |
+| Branch               | `main`                                                                     |
+| Last relevant commit | `13cd588` (main HEAD, merge of PR #12 parser-consolidation)                |
+| Agent                | Antigravity (Claude)                                                       |
+| Context              | PR #12 merged; parser consolidation phase 1 complete, docs closure applied |
