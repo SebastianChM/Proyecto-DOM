@@ -1,6 +1,7 @@
 import { StructuredNode } from "./hierarchical-parser.service";
 import { LexerService } from "./spec-compiler/lexer.service";
 import { ParserService } from "./spec-compiler/parser.service";
+import { inferCategory } from "../utils/category-inferer";
 import { logger } from "../lib/logger";
 
 export class HierarchicalSpecProcessor {
@@ -49,30 +50,15 @@ export class HierarchicalSpecProcessor {
   }
 
   private inferCategory(title: string): string | null {
-    const t = title.toUpperCase();
-    logger.debug(
-      `[SPEC_PROCESSOR] InferCategory analyzing: "${title}" (Normalized: "${t}")`,
-    );
-
-    if (t.includes("CONCRETE") || t.includes("HORMIGON"))
-      return "Structural Columns/Framing";
-    if (t.includes("STEEL") || t.includes("ACERO")) return "Structural Framing";
-    if (t.includes("WALL") || t.includes("MURO") || t.includes("PARED"))
-      return "Walls";
-    if (t.includes("ROOF") || t.includes("CUBIERTA") || t.includes("TECHO"))
-      return "Roofs";
-    if (
-      t.includes("FLOOR") ||
-      t.includes("SUELO") ||
-      t.includes("PISO") ||
-      t.includes("LOSA")
-    )
-      return "Floors";
-    if (t.includes("DOOR") || t.includes("PUERTA")) return "Doors";
-    if (t.includes("WINDOW") || t.includes("VENTANA")) return "Windows";
-
-    logger.debug(`[SPEC_PROCESSOR] InferCategory no match for "${title}"`);
-    return null; // Inherit
+    const result = inferCategory(title);
+    if (result) {
+      logger.debug(
+        `[SPEC_PROCESSOR] InferCategory matched: "${title}" → "${result}"`,
+      );
+    } else {
+      logger.debug(`[SPEC_PROCESSOR] InferCategory no match for "${title}"`);
+    }
+    return result;
   }
 
   private extractFromText(
