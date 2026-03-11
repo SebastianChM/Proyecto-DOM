@@ -6,34 +6,34 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 **What is resolved**: All 12 items from the original refined PR plan's critical/high-priority fixes are merged to main (PrismaClient singleton, workItemId match, polling backoff, rate-limiter fallback, route aliases, DB indexes, ProjectDetail split, frontend API service layer, error handling standardization, quarantine of dead code, Docker health checks, APS mock mode). Observability logging (PR #7), platform runtime hardening (PR #8), platform ops hardening (PR #9), and repo housekeeping (PR #10) are also merged.
 
-**What is pending**: One branch (`feat/session-refresh`) is rebased on main with 4 commits, ready for push/PR. The major remaining work is: parser consolidation (9→4 files), unifying ValidationRun/ComplianceRun schema duplication, completing Design Automation integration, and production readiness (CI/CD, monitoring, tests).
+**What is pending**: Session refresh (PR #11) is now merged. The major remaining work is: parser consolidation (9→6 files), unifying ValidationRun/ComplianceRun schema duplication, completing Design Automation integration, and production readiness (CI/CD, monitoring, tests).
 
-**Active branches**: `feat/session-refresh` (rebased on main, local only, 4 commits ahead).
+**Active branches**: None. All feature branches are merged.
 
-**Recommended next PR**: Push and open PR for `feat/session-refresh`, then parser consolidation.
+**Recommended next PR**: `refactor/parser-consolidation` — consolidate 9 parser files to 6, eliminate duplication.
 
 ## 2. Current Repository State
 
-| Item            | Value                  | Evidence                                    |
-| --------------- | ---------------------- | ------------------------------------------- |
-| Current branch  | `feat/session-refresh` | `git branch --show-current`                 |
-| main HEAD       | `ec6e5cc`              | Merge PR #10 from chore/repo-housekeeping   |
-| Working tree    | Clean                  | `git status`                                |
-| Node.js         | 20.x                   | `.nvmrc` → `20.11.0`                        |
-| Husky           | 9.1.7                  | `node_modules/husky/package.json`           |
-| Package manager | npm workspaces         | `apps/api`, `apps/web`, `packages/database` |
+| Item            | Value          | Evidence                                    |
+| --------------- | -------------- | ------------------------------------------- |
+| Current branch  | `main`         | `git branch --show-current`                 |
+| main HEAD       | `fceac27`      | Merge PR #11 from feat/session-refresh      |
+| Working tree    | Clean          | `git status`                                |
+| Node.js         | 20.x           | `.nvmrc` → `20.11.0`                        |
+| Husky           | 9.1.7          | `node_modules/husky/package.json`           |
+| Package manager | npm workspaces | `apps/api`, `apps/web`, `packages/database` |
 
 ### Local branches
 
-| Branch                            | HEAD      | Tracking                                 | Status                |
-| --------------------------------- | --------- | ---------------------------------------- | --------------------- |
-| `main`                            | `ec6e5cc` | `origin/main`                            | Up to date            |
-| `feat/session-refresh`            | `548133d` | None (local only)                        | 4 ahead of main       |
-| `chore/repo-housekeeping`         | `abc24c9` | `origin/chore/repo-housekeeping`         | Merged to main, stale |
-| `feat/platform-ops-hardening`     | `47ea5b1` | `origin/feat/platform-ops-hardening`     | Merged to main, stale |
-| `feat/aps-mock-mode`              | `19bc2df` | `origin/feat/aps-mock-mode`              | Merged to main, stale |
-| `feat/platform-runtime-hardening` | `b9c1bc8` | `origin/feat/platform-runtime-hardening` | Merged to main, stale |
-| `refactor/project-detail-split`   | `301f58c` | `origin/refactor/project-detail-split`   | Merged to main, stale |
+| Branch                            | HEAD      | Tracking                                 | Status                  |
+| --------------------------------- | --------- | ---------------------------------------- | ----------------------- |
+| `main`                            | `fceac27` | `origin/main`                            | Up to date              |
+| `feat/session-refresh`            | `e3a7e83` | `origin/feat/session-refresh`            | Merged as PR #11, stale |
+| `chore/repo-housekeeping`         | `abc24c9` | `origin/chore/repo-housekeeping`         | Merged to main, stale   |
+| `feat/platform-ops-hardening`     | `47ea5b1` | `origin/feat/platform-ops-hardening`     | Merged to main, stale   |
+| `feat/aps-mock-mode`              | `19bc2df` | `origin/feat/aps-mock-mode`              | Merged to main, stale   |
+| `feat/platform-runtime-hardening` | `b9c1bc8` | `origin/feat/platform-runtime-hardening` | Merged to main, stale   |
+| `refactor/project-detail-split`   | `301f58c` | `origin/refactor/project-detail-split`   | Merged to main, stale   |
 
 ### Remote-only branches
 
@@ -44,31 +44,30 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ## 3. Merged PRs / Completed Work
 
-| PR       | Branch                                     | Merge Commit | Scope                                                 | Notes                    |
-| -------- | ------------------------------------------ | ------------ | ----------------------------------------------------- | ------------------------ |
-| (pre-PR) | `fix/webhook-workitemid-match`             | `053718f`    | workItemId exact match                                | Plan PR 2                |
-| (pre-PR) | `refactor/remove-validation-route-aliases` | `37e18fd`    | Remove `/api/validations` aliases                     | Plan PR 5                |
-| (pre-PR) | `fix/rate-limiter-memory-fallback`         | `7c5dead`    | Per-endpoint memory fallback thresholds               | Plan PR 4                |
-| (pre-PR) | `chore/gitignore-local-ai-artifacts`       | `71e95a2`    | .gitignore cleanup                                    | Housekeeping             |
-| (pre-PR) | `chore/add-missing-db-indexes`             | `aa812df`    | DB indexes + workItemId @unique                       | Plan PR 6                |
-| (pre-PR) | `fix/polling-backoff-max-retries`          | `0eb5987`    | Polling exponential backoff                           | Plan PR 3                |
-| (pre-PR) | `chore/quarantine-dead-code`               | `95462c1`    | Quarantine workflow/comparison/supremacy              | Plan PR 11               |
-| (pre-PR) | `chore/docker-healthchecks`                | `4f82f06`    | Docker health checks + restart policies               | Plan PR 12               |
-| #2       | `chore/audit-quickwins`                    | `44569a0`    | PrismaClient singleton + cache await                  | Plan PR 1                |
-| #3       | `feat/aps-mock-mode`                       | `8d132fd`    | APS mock mode for local dev                           | Additional               |
-| #4       | `refactor/project-detail-split`            | `361ed7b`    | ProjectDetail → hooks + sub-components                | Plan PR 7                |
-| #5       | `feat/web-api-service-layer`               | `aefbf15`    | Typed API service layer + CI fixes                    | Plan PR 10               |
-| #6       | `fix/api-error-handling`                   | `d755602`    | asyncHandler + AppError + standardized errors         | Plan PR (error handling) |
-| #7       | `feat/observability-logging`               | `def93ee`    | Structured logger, redaction, requestId propagation   | Additional               |
-| #8       | `feat/platform-runtime-hardening`          | `b32a622`    | Sentry transport, env Zod schema, morgan removal      | Additional               |
-| #9       | `feat/platform-ops-hardening`              | `4b079a4`    | Dockerfile, backups, CI, staging runbook              | Additional               |
-| #10      | `chore/repo-housekeeping`                  | `ec6e5cc`    | SETUP.md, ESLint 0 warnings, Husky v9, PROJECT_STATUS | Additional               |
+| PR       | Branch                                     | Merge Commit | Scope                                                           | Notes                    |
+| -------- | ------------------------------------------ | ------------ | --------------------------------------------------------------- | ------------------------ |
+| (pre-PR) | `fix/webhook-workitemid-match`             | `053718f`    | workItemId exact match                                          | Plan PR 2                |
+| (pre-PR) | `refactor/remove-validation-route-aliases` | `37e18fd`    | Remove `/api/validations` aliases                               | Plan PR 5                |
+| (pre-PR) | `fix/rate-limiter-memory-fallback`         | `7c5dead`    | Per-endpoint memory fallback thresholds                         | Plan PR 4                |
+| (pre-PR) | `chore/gitignore-local-ai-artifacts`       | `71e95a2`    | .gitignore cleanup                                              | Housekeeping             |
+| (pre-PR) | `chore/add-missing-db-indexes`             | `aa812df`    | DB indexes + workItemId @unique                                 | Plan PR 6                |
+| (pre-PR) | `fix/polling-backoff-max-retries`          | `0eb5987`    | Polling exponential backoff                                     | Plan PR 3                |
+| (pre-PR) | `chore/quarantine-dead-code`               | `95462c1`    | Quarantine workflow/comparison/supremacy                        | Plan PR 11               |
+| (pre-PR) | `chore/docker-healthchecks`                | `4f82f06`    | Docker health checks + restart policies                         | Plan PR 12               |
+| #2       | `chore/audit-quickwins`                    | `44569a0`    | PrismaClient singleton + cache await                            | Plan PR 1                |
+| #3       | `feat/aps-mock-mode`                       | `8d132fd`    | APS mock mode for local dev                                     | Additional               |
+| #4       | `refactor/project-detail-split`            | `361ed7b`    | ProjectDetail → hooks + sub-components                          | Plan PR 7                |
+| #5       | `feat/web-api-service-layer`               | `aefbf15`    | Typed API service layer + CI fixes                              | Plan PR 10               |
+| #6       | `fix/api-error-handling`                   | `d755602`    | asyncHandler + AppError + standardized errors                   | Plan PR (error handling) |
+| #7       | `feat/observability-logging`               | `def93ee`    | Structured logger, redaction, requestId propagation             | Additional               |
+| #8       | `feat/platform-runtime-hardening`          | `b32a622`    | Sentry transport, env Zod schema, morgan removal                | Additional               |
+| #9       | `feat/platform-ops-hardening`              | `4b079a4`    | Dockerfile, backups, CI, staging runbook                        | Additional               |
+| #10      | `chore/repo-housekeeping`                  | `ec6e5cc`    | SETUP.md, ESLint 0 warnings, Husky v9, PROJECT_STATUS           | Additional               |
+| #11      | `feat/session-refresh`                     | `fceac27`    | Token refresh middleware, SESSION_EXPIRED interceptor, CI fixes | Additional               |
 
 ## 4. Open / Pushed / In-Progress Branches
 
-| Branch                 | Status           | Commits                 | Scope                                                                | Next Action |
-| ---------------------- | ---------------- | ----------------------- | -------------------------------------------------------------------- | ----------- |
-| `feat/session-refresh` | pushed to origin | 6 (`59faaea`→`8628609`) | Token refresh middleware, SESSION_EXPIRED interceptor, tests, CI fix | Open PR     |
+_No open branches. All feature work is merged to main._
 
 ### Stale branches (safe to delete after merge confirmation)
 
@@ -82,6 +81,7 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 | `origin/feat/web-api-service-layer`          | Merged as PR #5                         |
 | `origin/codex/fix-important-code-base-error` | Superseded by `chore/repo-housekeeping` |
 | `backup/session-refresh-pre-rebase`          | Safety backup, no longer needed         |
+| `feat/session-refresh`                       | Merged as PR #11                        |
 
 ## 5. Master Plan Status
 
@@ -108,13 +108,13 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ### Phase 3 — Incomplete Features
 
-| #   | Item                          | Status             | Severity   | Evidence                                                                                                    | Notes                                               |
-| --- | ----------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 12  | Design Automation (DWG→PDF)   | **not started**    | Medium     | `design-automation.service.ts` still uses `da-workitem-*` placeholder                                       | Requires Autodesk DA API credentials + testing      |
-| 13  | Workflow engine → UI          | **quarantined**    | High       | `workflow.service.ts`, `workflows.ts`, `WorkflowStatus.tsx`, `WorkflowTimeline.tsx` moved to `_quarantine/` | Intentionally shelved; 6 DB models remain in schema |
-| 14  | DataSource → compliance rules | **not started**    | Medium     | `DataSource` model exists but never connected to `Rule`                                                     | Bridge between spec extraction and compliance       |
-| 15  | Session refresh token         | **rebased, ready** | High       | `feat/session-refresh` pushed, 6 commits (`59faaea`→`8628609`), all gates pass, CI fix included             | Push + PR                                           |
-| 16  | Socket.IO completion          | **not started**    | Low-Medium | Missing Redis adapter, room validation                                                                      | Scaling concern                                     |
+| #   | Item                          | Status          | Severity   | Evidence                                                                                                    | Notes                                               |
+| --- | ----------------------------- | --------------- | ---------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 12  | Design Automation (DWG→PDF)   | **not started** | Medium     | `design-automation.service.ts` still uses `da-workitem-*` placeholder                                       | Requires Autodesk DA API credentials + testing      |
+| 13  | Workflow engine → UI          | **quarantined** | High       | `workflow.service.ts`, `workflows.ts`, `WorkflowStatus.tsx`, `WorkflowTimeline.tsx` moved to `_quarantine/` | Intentionally shelved; 6 DB models remain in schema |
+| 14  | DataSource → compliance rules | **not started** | Medium     | `DataSource` model exists but never connected to `Rule`                                                     | Bridge between spec extraction and compliance       |
+| 15  | Session refresh token         | **merged**      | High       | PR #11 `fceac27` — token refresh middleware + SESSION_EXPIRED interceptor + CI fixes                        | Done                                                |
+| 16  | Socket.IO completion          | **not started** | Low-Medium | Missing Redis adapter, room validation                                                                      | Scaling concern                                     |
 
 ### Phase 4 — Production / Operations
 
@@ -153,7 +153,7 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ### Production Operations
 
-7. **Session refresh** — Branch exists (`feat/session-refresh`, 4 commits) rebased on main, all quality gates pass. Ready for push/PR. Session expires in 24h with no auto-refresh until merged.
+7. ~~**Session refresh**~~ — Merged as PR #11 (`fceac27`). ✅ Done.
 8. **CD pipeline** — CI exists but no automated deployment. Manual deploy only.
 9. **External monitoring** — Sentry transport is wired but not configured with a real DSN. No DataDog/Grafana.
 10. **Database backup scheduling** — Scripts exist (PR #9) but no cron/scheduler configured.
@@ -175,17 +175,17 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ## 7. Recommended Next PRs
 
-| Priority | Suggested PR                        | Branch                                 | Scope                                           | Risk   | Why Now                                                  |
-| -------- | ----------------------------------- | -------------------------------------- | ----------------------------------------------- | ------ | -------------------------------------------------------- |
-| 1        | **PR #11: session refresh**         | `feat/session-refresh`                 | Token refresh middleware + frontend interceptor | Medium | Rebased, gates pass, ready to push; fixes auth expiry UX |
-| 2        | **PR: parser consolidation**        | `refactor/parser-consolidation`        | 9→4 parser files                                | Medium | Reduces code surface for compliance work                 |
-| 3        | **PR: unify validation/compliance** | `refactor/unify-validation-compliance` | Schema migration + route consolidation          | High   | Largest remaining debt; cleans DB model duplication      |
-| 4        | **PR: Spanish → English errors**    | `chore/standardize-error-messages`     | Translate remaining Spanish strings             | Low    | Quick cleanup                                            |
-| 5        | **PR: stale branch cleanup**        | (no branch needed)                     | Delete merged local + remote branches           | Low    | Repo hygiene                                             |
+| Priority | Suggested PR                        | Branch                                 | Scope                                   | Risk   | Why Now                                             |
+| -------- | ----------------------------------- | -------------------------------------- | --------------------------------------- | ------ | --------------------------------------------------- |
+| 1        | **PR: parser consolidation**        | `refactor/parser-consolidation`        | 9→6 parser files, eliminate duplication | Medium | Reduces code surface for compliance work            |
+| 2        | **PR: unify validation/compliance** | `refactor/unify-validation-compliance` | Schema migration + route consolidation  | High   | Largest remaining debt; cleans DB model duplication |
+| 3        | **PR: Spanish → English errors**    | `chore/standardize-error-messages`     | Translate remaining Spanish strings     | Low    | Quick cleanup                                       |
+| 4        | **PR: stale branch cleanup**        | (no branch needed)                     | Delete merged local + remote branches   | Low    | Repo hygiene                                        |
 
 ## 8. Known Risks / Follow-ups
 
-- **`feat/session-refresh` not pushed**: 4 commits with auth refresh logic exist only locally (rebased on main). Risk of loss if not pushed.
+- **PR #1 open/conflicting**: `codex/fix-important-code-base-error` is open with `mergeable: false`. All changes are superseded by PRs #10 and prior merges. Recommend closing.
+- **Stale remote branches**: 7 merged branches remain on origin. Should be cleaned up.
 - **Husky v10**: Current fix uses v9 `_/` runtime directory. Upgrading to v10 will require another migration.
 - **Design Automation**: Completely stubbed. Frontend conversion tracker shows UI but DA doesn't execute. Not blocking other work.
 - **Workflow engine**: Quarantined code + 6 orphan DB models. If workflows are de-scoped permanently, models should be removed via migration.
@@ -195,15 +195,15 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ## 9. Quality Gates Snapshot
 
-| Gate                   | Status                                        | Evidence                                         | Date/Context                                   |
-| ---------------------- | --------------------------------------------- | ------------------------------------------------ | ---------------------------------------------- |
-| `tsc --noEmit` (API)   | ✅ 0 errors                                   | Terminal output                                  | 2026-03-10, `feat/session-refresh` @ `548133d` |
-| `tsc --noEmit` (Web)   | ✅ 0 errors                                   | Terminal output                                  | 2026-03-10, `feat/session-refresh` @ `548133d` |
-| `npm test` (API)       | ✅ 15 suites, 170 passed, 1 skipped, 0 failed | Terminal output                                  | 2026-03-10, `feat/session-refresh` @ `548133d` |
-| `eslint apps/api/src/` | ✅ 0 errors, 0 warnings                       | Terminal output                                  | 2026-03-10, `feat/session-refresh` @ `548133d` |
-| Security scan          | ✅ 1242 files, 0 issues                       | Pre-commit hook                                  | 2026-03-10                                     |
-| Docker build           | ⚠️ Not verified this session                  | Last verified in PR #9 work                      | —                                              |
-| CI (GitHub Actions)    | 🔄 Triggered                                  | Push to `feat/session-refresh` triggers CI on PR | 2026-03-10, `feat/session-refresh` @ `8628609` |
+| Gate                   | Status                                        | Evidence                           | Date/Context                                   |
+| ---------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------------------- |
+| `tsc --noEmit` (API)   | ✅ 0 errors                                   | Terminal output                    | 2026-03-10, `feat/session-refresh` @ `548133d` |
+| `tsc --noEmit` (Web)   | ✅ 0 errors                                   | Terminal output                    | 2026-03-10, `feat/session-refresh` @ `548133d` |
+| `npm test` (API)       | ✅ 15 suites, 170 passed, 1 skipped, 0 failed | Terminal output                    | 2026-03-10, `feat/session-refresh` @ `548133d` |
+| `eslint apps/api/src/` | ✅ 0 errors, 0 warnings                       | Terminal output                    | 2026-03-10, `feat/session-refresh` @ `548133d` |
+| Security scan          | ✅ 1242 files, 0 issues                       | Pre-commit hook                    | 2026-03-10                                     |
+| Docker build           | ⚠️ Not verified this session                  | Last verified in PR #9 work        | —                                              |
+| CI (GitHub Actions)    | ✅ Passed (PR #11 merged)                     | PR #11 CI passed, merged into main | 2026-03-10, PR #11 merge `fceac27`             |
 
 ## 10. Decisions Log
 
@@ -217,10 +217,10 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 ## 11. Last Updated
 
-| Field                | Value                                                                          |
-| -------------------- | ------------------------------------------------------------------------------ |
-| Date                 | 2026-03-10                                                                     |
-| Branch               | `feat/session-refresh`                                                         |
-| Last relevant commit | `8628609` (session-refresh HEAD); main at `ec6e5cc`                            |
-| Agent                | Antigravity (Claude)                                                           |
-| Context              | CI fix committed (prisma + docker smoke); pushed; all local quality gates pass |
+| Field                | Value                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| Date                 | 2026-03-10                                                     |
+| Branch               | `main`                                                         |
+| Last relevant commit | `fceac27` (main HEAD, merge of PR #11)                         |
+| Agent                | Antigravity (Claude)                                           |
+| Context              | PR #11 merged; post-merge closure applied to PROJECT_STATUS.md |
