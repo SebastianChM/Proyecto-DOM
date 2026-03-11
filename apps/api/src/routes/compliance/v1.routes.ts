@@ -13,7 +13,6 @@ import { apsOssService } from "../../services/aps/oss.service";
 import { modelDerivativeService } from "../../services/aps/model-derivative.service";
 import { HierarchicalParserService } from "../../services/hierarchical-parser.service";
 import { HierarchicalSpecProcessor } from "../../services/hierarchical-spec-processor";
-import { NormativeParserService } from "../../services/normative-parser.service";
 import { SupremacyEngineService } from "../../services/supremacy-engine.service";
 import { logger } from "../../lib/logger";
 import { asyncHandler } from "../../lib/async-handler";
@@ -29,7 +28,6 @@ const bimQuery = new BimQueryService();
 const kernel = new ComplianceKernelService();
 const hierarchyParser = new HierarchicalParserService();
 const hierarchyProcessor = new HierarchicalSpecProcessor();
-const normativeParser = new NormativeParserService();
 const supremacyEngine = new SupremacyEngineService();
 
 // Helper: Ensure URN is URL-Safe Base64
@@ -103,7 +101,9 @@ async function downloadProjectFile(
 /**
  * GET /api/compliance/model-status
  */
-router.get("/model-status", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/model-status",
+  asyncHandler(async (req: Request, res: Response) => {
     const urn = req.query.urn as string;
     if (!urn) throw badRequest("URN required", "MISSING_FIELDS");
 
@@ -127,7 +127,8 @@ router.get("/model-status", asyncHandler(async (req: Request, res: Response) => 
       }
       throw error;
     }
-}));
+  }),
+);
 
 /**
  * POST /api/compliance/analyze/mop
@@ -136,37 +137,37 @@ router.post(
   "/analyze/mop",
   upload.single("file"),
   asyncHandler(async (req: Request, res: Response) => {
-      if (!req.file) {
-        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
-      }
+    if (!req.file) {
+      throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
+    }
 
-      const filePath = req.file.path;
+    const filePath = req.file.path;
 
-      // 1. Extract Text
-      const docResult = await parserService.parseDocument(
-        filePath,
-        req.file.mimetype,
-      );
+    // 1. Extract Text
+    const docResult = await parserService.parseDocument(
+      filePath,
+      req.file.mimetype,
+    );
 
-      // 2. Parse MOP
-      const sections = mopParser.parse(docResult.text);
-      const structuralSections = mopParser.filterByDiscipline(
-        sections,
-        "STRUCTURAL",
-      );
+    // 2. Parse MOP
+    const sections = mopParser.parse(docResult.text);
+    const structuralSections = mopParser.filterByDiscipline(
+      sections,
+      "STRUCTURAL",
+    );
 
-      // Cleanup
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    // Cleanup
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-      res.json({
-        success: true,
-        metadata: docResult.metadata,
-        stats: {
-          totalSections: sections.length,
-          structuralSections: structuralSections.length,
-        },
-        data: structuralSections,
-      });
+    res.json({
+      success: true,
+      metadata: docResult.metadata,
+      stats: {
+        totalSections: sections.length,
+        structuralSections: structuralSections.length,
+      },
+      data: structuralSections,
+    });
   }),
 );
 
@@ -180,96 +181,105 @@ router.post(
     { name: "normativeFile", maxCount: 1 },
   ]),
   asyncHandler(async (req: Request, res: Response) => {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      let specFile = files?.["file"]?.[0] || null;
-      const normFile = files?.["normativeFile"]?.[0] || null;
-      const { projectFileId } = req.body;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    let specFile = files?.["file"]?.[0] || null;
+    const normFile = files?.["normativeFile"]?.[0] || null;
+    const { projectFileId } = req.body;
 
-      // Handle Project File (download if needed)
-      if (projectFileId && !specFile) {
-        try {
-          specFile = await downloadProjectFile(projectFileId);
-        } catch (err) {
-          throw badRequest(
-            err instanceof Error
-              ? err.message
-              : "Failed to download project file",
-            "PROJECT_FILE_DOWNLOAD_FAILED"
-          );
-        }
-      }
-
-      if (!specFile && !normFile) {
+    // Handle Project File (download if needed)
+    if (projectFileId && !specFile) {
+      try {
+        specFile = await downloadProjectFile(projectFileId);
+      } catch (err) {
         throw badRequest(
-          "No specification or normative file provided",
-          "FILE_UPLOAD_INVALID"
+          err instanceof Error
+            ? err.message
+            : "Failed to download project file",
+          "PROJECT_FILE_DOWNLOAD_FAILED",
         );
       }
+    }
 
-      // 1. Parse Project Spec
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let specRequirements: any[] = [];
+    if (!specFile && !normFile) {
+      throw badRequest(
+        "No specification or normative file provided",
+        "FILE_UPLOAD_INVALID",
+      );
+    }
 
-      if (specFile) {
-        logger.info(`[COMPLIANCE_V1] Parsing Spec: ${specFile.originalname}`);
+    // 1. Parse Project Spec
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let specRequirements: any[] = [];
 
-        if (specFile.mimetype === "application/pdf") {
-          const tree = await hierarchyParser.parse(specFile.path);
-          specRequirements = hierarchyProcessor.processTree(tree, "", "Spec");
-          logger.info(
-            `[COMPLIANCE_V1] Extracted ${specRequirements.length} requirements`,
-          );
-        } else {
-          // Fallback for non-PDF
-          // Fallback for non-PDF
-          const docResult = await parserService.parseDocument(
-            specFile.path,
-            specFile.mimetype,
-          );
-          const specs = parserService.extractSpecifications(docResult.text);
-          specRequirements = specs.map((r) => ({
-            ...r,
-            source: "Spec",
-          }));
-        }
+    if (specFile) {
+      logger.info(`[COMPLIANCE_V1] Parsing Spec: ${specFile.originalname}`);
 
-        // Cleanup
-        if (fs.existsSync(specFile.path)) fs.unlinkSync(specFile.path);
-      }
-
-      // 2. Parse Normative
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let normRequirements: any[] = [];
-      if (normFile) {
+      if (specFile.mimetype === "application/pdf") {
+        const tree = await hierarchyParser.parse(specFile.path);
+        specRequirements = hierarchyProcessor.processTree(tree, "", "Spec");
         logger.info(
-          `[COMPLIANCE_V1] Parsing Normative: ${normFile.originalname}`,
+          `[COMPLIANCE_V1] Extracted ${specRequirements.length} requirements`,
         );
-        normRequirements = await normativeParser.parse(normFile.path);
-        if (fs.existsSync(normFile.path)) fs.unlinkSync(normFile.path);
+      } else {
+        // Fallback for non-PDF
+        // Fallback for non-PDF
+        const docResult = await parserService.parseDocument(
+          specFile.path,
+          specFile.mimetype,
+        );
+        const specs = parserService.extractSpecifications(docResult.text);
+        specRequirements = specs.map((r) => ({
+          ...r,
+          source: "Spec",
+        }));
       }
 
-      // 3. Resolve Supremacy
-      let finalRequirements = specRequirements;
-      const stats: Record<string, unknown> = {
-        specRules: specRequirements.length,
-        normRules: normRequirements.length,
-      };
+      // Cleanup
+      if (fs.existsSync(specFile.path)) fs.unlinkSync(specFile.path);
+    }
 
-      if (normRequirements.length > 0) {
-        finalRequirements = supremacyEngine.resolveActiveRules(
-          specRequirements,
-          normRequirements,
-        );
-        stats.supremacyResolved = true;
-      }
+    // 2. Parse Normative
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let normRequirements: any[] = [];
+    if (normFile) {
+      logger.info(
+        `[COMPLIANCE_V1] Parsing Normative: ${normFile.originalname}`,
+      );
+      // Inline normative parsing (was NormativeParserService wrapper)
+      const normTree = await hierarchyParser.parse(normFile.path);
+      normRequirements = hierarchyProcessor.processTree(
+        normTree,
+        "",
+        "Normative",
+      );
+      logger.info(
+        `[COMPLIANCE_V1] Extracted ${normRequirements.length} normative rules.`,
+      );
+      if (fs.existsSync(normFile.path)) fs.unlinkSync(normFile.path);
+    }
 
-      stats.totalRules = finalRequirements.length;
+    // 3. Resolve Supremacy
+    let finalRequirements = specRequirements;
+    const stats: Record<string, unknown> = {
+      specRules: specRequirements.length,
+      normRules: normRequirements.length,
+    };
 
-      res.json({
-        success: true,
-        stats,
-        data: finalRequirements,
-      });
+    if (normRequirements.length > 0) {
+      finalRequirements = supremacyEngine.resolveActiveRules(
+        specRequirements,
+        normRequirements,
+      );
+      stats.supremacyResolved = true;
+    }
+
+    stats.totalRules = finalRequirements.length;
+
+    res.json({
+      success: true,
+      stats,
+      data: finalRequirements,
+    });
   }),
 );
 
@@ -280,110 +290,110 @@ router.post(
   "/verify",
   upload.single("file"),
   asyncHandler(async (req: Request, res: Response) => {
-      const { urn, checklist } = req.body;
+    const { urn, checklist } = req.body;
 
-      if (!req.file && !checklist) {
-        throw badRequest(
-          "No specification file OR checklist provided",
-          "FILE_UPLOAD_INVALID"
-        );
-      }
-      if (!urn) {
-        throw badRequest("No Model URN provided", "MISSING_FIELDS");
-      }
+    if (!req.file && !checklist) {
+      throw badRequest(
+        "No specification file OR checklist provided",
+        "FILE_UPLOAD_INVALID",
+      );
+    }
+    if (!urn) {
+      throw badRequest("No Model URN provided", "MISSING_FIELDS");
+    }
 
-      const safeUrn = toSafeUrn(urn);
+    const safeUrn = toSafeUrn(urn);
 
-      // 1. Parsing Phase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let requirements: any[] = [];
-      let durationMs = 0;
+    // 1. Parsing Phase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let requirements: any[] = [];
+    let durationMs = 0;
 
-      if (checklist) {
-        try {
-          requirements =
-            typeof checklist === "string" ? JSON.parse(checklist) : checklist;
-        } catch {
-          throw badRequest("Invalid checklist format", "INVALID_CHECKLIST");
-        }
-      } else if (req.file) {
-        // Classic file mode
-        let text = "";
-        if (req.file.mimetype === "text/plain") {
-          text = fs.readFileSync(req.file.path, "utf-8");
-        } else {
-          const docResult = await parserService.parseDocument(
-            req.file.path,
-            req.file.mimetype,
-          );
-          text = docResult.text;
-        }
-        const specs = parserService.extractSpecifications(text);
-        requirements = specs;
-        // durationMs not supported in new parser explicitly yet, assuming fast enough or irrelevant
-        durationMs = 0;
-
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      }
-
-      // Filter Logic
-      const discipline = (req.body.discipline || "ALL").toUpperCase();
-      if (discipline !== "ALL") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        requirements = requirements.filter((r: any) => {
-          const cat = (r.derivedCategory || "").toUpperCase();
-          const rules: Record<string, string[]> = {
-            STRUCTURAL: ["CONCRETE", "STEEL", "STRUCT", "HORMIG", "ACERO"],
-            MEP: ["MEP", "ELEC", "MECH", "PIPE", "DUCT"],
-            ARCHITECTURAL: ["ARCH", "WALL", "ROOM", "FINISH"],
-          };
-          return rules[discipline]?.some((k) => cat.includes(k)) ?? true;
-        });
-      }
-
-      // 2. Extraction & 3. Evaluation
-      let modelProps;
+    if (checklist) {
       try {
-        modelProps = await bimQuery.queryModel(safeUrn);
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes("APS_MODEL_NOT_READY")) {
-          throw conflict("Model is still processing", "APS_MODEL_NOT_READY");
-        }
-        throw error;
+        requirements =
+          typeof checklist === "string" ? JSON.parse(checklist) : checklist;
+      } catch {
+        throw badRequest("Invalid checklist format", "INVALID_CHECKLIST");
       }
-      const incidents = kernel.evaluate(requirements, modelProps);
+    } else if (req.file) {
+      // Classic file mode
+      let text = "";
+      if (req.file.mimetype === "text/plain") {
+        text = fs.readFileSync(req.file.path, "utf-8");
+      } else {
+        const docResult = await parserService.parseDocument(
+          req.file.path,
+          req.file.mimetype,
+        );
+        text = docResult.text;
+      }
+      const specs = parserService.extractSpecifications(text);
+      requirements = specs;
+      // durationMs not supported in new parser explicitly yet, assuming fast enough or irrelevant
+      durationMs = 0;
 
-      res.json({
-        success: true,
-        stats: {
-          requirementsChecked: requirements.length,
-          elementsScanned: modelProps.length,
-          incidentsFound: incidents.length,
-          durationMs,
-        },
-        incidents,
-        // Map strictly needed fields
-        checklist: requirements.map(
-          (req: {
-            id?: string;
-            originalText?: string;
-            derivedCategory?: string;
-            page?: number;
-          }) => ({
-            id: req.id,
-            description: req.originalText,
-            category: req.derivedCategory || "General",
-            page: req.page,
-            originalText: req.originalText,
-          }),
-        ),
-        scannedElements: modelProps.map((p) => ({
-          id: p.elementId,
-          name: p.name,
-          category: p.category,
-        })),
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    }
+
+    // Filter Logic
+    const discipline = (req.body.discipline || "ALL").toUpperCase();
+    if (discipline !== "ALL") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requirements = requirements.filter((r: any) => {
+        const cat = (r.derivedCategory || "").toUpperCase();
+        const rules: Record<string, string[]> = {
+          STRUCTURAL: ["CONCRETE", "STEEL", "STRUCT", "HORMIG", "ACERO"],
+          MEP: ["MEP", "ELEC", "MECH", "PIPE", "DUCT"],
+          ARCHITECTURAL: ["ARCH", "WALL", "ROOM", "FINISH"],
+        };
+        return rules[discipline]?.some((k) => cat.includes(k)) ?? true;
       });
+    }
+
+    // 2. Extraction & 3. Evaluation
+    let modelProps;
+    try {
+      modelProps = await bimQuery.queryModel(safeUrn);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("APS_MODEL_NOT_READY")) {
+        throw conflict("Model is still processing", "APS_MODEL_NOT_READY");
+      }
+      throw error;
+    }
+    const incidents = kernel.evaluate(requirements, modelProps);
+
+    res.json({
+      success: true,
+      stats: {
+        requirementsChecked: requirements.length,
+        elementsScanned: modelProps.length,
+        incidentsFound: incidents.length,
+        durationMs,
+      },
+      incidents,
+      // Map strictly needed fields
+      checklist: requirements.map(
+        (req: {
+          id?: string;
+          originalText?: string;
+          derivedCategory?: string;
+          page?: number;
+        }) => ({
+          id: req.id,
+          description: req.originalText,
+          category: req.derivedCategory || "General",
+          page: req.page,
+          originalText: req.originalText,
+        }),
+      ),
+      scannedElements: modelProps.map((p) => ({
+        id: p.elementId,
+        name: p.name,
+        category: p.category,
+      })),
+    });
   }),
 );
 
