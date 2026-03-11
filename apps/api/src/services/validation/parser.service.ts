@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
+import { inferCategory } from "../../utils/category-inferer";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PDFParse } = require("pdf-parse");
@@ -210,12 +211,11 @@ export class ParserService {
   }
 
   private normalizeCategory(cat: string): string {
-    const upper = cat.toUpperCase();
-    if (upper.includes("CONCRETE")) return "Structural Columns/Framing/Floors";
-    if (upper.includes("DOOR")) return "Doors";
-    if (upper.includes("WALL") || upper.includes("GYPSUM")) return "Walls";
-    if (upper.includes("DUCT")) return "Ducts";
-    return cat;
+    // CONCRETE override: validation/parser historically returned the broader
+    // "Structural Columns/Framing/Floors" (shared utility returns "/Framing" only)
+    if (cat.toUpperCase().includes("CONCRETE"))
+      return "Structural Columns/Framing/Floors";
+    return inferCategory(cat) ?? cat;
   }
 
   private cleanValue(val: string): string {
