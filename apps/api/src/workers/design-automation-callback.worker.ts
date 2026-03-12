@@ -3,7 +3,11 @@ import { DesignAutomationCallbackJobData } from "../lib/queue";
 import { env } from "../config/env";
 import { CONSTANTS } from "../config/constants";
 import { logger } from "../lib/logger";
-import { processDesignAutomationCallbackJob } from "../services/design-automation-callback.service";
+import prisma from "../lib/prisma";
+import {
+  DesignAutomationCallbackProcessingError,
+  processDesignAutomationCallbackJob,
+} from "../services/design-automation-callback.service";
 
 const redisConfig = {
   host: env.REDIS_HOST || CONSTANTS.REDIS.DEFAULT_HOST,
@@ -23,16 +27,42 @@ const worker = new Worker<DesignAutomationCallbackJobData>(
       attempt: job.attemptsMade + 1,
     });
 
-    const result = await processDesignAutomationCallbackJob(job.data);
+    try {
+      const result = await processDesignAutomationCallbackJob(job.data);
 
-    const durationMs = Date.now() - startTime;
-    logger.worker.complete("DA_CALLBACK", job.id || "", durationMs, {
-      conversionId: job.data.conversionId,
-      status: result.status,
-      success: result.success,
-    });
+      const durationMs = Date.now() - startTime;
+      logger.worker.complete("DA_CALLBACK", job.id || "", durationMs, {
+        conversionId: job.data.conversionId,
+        status: result.status,
+        success: result.success,
+      });
 
-    return result;
+      return result;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const retryable =
+        error instanceof DesignAutomationCallbackProcessingError
+          ? error.retryable
+          : true;
+
+      logger.worker.fail("DA_CALLBACK", job.id || "", errorMessage, {
+        conversionId: job.data.conversionId,
+        workItemId: job.data.workItemId,
+        attempt: job.attemptsMade + 1,
+        retryable,
+      });
+
+      if (!retryable) {
+        return {
+          success: false,
+          status: "FAILED",
+          error: errorMessage.substring(0, 200),
+        };
+      }
+
+      throw error;
+    }
   },
   {
     connection: redisConfig,
@@ -40,12 +70,47 @@ const worker = new Worker<DesignAutomationCallbackJobData>(
   },
 );
 
-worker.on("failed", (job, error) => {
+worker.on("failed", async (job, error) => {
   logger.error("[DA_CALLBACK_WORKER] Job failed", {
     jobId: job?.id,
     conversionId: job?.data?.conversionId,
     workItemId: job?.data?.workItemId,
     error: error.message.substring(0, 200),
+    attempt: job?.attemptsMade,
+  });
+
+  if (!job) return;
+
+  const configuredAttempts =
+    typeof job.opts.attempts === "number"
+      ? job.opts.attempts
+      : env.CONVERSION_MAX_ATTEMPTS;
+
+  if (job.attemptsMade < configuredAttempts) {
+    return;
+  }
+
+  const finalError = `DA callback exhausted retries: ${error.message.substring(0, 300)}`;
+
+  await prisma.conversion.updateMany({
+    where: {
+      id: job.data.conversionId,
+      status: {
+        in: ["PENDING", "QUEUED", "PROCESSING"],
+      },
+    },
+    data: {
+      status: "FAILED",
+      finishedAt: new Date(),
+      completedAt: new Date(),
+      lastError: finalError,
+      error: finalError,
+    },
+  });
+
+  logger.error("[DA_CALLBACK_WORKER] Conversion marked FAILED after retry exhaustion", {
+    conversionId: job.data.conversionId,
+    attempts: job.attemptsMade,
   });
 });
 
