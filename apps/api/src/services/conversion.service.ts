@@ -36,6 +36,35 @@ const SUPPORTED_CONVERSIONS = {
 
 export class ConversionService {
   /**
+   * Expose supported conversions as source-extension -> target formats.
+   * This contract is consumed by the frontend capability checks.
+   */
+  getSupportedFormats(): Record<string, string[]> {
+    const formats: Record<string, Set<string>> = {};
+
+    const add = (sourceExt: string, targetFormat: string) => {
+      if (!formats[sourceExt]) formats[sourceExt] = new Set<string>();
+      formats[sourceExt].add(targetFormat);
+    };
+
+    for (const ext of SUPPORTED_CONVERSIONS.modelDerivative.toPdf) {
+      add(ext, "pdf");
+    }
+    for (const ext of SUPPORTED_CONVERSIONS.designAutomation.toPdf) {
+      add(ext, "pdf");
+    }
+    for (const ext of SUPPORTED_CONVERSIONS.modelDerivative.toIfc) {
+      add(ext, "ifc");
+    }
+
+    return Object.fromEntries(
+      Object.entries(formats).map(([ext, targets]) => [
+        ext,
+        Array.from(targets).sort(),
+      ]),
+    );
+  }
+  /**
    * Determine the best conversion method based on file extension and target format
    */
   getConversionMethod(
