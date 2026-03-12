@@ -59,8 +59,10 @@ export function FileRowComponent({
     return <File className="h-5 w-5 text-gray-400" />;
   };
 
+  const normalizedStatus = status.toUpperCase();
+
   const renderStatus = () => {
-    if (status === "READY") {
+    if (normalizedStatus === "READY") {
       return (
         <Badge
           variant="outline"
@@ -71,17 +73,43 @@ export function FileRowComponent({
         </Badge>
       );
     }
-    if (status === "PROCESSING" || status === "TRANSLATING") {
+
+    if (normalizedStatus === "UPLOADING") {
       return (
         <div
           className="flex items-center gap-2"
-          title="Translation in progress... This may take a few minutes depending on file size."
+          title="Upload in progress..."
         >
           <Badge
             variant="outline"
             className="bg-blue-500/10 text-blue-600 border-blue-500/20 cursor-help"
           >
-            Processing
+            Uploading
+          </Badge>
+          <RefreshCw className="h-3 w-3 text-blue-500 animate-spin" />
+        </div>
+      );
+    }
+
+    if (
+      normalizedStatus === "PROCESSING" ||
+      normalizedStatus === "TRANSLATING" ||
+      normalizedStatus === "PENDING" ||
+      normalizedStatus === "QUEUED" ||
+      normalizedStatus === "UPLOADED"
+    ) {
+      return (
+        <div
+          className="flex items-center gap-2"
+          title="Processing in progress... This may take a few minutes depending on file size."
+        >
+          <Badge
+            variant="outline"
+            className="bg-blue-500/10 text-blue-600 border-blue-500/20 cursor-help"
+          >
+            {normalizedStatus === "QUEUED" || normalizedStatus === "PENDING"
+              ? "Queued"
+              : "Processing"}
           </Badge>
           {progress !== undefined && (
             <span className="text-xs text-blue-500 font-mono">{progress}%</span>
@@ -90,7 +118,8 @@ export function FileRowComponent({
         </div>
       );
     }
-    if (status === "FAILED") {
+
+    if (normalizedStatus === "FAILED") {
       return (
         <div className="flex items-center gap-2">
           <Badge
@@ -124,6 +153,7 @@ export function FileRowComponent({
         </div>
       );
     }
+
     return (
       <Badge variant="secondary" className="text-gray-500">
         {status}
@@ -172,8 +202,8 @@ export function FileRowComponent({
         </div>
         <div className="min-w-0 flex flex-col gap-0.5">
           <p
-            className={`font-semibold text-base text-gray-800 dark:text-white truncate transition-colors ${status === "READY" && onView ? "cursor-pointer hover:text-dom-blue" : ""}`}
-            onClick={status === "READY" && onView ? onView : undefined}
+            className={`font-semibold text-base text-gray-800 dark:text-white truncate transition-colors ${normalizedStatus === "READY" && onView ? "cursor-pointer hover:text-dom-blue" : ""}`}
+            onClick={normalizedStatus === "READY" && onView ? onView : undefined}
           >
             {fileName}
           </p>

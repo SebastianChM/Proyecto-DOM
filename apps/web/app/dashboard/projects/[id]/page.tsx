@@ -46,6 +46,7 @@ import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
 import { useConversions } from "@/hooks/useConversions";
+import { isFileLifecycleActive } from "@/lib/viewer/readiness";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -142,11 +143,8 @@ export default function ProjectDetailPage() {
   const checkFileStatuses = useCallback(async () => {
     if (!project) return;
 
-    const processingFiles = project.files.filter(
-      (f) =>
-        f.status === "TRANSLATING" ||
-        f.status === "PROCESSING" ||
-        f.status === "PENDING",
+    const processingFiles = project.files.filter((f) =>
+      isFileLifecycleActive(f.status),
     );
 
     if (processingFiles.length === 0) return;
@@ -190,13 +188,10 @@ export default function ProjectDetailPage() {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [project]);
+  }, [project, setProject]);
 
-  const hasProcessingFiles = (project?.files ?? []).some(
-    (f) =>
-      f.status === "TRANSLATING" ||
-      f.status === "PROCESSING" ||
-      f.status === "PENDING",
+  const hasProcessingFiles = (project?.files ?? []).some((f) =>
+    isFileLifecycleActive(f.status),
   );
 
   usePollingWithBackoff({

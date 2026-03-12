@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test --experimental-strip-types --test-isolation=none --test-concurrency=1 __tests__/session-expired-interceptor.test.ts lib/conversion/contracts.test.ts lib/viewer/readiness.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

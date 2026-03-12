@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { adminService, projectsService, projectMembersService } from "@/lib/api/services";
 import {
   Shield,
@@ -131,13 +131,7 @@ export default function AdminRBACPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (user?.role === "ADMIN") {
-      fetchData();
-    }
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [usersData, projectsData] = await Promise.all([
@@ -151,7 +145,13 @@ export default function AdminRBACPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role === "ADMIN") {
+      void fetchData();
+    }
+  }, [user?.role, fetchData]);
 
   const fetchProjectMembers = async (projectId: string) => {
     try {
@@ -172,7 +172,7 @@ export default function AdminRBACPage() {
     try {
       await adminService.changeUserRole(userId, newRole);
       toast.success("Role updated successfully");
-      fetchData();
+      void fetchData();
     } catch (error) {
       showError(error, user?.role, "Failed to update user role");
     }
