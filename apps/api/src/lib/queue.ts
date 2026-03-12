@@ -65,6 +65,23 @@ const conversionDaOptions: QueueOptions = {
   },
 };
 
+const designAutomationCallbackOptions: QueueOptions = {
+  ...defaultQueueOptions,
+  defaultJobOptions: {
+    attempts: env.CONVERSION_MAX_ATTEMPTS,
+    backoff: {
+      type: "exponential",
+      delay: env.CONVERSION_BACKOFF_DELAY,
+    },
+    removeOnComplete: {
+      count: 500,
+    },
+    removeOnFail: {
+      count: 1000,
+    },
+  },
+};
+
 export const Queues = {
   validation: createQueue("validation"),
 
@@ -80,7 +97,7 @@ export const Queues = {
   apsWebhooks: createQueue("aps-webhooks"),
 
   // Design Automation callback processing queue
-  designAutomationCallback: createQueue("design-automation-callback"),
+  designAutomationCallback: new Queue("design-automation-callback", designAutomationCallbackOptions),
 };
 
 // Types for Job Payloads
