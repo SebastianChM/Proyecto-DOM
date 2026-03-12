@@ -1,15 +1,21 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { filesService } from "@/lib/api/services";
 import { ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
-import {} from "sonner";
+import { toast } from "sonner";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
+import { usePollingWithBackoff } from "@/hooks/usePollingWithBackoff";
+import {
+  getViewerReadinessMessage,
+  isFileLifecycleActive,
+  isViewerReady,
+} from "@/lib/viewer/readiness";
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +23,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Dynamically import Viewer to avoid SSR issues
 const Viewer = dynamic(() => import("@/components/Viewer"), { ssr: false });
 
 interface FileData {
@@ -27,6 +32,7 @@ interface FileData {
   projectId?: string;
   status: string;
   type: string;
+  progress?: number;
 }
 
 export default function ViewerPage() {
@@ -38,11 +44,17 @@ export default function ViewerPage() {
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const fetchFile = useCallback(async () => {
+    if (!fileId) return;
+
+    const data = await filesService.get(fileId);
+    setFile(data);
+  }, [fileId]);
+
   useEffect(() => {
-    const fetchFile = async () => {
+    const load = async () => {
       try {
-        const data = await filesService.get(fileId);
-        setFile(data);
+        await fetchFile();
       } catch (error) {
         showError(error, user?.role, "Failed to load file details");
       } finally {
@@ -50,10 +62,31 @@ export default function ViewerPage() {
       }
     };
 
-    if (fileId) {
-      fetchFile();
-    }
-  }, [fileId, user?.role]);
+    void load();
+  }, [fetchFile, user?.role]);
+
+  const shouldPoll =
+    !!file &&
+    !isViewerReady(file.status, file.apsUrn) &&
+    isFileLifecycleActive(file.status);
+
+  usePollingWithBackoff({
+    fn: async () => {
+      await fetchFile();
+    },
+    enabled: shouldPoll,
+    initialDelayMs: 3000,
+    maxDelayMs: 30000,
+    maxRetries: 40,
+    onTimeout: () => {
+      toast.warning("Viewer readiness polling timed out", {
+        description: "Refresh the page to re-check processing status.",
+      });
+    },
+    onError: () => {
+      // Keep polling with backoff on transient errors.
+    },
+  });
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -103,7 +136,7 @@ export default function ViewerPage() {
     );
   }
 
-  if (file.status !== "READY" || !file.apsUrn) {
+  if (!isViewerReady(file.status, file.apsUrn)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
         <div className="glass-card p-8 rounded-2xl text-center max-w-md border-l-4 border-yellow-500 shadow-lg border-y border-r border-border">
@@ -115,14 +148,14 @@ export default function ViewerPage() {
             <p className="font-mono text-yellow-600 dark:text-yellow-400 font-bold">
               {file.status}
             </p>
+            {typeof file.progress === "number" && file.progress > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Progress: {file.progress}%
+              </p>
+            )}
           </div>
           <p className="text-muted-foreground mb-6 text-sm">
-            {file.status === "TRANSLATING" &&
-              "The file is currently being processed. This usually takes a few minutes."}
-            {file.status === "UPLOADED" &&
-              "The file is uploaded but processing hasn't started."}
-            {file.status === "FAILED" &&
-              "Processing failed. Please try uploading the file again."}
+            {getViewerReadinessMessage(file.status)}
           </p>
           <Link href={`/dashboard/projects/${file.projectId}`}>
             <Button
@@ -139,7 +172,6 @@ export default function ViewerPage() {
 
   return (
     <div className="h-screen w-full relative bg-background overflow-hidden group">
-      {/* Floating Header - Auto-hides */}
       <div className="absolute top-6 left-6 z-50 flex items-center gap-4 transition-opacity duration-300 opacity-100 group-hover:opacity-100">
         <TooltipProvider>
           <Tooltip>
@@ -176,7 +208,6 @@ export default function ViewerPage() {
         </div>
       </div>
 
-      {/* Floating Controls (Top Right) */}
       <div className="absolute top-6 right-6 z-50 transition-opacity duration-300 opacity-100 group-hover:opacity-100">
         <Button
           variant="ghost"
@@ -198,7 +229,6 @@ export default function ViewerPage() {
         </Button>
       </div>
 
-      {/* Viewer Area */}
       <div className="w-full h-full bg-secondary/20">
         {file.type.toLowerCase().includes("pdf") ? (
           <iframe
@@ -207,7 +237,7 @@ export default function ViewerPage() {
             title="PDF Viewer"
           />
         ) : (
-          <Viewer urn={file.apsUrn} />
+          <Viewer urn={file.apsUrn as string} />
         )}
       </div>
     </div>

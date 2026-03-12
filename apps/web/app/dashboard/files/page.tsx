@@ -20,6 +20,11 @@ import { useUser } from "@/context/UserContext";
 import { FileRow } from "@/components/FileRow";
 import { ViewerModal } from "@/components/ViewerModal";
 import { logger } from "@/lib/logger";
+import {
+  FALLBACK_SUPPORTED_FORMATS,
+  isConversionSupportedByFormats,
+  normalizeSupportedFormats,
+} from "@/lib/conversion/contracts";
 
 import {
   DropdownMenu,
@@ -63,6 +68,9 @@ export default function AllFilesPage() {
   >(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [supportedFormats, setSupportedFormats] = useState<Record<string, string[]>>(
+    FALLBACK_SUPPORTED_FORMATS,
+  );
   const [viewerModal, setViewerModal] = useState<{
     isOpen: boolean;
     file: FileItem;
@@ -99,6 +107,31 @@ export default function AllFilesPage() {
 
     fetchAllFiles();
   }, [user?.role]);
+
+  useEffect(() => {
+    const fetchSupportedFormats = async () => {
+      try {
+        const response = await apiClient.get("/api/conversion/formats");
+        const normalized = normalizeSupportedFormats(response.data);
+        if (Object.keys(normalized).length > 0) {
+          setSupportedFormats(normalized);
+        }
+      } catch (error) {
+        logger.warn("Failed to fetch conversion formats for all-files page", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    void fetchSupportedFormats();
+  }, []);
+
+  const canConvertFileToPdf = (file: FileItem): boolean => {
+    return (
+      file.status === "READY" &&
+      isConversionSupportedByFormats(supportedFormats, file.type, "pdf")
+    );
+  };
 
   const handleViewFile = async (file: FileItem) => {
     if (file.status !== "READY" || !file.apsUrn) {
@@ -147,7 +180,7 @@ export default function AllFilesPage() {
       setSelectedFiles(newSelected);
 
       const nonConvertibleCount = filteredFiles.filter(
-        (f) => f.type !== "RVT" && f.type !== "DWG",
+        (f) => !canConvertFileToPdf(f),
       ).length;
       if (nonConvertibleCount > 0) {
         toast.info(
@@ -174,22 +207,20 @@ export default function AllFilesPage() {
   const handleBatchConvert = async () => {
     if (selectedFiles.size === 0) return;
 
-    const filesToConvert = files.filter((f) => selectedFiles.has(f.id));
+    const filesToConvert = files.filter(
+      (file) => selectedFiles.has(file.id) && canConvertFileToPdf(file),
+    );
+
+    if (filesToConvert.length === 0) {
+      toast.info("No eligible files selected for PDF conversion");
+      return;
+    }
+
     let started = 0;
-    let skippedRvt = 0;
 
     toast.info("Starting batch conversion...");
 
     for (const file of filesToConvert) {
-      // Skip RVT files - PDF export requires Design Automation (not supported yet)
-      if (file.type === "RVT") {
-        skippedRvt++;
-        continue;
-      }
-
-      // Only DWG/DXF are supported for PDF conversion via Model Derivative
-      if (file.type !== "DWG") continue;
-
       try {
         await apiClient.post(`/api/conversion/${file.id}`, {
           format: "pdf",
@@ -203,6 +234,7 @@ export default function AllFilesPage() {
           );
           break;
         }
+
         logger.error(`Failed to start conversion for ${file.name}`, {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -210,18 +242,13 @@ export default function AllFilesPage() {
       }
     }
 
-    if (skippedRvt > 0) {
-      toast.warning(
-        `${skippedRvt} Revit file(s) skipped - PDF export not available for RVT files`,
-      );
-    }
-
     if (started > 0) {
       toast.success(`Started PDF conversion for ${started} files`);
-      setSelectedFiles(new Set()); // Clear selection
-    } else if (skippedRvt === 0) {
-      toast.info("No eligible files selected for PDF conversion");
+      setSelectedFiles(new Set());
+      return;
     }
+
+    toast.info("No eligible files selected for PDF conversion");
   };
 
   const handleBatchDownload = async () => {
@@ -508,9 +535,8 @@ export default function AllFilesPage() {
           </div>
           <div className="flex items-center gap-2">
             {(() => {
-              // Only DWG files can be converted to PDF (RVT requires Design Automation)
               const convertibleFiles = files.filter(
-                (f) => selectedFiles.has(f.id) && f.type === "DWG",
+                (f) => selectedFiles.has(f.id) && canConvertFileToPdf(f),
               );
               const count = convertibleFiles.length;
 
