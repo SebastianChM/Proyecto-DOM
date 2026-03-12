@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { validateApsWebhookSignature } from "../middleware/hmac-validation.middleware";
 import { webhookProcessorService } from "../services/webhooks/webhook-processor.service";
+import { handleDesignAutomationCallbackRequest } from "./design-automation-callback";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
@@ -45,68 +46,7 @@ router.post(
   "/aps/callback",
   webhookLimiter,
   validateApsWebhookSignature,
-  async (req: Request, res: Response) => {
-    const requestId =
-      (req.headers["x-request-id"] as string) || crypto.randomUUID();
-    const startTime = Date.now();
-
-    try {
-      const payload = req.body;
-
-      // Minimal validation - check payload structure
-      if (!payload || !payload.id || !payload.status) {
-        logger.warn("[WEBHOOK] Invalid callback payload structure", {
-          requestId,
-          hasId: !!payload?.id,
-          hasStatus: !!payload?.status,
-        });
-
-        return res.status(400).json({
-          error: "WEBHOOK_VALIDATION_ERROR",
-          code: "INVALID_PAYLOAD",
-          message: "Invalid payload structure",
-          requestId,
-          status: 400,
-        });
-      }
-
-      // Process webhook asynchronously via queue
-      const result = await webhookProcessorService.processIncomingWebhook(
-        "APS",
-        "design-automation.callback",
-        payload,
-        requestId,
-      );
-
-      const durationMs = Date.now() - startTime;
-
-      // CRITICAL: Must respond in < 5 seconds
-      res.status(202).json({
-        accepted: true,
-        deliveryId: result.deliveryId,
-        status: result.status,
-        requestId,
-        durationMs,
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      const durationMs = Date.now() - startTime;
-
-      logger.error("[WEBHOOK] Callback processing error", {
-        requestId,
-        error: msg.substring(0, 200),
-        durationMs,
-      });
-
-      res.status(500).json({
-        error: "WEBHOOK_PROCESSING_ERROR",
-        code: "INTERNAL_ERROR",
-        message: "Failed to process webhook",
-        requestId,
-        status: 500,
-      });
-    }
-  },
+  handleDesignAutomationCallbackRequest,
 );
 
 /**

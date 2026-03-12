@@ -271,6 +271,7 @@ if (env.RUN_WORKERS) {
   logger.info("[SERVER] Starting embedded workers...");
   import("./workers/conversion.worker"); // Workers auto-initialize on import
   import("./workers/webhook-worker");
+  import("./workers/design-automation-callback.worker");
   import("./workers/validation.worker");
 } else {
   logger.info(

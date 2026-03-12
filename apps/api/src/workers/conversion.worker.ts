@@ -4,6 +4,8 @@ import prisma from "../lib/prisma";
 import { env } from "../config/env";
 import { CONSTANTS } from "../config/constants";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
+import { designAutomationService } from "../services/aps/design-automation.service";
+import { resolveDesignAutomationCallbackUrl } from "../services/design-automation-callback.service";
 import { logger } from "../lib/logger";
 
 // Redis configuration (must match queue.ts)
@@ -12,6 +14,25 @@ const redisConfig = {
   port: env.REDIS_PORT || CONSTANTS.REDIS.DEFAULT_PORT,
   password: env.REDIS_PASSWORD,
 };
+
+function resolveInputObjectKey(file: {
+  apsUrn: string | null;
+  s3Key: string | null;
+}): string | null {
+  if (file.s3Key && file.s3Key !== "IMPORTED_FROM_APS" && file.s3Key !== "unknown_key") {
+    return file.s3Key;
+  }
+
+  if (!file.apsUrn) return null;
+
+  try {
+    const decodedUrn = Buffer.from(file.apsUrn, "base64").toString("utf-8");
+    const match = decodedUrn.match(/urn:adsk\.objects:os\.object:[^/]+\/(.+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Error Classification Helper (Hito 5 Note 10)
@@ -249,25 +270,48 @@ const designAutomationWorker = new Worker<ConversionJobData>(
     });
 
     try {
-      // TODO: Implement Design Automation logic
-      // This would create a work item and store workItemId for callback matching
-      logger.info("[CONVERSION_DA] Creating DA work item", {
-        conversionId,
-        fileUrn: conversion.file.apsUrn?.substring(0, 20) + "...",
+      const callbackUrl = resolveDesignAutomationCallbackUrl();
+      if (!callbackUrl) {
+        throw new Error("Design Automation callback URL is not configured");
+      }
+
+      const inputObjectKey = resolveInputObjectKey({
+        apsUrn: conversion.file.apsUrn,
+        s3Key: conversion.file.s3Key || null,
       });
 
-      // Placeholder workItemId storage (Hito 5 Note 13: for exact callback matching)
-      const workItemId = `da-workitem-${conversionId}-${Date.now()}`;
+      if (!inputObjectKey) {
+        throw new Error("Could not resolve input object key for Design Automation");
+      }
+
+      if (!env.APS_BUCKET) {
+        throw new Error("APS_BUCKET is not configured");
+      }
+
+      const outputObjectKey = `conversions/${conversionId}/output.pdf`;
+
+      logger.info("[CONVERSION_DA] Submitting DA work item", {
+        conversionId,
+        callbackPath: "/api/callbacks/design-automation/callback",
+        inputObjectKey: inputObjectKey.substring(0, 80),
+      });
+
+      const workItemId = await designAutomationService.convertRevitToPdf(
+        inputObjectKey,
+        outputObjectKey,
+        env.APS_BUCKET,
+        callbackUrl,
+      );
 
       await prisma.conversion.update({
         where: { id: conversionId },
         data: {
-          workItemId, // CRITICAL: Store for exact callback matching (no substring!)
+          workItemId,
+          resultUrn: `oss:${env.APS_BUCKET}/${outputObjectKey}`,
+          status: "PROCESSING",
+          lastError: null,
         },
       });
-
-      // For DA, job stays PROCESSING until callback arrives
-      // Worker just initiates the work item, callback completes it
 
       const durationMs = Date.now() - startTime;
       logger.worker.complete("CONVERSION_DA", job.id || "", durationMs, {

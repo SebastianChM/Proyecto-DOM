@@ -120,7 +120,7 @@ describe("Characterization: workItemId exact match", () => {
    */
 
   let webhookWorkerSource: string;
-  let daCallbackSource: string;
+  let daCallbackServiceSource: string;
 
   beforeAll(async () => {
     const fs = await import("fs");
@@ -130,8 +130,11 @@ describe("Characterization: workItemId exact match", () => {
       path.resolve(__dirname, "../../src/workers/webhook-worker.ts"),
       "utf-8",
     );
-    daCallbackSource = fs.readFileSync(
-      path.resolve(__dirname, "../../src/routes/design-automation-callback.ts"),
+    daCallbackServiceSource = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../src/services/design-automation-callback.service.ts",
+      ),
       "utf-8",
     );
   });
@@ -139,7 +142,7 @@ describe("Characterization: workItemId exact match", () => {
   it("webhook-worker.ts uses exact workItemId equality (no contains)", () => {
     // Must have the exact-match pattern
     expect(webhookWorkerSource).toMatch(
-      /workItemId:\s*workItemId/,
+      /workItemId:\s*(?:workItemId|callback\.workItemId)/,
     );
     // Must NOT have a contains-based lookup for workItemId
     expect(webhookWorkerSource).not.toMatch(
@@ -147,13 +150,13 @@ describe("Characterization: workItemId exact match", () => {
     );
   });
 
-  it("design-automation-callback.ts uses exact workItemId equality (no contains)", () => {
+  it("design-automation-callback.service.ts uses exact workItemId equality (no contains)", () => {
     // Must have the exact-match pattern
-    expect(daCallbackSource).toMatch(
-      /workItemId:\s*workItemId/,
+    expect(daCallbackServiceSource).toMatch(
+      /workItemId:\s*(?:workItemId|callback\.workItemId)/,
     );
     // Must NOT have a contains-based lookup for workItemId
-    expect(daCallbackSource).not.toMatch(
+    expect(daCallbackServiceSource).not.toMatch(
       /workItemId:\s*\{\s*contains/,
     );
   });
