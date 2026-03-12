@@ -4,7 +4,10 @@ import prisma from "../lib/prisma";
 import { env } from "../config/env";
 import { CONSTANTS } from "../config/constants";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
-import { designAutomationService } from "../services/aps/design-automation.service";
+import {
+  DesignAutomationSubmissionError,
+  submitDesignAutomationWorkItem,
+} from "../services/design-automation-submission.service";
 import { resolveDesignAutomationCallbackUrl } from "../services/design-automation-callback.service";
 import { logger } from "../lib/logger";
 
@@ -38,8 +41,13 @@ function resolveInputObjectKey(file: {
  * Error Classification Helper (Hito 5 Note 10)
  * Determines if an error is retryable based on status code/message
  */
-function isRetryableError(error: Error): boolean {
-  const message = error.message;
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof DesignAutomationSubmissionError) {
+    return error.retryable;
+  }
+
+  const message =
+    error instanceof Error ? error.message : String(error);
 
   // Retryable: Rate limiting (429)
   if (message.includes("429") || message.toLowerCase().includes("rate limit")) {
@@ -56,8 +64,14 @@ function isRetryableError(error: Error): boolean {
     return true;
   }
 
-  // Non-retryable: Authentication failures
-  if (message.includes("401") || message.includes("403")) {
+  // Non-retryable: Authentication/config/input failures
+  if (
+    message.includes("401") ||
+    message.includes("403") ||
+    message.toLowerCase().includes("not configured") ||
+    message.toLowerCase().includes("could not resolve") ||
+    message.toLowerCase().includes("invalid")
+  ) {
     return false;
   }
 
@@ -177,7 +191,7 @@ const modelDerivativeWorker = new Worker<ConversionJobData>(
       const truncatedError = errorMessage.substring(0, 1000);
 
       // Classify error for retry logic (Hito 5 Note 10)
-      const retryable = isRetryableError(error as Error);
+      const retryable = isRetryableError(error);
       const attemptsLeft = env.CONVERSION_MAX_ATTEMPTS - (job.attemptsMade + 1);
       const finalStatus = retryable && attemptsLeft > 0 ? "QUEUED" : "FAILED";
 
@@ -296,12 +310,13 @@ const designAutomationWorker = new Worker<ConversionJobData>(
         inputObjectKey: inputObjectKey.substring(0, 80),
       });
 
-      const workItemId = await designAutomationService.convertRevitToPdf(
+      const { workItemId, attemptsUsed } = await submitDesignAutomationWorkItem({
+        conversionId,
         inputObjectKey,
         outputObjectKey,
-        env.APS_BUCKET,
+        bucketKey: env.APS_BUCKET,
         callbackUrl,
-      );
+      });
 
       await prisma.conversion.update({
         where: { id: conversionId },
@@ -310,6 +325,10 @@ const designAutomationWorker = new Worker<ConversionJobData>(
           resultUrn: `oss:${env.APS_BUCKET}/${outputObjectKey}`,
           status: "PROCESSING",
           lastError: null,
+          error: null,
+          dedupeKey: null,
+          finishedAt: null,
+          completedAt: null,
         },
       });
 
@@ -318,6 +337,7 @@ const designAutomationWorker = new Worker<ConversionJobData>(
         conversionId,
         workItemId: workItemId.substring(0, 30) + "...",
         status: "awaiting_callback",
+        submitAttempts: attemptsUsed,
       });
 
       return { success: true, conversionId, workItemId };
@@ -325,7 +345,7 @@ const designAutomationWorker = new Worker<ConversionJobData>(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const truncatedError = errorMessage.substring(0, 1000);
-      const retryable = isRetryableError(error as Error);
+      const retryable = isRetryableError(error);
       const attemptsLeft = env.CONVERSION_MAX_ATTEMPTS - (job.attemptsMade + 1);
       const finalStatus = retryable && attemptsLeft > 0 ? "QUEUED" : "FAILED";
 
@@ -334,7 +354,12 @@ const designAutomationWorker = new Worker<ConversionJobData>(
         data: {
           status: finalStatus,
           lastError: truncatedError,
-          finishedAt: finalStatus === "FAILED" ? new Date() : undefined,
+          error: truncatedError.substring(0, 500),
+          workItemId: null,
+          dedupeKey: null,
+          startedAt: finalStatus === "QUEUED" ? null : undefined,
+          finishedAt: finalStatus === "FAILED" ? new Date() : null,
+          completedAt: finalStatus === "FAILED" ? new Date() : null,
         },
       });
 
@@ -394,3 +419,4 @@ export default {
   modelDerivativeWorker,
   designAutomationWorker,
 };
+
