@@ -23,6 +23,7 @@ const startWorker = async () => {
     // Hito 5: Unified Workers
     import("./workers/conversion.worker");
     import("./workers/webhook-worker");
+    import("./workers/design-automation-callback.worker");
     import("./workers/validation.worker");
 
     logger.info("[WORKER] All systems operational");
@@ -43,6 +44,10 @@ const shutdown = async () => {
   // Close queues to stop accepting new jobs
   await Queues.validation.close();
   await Queues.conversion.close();
+  await Queues.conversionMd.close();
+  await Queues.conversionDa.close();
+  await Queues.designAutomationCallback.close();
+  await Queues.apsWebhooks.close();
   await Queues.comparison.close();
 
   // Workers invoked via side-effects maintain their own connections via BullMQ

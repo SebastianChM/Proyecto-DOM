@@ -126,4 +126,5 @@ export interface DesignAutomationCallbackJobData {
   conversionId: string;
   workItemId: string;
   status: string;
+  reportUrl?: string;
 }
