@@ -6,7 +6,7 @@ import {
   isFileLifecycleActive,
   isViewerReady,
   normalizeFileStatus,
-} from "./readiness";
+} from "./readiness.ts";
 
 test("normalizeFileStatus canonicalizes values", () => {
   assert.equal(normalizeFileStatus(" ready "), "READY");

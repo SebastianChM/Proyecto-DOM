@@ -7,7 +7,7 @@ import {
   normalizeBatchStatus,
   normalizeSupportedFormats,
   normalizeTrackerStatus,
-} from "./contracts";
+} from "./contracts.ts";
 
 test("normalizeSupportedFormats handles backend {formats} payload", () => {
   const normalized = normalizeSupportedFormats({
