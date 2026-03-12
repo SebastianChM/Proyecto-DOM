@@ -10,14 +10,14 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 
 **Active branches**: None. All feature branches are merged.
 
-**Recommended next PR**: `refactor/unify-validation-compliance` — unify ValidationRun/ComplianceRun schema + routes.
+**Recommended next PR**: `feat/conversion-pipeline-hardening` — harden conversion pipeline from request to completion.
 
 ## 2. Current Repository State
 
 | Item            | Value          | Evidence                                        |
 | --------------- | -------------- | ----------------------------------------------- |
 | Current branch  | `main`         | `git branch --show-current`                     |
-| main HEAD       | `13cd588`      | Merge PR #12 from refactor/parser-consolidation |
+| main HEAD       | `ca4a5eb`      | Merge PR #13 from refactor/unify-validation-compliance |
 | Working tree    | Clean          | `git status`                                    |
 | Node.js         | 20.x           | `.nvmrc` → `20.11.0`                            |
 | Husky           | 9.1.7          | `node_modules/husky/package.json`               |
@@ -65,6 +65,7 @@ The DOM BIM Platform is a monorepo (Express API + Next.js frontend + Prisma/Post
 | #10      | `chore/repo-housekeeping`                  | `ec6e5cc`    | SETUP.md, ESLint 0 warnings, Husky v9, PROJECT_STATUS                              | Additional               |
 | #11      | `feat/session-refresh`                     | `fceac27`    | Token refresh middleware, SESSION_EXPIRED interceptor, CI fixes                    | Additional               |
 | #12      | `refactor/parser-consolidation`            | `13cd588`    | Delete dead table-parser, inline normative-parser, extract CategoryInferer utility | Additional               |
+| #13      | `refactor/unify-validation-compliance`     | `ca4a5eb`    | Unified run/issue contract + mapping tables + read adapters + parity tests         | Additional               |
 
 ## 4. Open / Pushed / In-Progress Branches
 
@@ -222,6 +223,23 @@ _No open branches. All feature work is merged to main._
 | -------------------- | -------------------------------------------------------------------------- |
 | Date                 | 2026-03-11                                                                 |
 | Branch               | `main`                                                                     |
-| Last relevant commit | `13cd588` (main HEAD, merge of PR #12 parser-consolidation)                |
+| Last relevant commit | `ca4a5eb` (main HEAD, merge of PR #13 unify-validation-compliance phase 1)  |
 | Agent                | Antigravity (Claude)                                                       |
-| Context              | PR #12 merged; parser consolidation phase 1 complete, docs closure applied |
+| Context              | PR #13 merged; unify-validation-compliance phase 1 closed; conversion hardening is next |
+
+## 12. Post-Merge Update (PR #13)
+
+- PR merged: [#13](https://github.com/SebastianChM/Proyecto-DOM/pull/13)
+- Merge commit: `ca4a5eb305b6c6514a79634b1c377b7dab8013da`
+- Scope delivered (non-breaking):
+  - Unified internal run/issue contract
+  - Mapping tables and mappers for Validation/Compliance
+  - Unified read adapters (read-only)
+  - Parity unit tests for adapters/mappers
+- CI status at merge:
+  - Prisma Schema Validation: success
+  - Docker Build: success
+  - Lint: success
+  - Security Audit: success
+  - TypeScript Check: success
+  - Tests: success
