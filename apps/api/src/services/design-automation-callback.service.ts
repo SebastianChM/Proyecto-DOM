@@ -210,7 +210,7 @@ export async function enqueueDesignAutomationCallback(
       status: normalizedStatus,
       reportUrl: callback.reportUrl,
     });
-  } catch (error) {
+  } catch {
     await prisma.conversion.updateMany({
       where: { id: conversion.id, dedupeKey },
       data: { dedupeKey: null },
