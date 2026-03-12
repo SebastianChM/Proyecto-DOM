@@ -20,6 +20,18 @@ const batchSchema = z.object({
 });
 
 /**
+ * GET /formats
+ * Supported conversion formats (source extension -> target formats)
+ */
+router.get(
+  "/formats",
+  asyncHandler(async (_req, res) => {
+    const formats = conversionService.getSupportedFormats();
+    res.json({ formats });
+  }),
+);
+
+/**
  * POST /batch
  * Create multiple conversions
  */
@@ -33,7 +45,15 @@ router.post(
       fileIds,
       format.toLowerCase(),
     );
-    res.json(result);
+
+    res.status(202).json({
+      success: true,
+      batchId: result.batchId,
+      started: result.enqueued,
+      enqueued: result.enqueued,
+      failed: result.failed,
+      errors: result.errors,
+    });
   }),
 );
 
@@ -75,7 +95,26 @@ router.post(
       fileId,
       format.toLowerCase(),
     );
-    res.json(result);
+
+    const normalizedStatus = String(result.status || "PENDING").toUpperCase();
+    const message =
+      normalizedStatus === "PROCESSING"
+        ? "Conversion already in progress"
+        : normalizedStatus === "COMPLETED"
+          ? "Conversion already completed"
+          : "Conversion queued";
+
+    res.status(202).json({
+      success: true,
+      message,
+      conversion: {
+        id: result.id,
+        fileId: result.fileId,
+        targetFormat: result.targetFormat,
+        status: normalizedStatus,
+        method: result.method,
+      },
+    });
   }),
 );
 

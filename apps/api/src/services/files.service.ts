@@ -6,6 +6,7 @@ import { getFileType } from "../lib/utils";
 import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
+import { ConversionJobData, Queues } from "../lib/queue";
 
 export class FileService {
   /**
@@ -135,13 +136,27 @@ export class FileService {
               logger.debug("[FILES] Predictive Conversion: queueing PDF", {
                 filename: file.originalname,
               });
-              await prisma.conversion.create({
+              const conversion = await prisma.conversion.create({
                 data: {
                   fileId: fileId,
                   targetFormat: "pdf",
                   method: "modelDerivative", // DWG to PDF uses Model Derivative
                   status: "PENDING", // Worker will pick this up
                 },
+              });
+
+              const predictiveUserId = dbFile.uploadedBy || "system";
+              await Queues.conversionMd.add("convert", {
+                conversionId: conversion.id,
+                userId: predictiveUserId,
+                method: "modelDerivative",
+                targetFormat: "pdf",
+                priority: 5,
+              } as ConversionJobData);
+
+              await prisma.conversion.update({
+                where: { id: conversion.id },
+                data: { status: "QUEUED", queuedAt: new Date() },
               });
             } catch (pcError: unknown) {
               logger.warn("[FILES] Predictive conversion failed to queue", {
