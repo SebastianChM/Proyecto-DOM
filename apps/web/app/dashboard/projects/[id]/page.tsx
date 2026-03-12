@@ -188,7 +188,7 @@ export default function ProjectDetailPage() {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [project]);
+  }, [project, setProject]);
 
   const hasProcessingFiles = (project?.files ?? []).some((f) =>
     isFileLifecycleActive(f.status),
