@@ -439,28 +439,56 @@ export class ConversionService {
       take: 100,
     });
 
+    const pending = counts.pending || 0;
+    const queued = counts.queued || 0;
+    const processing = counts.processing || 0;
     const completed = counts.completed || 0;
     const failed = counts.failed || 0;
+
+    const summary = {
+      pending: pending + queued,
+      processing,
+      completed,
+      failed,
+      queued,
+    };
+
+    const finalised = summary.completed + summary.failed;
     const progress =
       batch.totalCount > 0
-        ? Math.round(((completed + failed) / batch.totalCount) * 100)
+        ? Math.round((finalised / batch.totalCount) * 100)
         : 0;
+
+    const status =
+      finalised >= batch.totalCount
+        ? summary.failed > 0 && summary.completed === 0
+          ? "failed"
+          : "completed"
+        : summary.processing > 0 || summary.pending > 0
+          ? "processing"
+          : "pending";
+
+    const errors = failures.map((f) => ({
+      fileName: f.file.name,
+      error: f.lastError?.substring(0, 200),
+    }));
 
     return {
       batchId,
+      status,
+      summary,
+      progress,
+      errors,
+      // Backward-compatible aliases for existing internal consumers
       total: batch.totalCount,
       counts: {
-        pending: counts.pending || 0,
-        queued: counts.queued || 0,
-        processing: counts.processing || 0,
-        completed,
-        failed,
+        pending: summary.pending,
+        queued: summary.queued,
+        processing: summary.processing,
+        completed: summary.completed,
+        failed: summary.failed,
       },
-      progress,
-      failures: failures.map((f) => ({
-        fileName: f.file.name,
-        error: f.lastError?.substring(0, 200),
-      })),
+      failures: errors,
     };
   }
 }
