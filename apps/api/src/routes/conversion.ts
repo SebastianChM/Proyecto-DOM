@@ -70,6 +70,61 @@ router.get(
 );
 
 /**
+ * GET /batch/:batchId/download
+ * Download all completed conversion results in batch as ZIP
+ */
+router.get(
+  "/batch/:batchId/download",
+  asyncHandler(async (req, res) => {
+    try {
+      const { archive, filename } = await conversionService.getBatchDownloadArchive(
+        req.params.batchId,
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`,
+      );
+      res.setHeader("Content-Type", "application/zip");
+
+      archive.on("error", (err: Error) => {
+        logger.error("[CONVERSION] Batch archive stream error", {
+          ...logger.fromReq(req),
+          error: err.message,
+        });
+
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: "Batch download stream error",
+            type: "InternalServerError",
+          });
+        } else {
+          res.destroy();
+        }
+      });
+
+      archive.pipe(res);
+      await archive.finalize();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message === "BATCH_NOT_FOUND") {
+        throw notFound("Conversion batch not found", "BATCH_NOT_FOUND");
+      }
+
+      if (message === "BATCH_DOWNLOAD_NOT_READY") {
+        throw badRequest(
+          "No completed conversions available for batch download",
+          "BATCH_DOWNLOAD_NOT_READY",
+        );
+      }
+
+      throw error;
+    }
+  }),
+);
+
+/**
  * POST /:fileId
  * Single conversion
  */

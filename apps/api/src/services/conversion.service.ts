@@ -18,6 +18,7 @@ import { modelDerivativeService } from "./aps/model-derivative.service";
 import { apsOssService } from "./aps/oss.service";
 import { Queues, ConversionJobData } from "../lib/queue";
 import axios from "axios";
+import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
 import { Readable } from "stream";
@@ -407,6 +408,76 @@ export class ConversionService {
     return conversion;
   }
 
+  async getBatchDownloadArchive(batchId: string) {
+    const batch = await prisma.conversionBatch.findUnique({
+      where: { id: batchId },
+    });
+
+    if (!batch) {
+      throw new Error("BATCH_NOT_FOUND");
+    }
+
+    const completedConversions = await prisma.conversion.findMany({
+      where: {
+        batchId,
+        status: "COMPLETED",
+      },
+      include: {
+        file: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    if (completedConversions.length === 0) {
+      throw new Error("BATCH_DOWNLOAD_NOT_READY");
+    }
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    const usedNames = new Map<string, number>();
+
+    for (const conversion of completedConversions) {
+      try {
+        const { stream, filename } = await this.getDownloadData(conversion.id);
+        const safeName = filename.replace(/[/:*?"<>|]/g, "_");
+
+        const currentCount = usedNames.get(safeName) ?? 0;
+        usedNames.set(safeName, currentCount + 1);
+
+        const parsed = path.parse(safeName);
+        const uniqueName =
+          currentCount === 0
+            ? safeName
+            : `${parsed.name}-${currentCount}${parsed.ext}`;
+
+        archive.append(stream, { name: uniqueName });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        logger.warn("[CONVERSION] Failed to include conversion in batch archive", {
+          batchId,
+          conversionId: conversion.id,
+          error: message,
+        });
+
+        archive.append(
+          `Conversion ${conversion.id} could not be downloaded: ${message}\n`,
+          {
+            name: `errors/${conversion.id}.txt`,
+          },
+        );
+      }
+    }
+
+    const archiveFilename = `conversion-batch-${batchId.slice(0, 8)}.zip`;
+
+    return {
+      archive,
+      filename: archiveFilename,
+    };
+  }
+
   async getBatchStatus(batchId: string) {
     const batch = await prisma.conversionBatch.findUnique({
       where: { id: batchId },
@@ -473,12 +544,19 @@ export class ConversionService {
       error: f.lastError?.substring(0, 200),
     }));
 
+    const downloadUrl =
+      status !== "processing" && summary.completed > 0
+        ? "/api/conversion/batch/" + batchId + "/download"
+        : undefined;
+
     return {
       batchId,
       status,
       summary,
       progress,
       errors,
+      downloadUrl,
+      zipUrl: downloadUrl,
       // Backward-compatible aliases for existing internal consumers
       total: batch.totalCount,
       counts: {

@@ -3,6 +3,7 @@ import app from "../../src/index";
 import { redis } from "../../src/lib/redis";
 import prisma from "../../src/lib/prisma";
 import { conversionService } from "../../src/services/conversion.service";
+import { PassThrough } from "stream";
 
 describe("Conversion API contracts", () => {
   afterEach(() => {
@@ -103,6 +104,8 @@ describe("Conversion API contracts", () => {
         failed: 0,
       },
       failures: [],
+      downloadUrl: "/api/conversion/batch/batch-1/download",
+      zipUrl: "/api/conversion/batch/batch-1/download",
     });
 
     const response = await request(app).get("/api/conversion/batch/batch-1");
@@ -118,7 +121,52 @@ describe("Conversion API contracts", () => {
           completed: 1,
           failed: 0,
         }),
+        downloadUrl: "/api/conversion/batch/batch-1/download",
       }),
     );
   });
+  it("GET /api/conversion/batch/:batchId/download returns ZIP stream", async () => {
+    const archive = new PassThrough() as PassThrough & {
+      finalize: () => Promise<void>;
+    };
+    archive.finalize = jest.fn(async () => {
+      archive.end("zip-content");
+    });
+
+    jest.spyOn(conversionService, "getBatchDownloadArchive").mockResolvedValue({
+      archive: archive as unknown as Awaited<
+        ReturnType<typeof conversionService.getBatchDownloadArchive>
+      >["archive"],
+      filename: "conversion-batch-batch-1.zip",
+    });
+
+    const response = await request(app).get(
+      "/api/conversion/batch/batch-1/download",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/zip");
+    expect(response.headers["content-disposition"]).toContain(
+      "conversion-batch-batch-1.zip",
+    );
+  });
+
+  it("GET /api/conversion/batch/:batchId/download maps not-ready errors", async () => {
+    jest
+      .spyOn(conversionService, "getBatchDownloadArchive")
+      .mockRejectedValue(new Error("BATCH_DOWNLOAD_NOT_READY"));
+
+    const response = await request(app).get(
+      "/api/conversion/batch/batch-2/download",
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: "No completed conversions available for batch download",
+        code: "BATCH_DOWNLOAD_NOT_READY",
+      }),
+    );
+  });
+
 });
