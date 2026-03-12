@@ -1,11 +1,22 @@
-import { useState, useEffect } from "react";
-import apiClient from "@/lib/axios-config";
+﻿import { useState, useEffect } from "react";
 import { pollWithBackoff } from "@/hooks/usePollingWithBackoff";
 import { toast } from "sonner";
 import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 import type { ActiveConversion } from "@/components/ConversionTracker";
-import type { ProjectFileDetail } from "@/lib/api/types";
+import type {
+  BatchConversionStatusResponse,
+  ConversionStatusResponse,
+  ProjectFileDetail,
+} from "@/lib/api/types";
+import { conversionService } from "@/lib/api/services";
+import {
+  FALLBACK_SUPPORTED_FORMATS,
+  isConversionSupportedByFormats,
+  normalizeBatchStatus,
+  normalizeSupportedFormats,
+  normalizeTrackerStatus,
+} from "@/lib/conversion/contracts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,41 +55,59 @@ export interface UseConversionsReturn {
 // Internal helpers (reduce repetitive set-state boilerplate)
 // ---------------------------------------------------------------------------
 
-/** Add fileIds to the converting set */
 const addConverting = (
   setter: React.Dispatch<React.SetStateAction<Set<string>>>,
   ids: string | string[],
 ) => {
   const arr = Array.isArray(ids) ? ids : [ids];
   setter((prev) => {
-    const s = new Set(prev);
-    arr.forEach((id) => s.add(id));
-    return s;
+    const next = new Set(prev);
+    arr.forEach((id) => next.add(id));
+    return next;
   });
 };
 
-/** Remove fileIds from the converting set */
 const removeConverting = (
   setter: React.Dispatch<React.SetStateAction<Set<string>>>,
   ids: string | string[],
 ) => {
   const arr = Array.isArray(ids) ? ids : [ids];
   setter((prev) => {
-    const s = new Set(prev);
-    arr.forEach((id) => s.delete(id));
-    return s;
+    const next = new Set(prev);
+    arr.forEach((id) => next.delete(id));
+    return next;
   });
 };
 
-/** Patch a single ActiveConversion by trackingId */
 const patchConversion = (
   setter: React.Dispatch<React.SetStateAction<ActiveConversion[]>>,
   trackingId: string,
   patch: Partial<ActiveConversion>,
 ) => {
   setter((prev) =>
-    prev.map((c) => (c.id === trackingId ? { ...c, ...patch } : c)),
+    prev.map((conversion) =>
+      conversion.id === trackingId ? { ...conversion, ...patch } : conversion,
+    ),
   );
+};
+
+const getBatchDownloadUrl = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const candidate = payload as {
+    downloadUrl?: unknown;
+    zipUrl?: unknown;
+  };
+
+  if (typeof candidate.downloadUrl === "string" && candidate.downloadUrl.length > 0) {
+    return candidate.downloadUrl;
+  }
+
+  if (typeof candidate.zipUrl === "string" && candidate.zipUrl.length > 0) {
+    return candidate.zipUrl;
+  }
+
+  return null;
 };
 
 // ---------------------------------------------------------------------------
@@ -97,39 +126,37 @@ export function useConversions({
   const [activeConversions, setActiveConversions] = useState<ActiveConversion[]>([]);
   const [downloadModal, setDownloadModal] = useState<DownloadModal | null>(null);
 
-  // ---- Fetch supported formats on mount ----
   useEffect(() => {
     (async () => {
       try {
-        const response = await apiClient.get("/api/conversion/formats");
-        if (response.data?.formats) setSupportedFormats(response.data.formats);
+        const response = await conversionService.formats();
+        const normalized = normalizeSupportedFormats(response);
+        setSupportedFormats(Object.keys(normalized).length > 0 ? normalized : FALLBACK_SUPPORTED_FORMATS);
       } catch (error) {
-        logger.warn("Failed to fetch supported formats", {
+        logger.warn("Failed to fetch supported formats, using fallback map", {
           error: error instanceof Error ? error.message : String(error),
         });
+        setSupportedFormats(FALLBACK_SUPPORTED_FORMATS);
       }
     })();
   }, []);
 
-  // ---- Helpers ----
-
   const isConversionSupported = (fileType: string, targetFormat: string): boolean => {
-    const ext = fileType.toLowerCase();
-    const fmt = targetFormat.toLowerCase();
-    if (fmt === "pdf") return ext === "dwg" || ext === "dxf";
-    if (fmt === "ifc") return ext !== "ifc" && ["rvt", "dwg"].includes(ext);
-    return !!(supportedFormats?.[fmt]?.includes(ext));
+    const map = supportedFormats ?? FALLBACK_SUPPORTED_FORMATS;
+    return isConversionSupportedByFormats(map, fileType, targetFormat);
   };
 
   const areFilesCompatible = (fileIds: string[], format: string): boolean => {
-    if (!project) return false;
-    return project.files.filter((f) => fileIds.includes(f.id)).every((f) => isConversionSupported(f.type, format));
+    if (!project || fileIds.length === 0) return false;
+
+    const selected = project.files.filter((file) => fileIds.includes(file.id));
+    if (selected.length === 0) return false;
+
+    return selected.every((file) => isConversionSupported(file.type, format));
   };
 
-  // ---- Single file conversion ----
-
   const handleConvert = async (fileId: string, format: "pdf" | "ifc"): Promise<void> => {
-    const file = project?.files.find((f) => f.id === fileId);
+    const file = project?.files.find((entry) => entry.id === fileId);
     if (!file) return;
 
     if (!isConversionSupported(file.type, format)) {
@@ -139,71 +166,99 @@ export function useConversions({
       return;
     }
 
-    const tid = `${fileId}-${format}-${Date.now()}`;
+    const trackingId = `${fileId}-${format}-${Date.now()}`;
 
     try {
       addConverting(setConvertingFiles, fileId);
       setActiveConversions((prev) => [
         ...prev,
-        { id: tid, fileId, fileName: file.name, format, status: "pending", startTime: Date.now() },
+        {
+          id: trackingId,
+          fileId,
+          fileName: file.name,
+          format,
+          status: "pending",
+          startTime: Date.now(),
+        },
       ]);
 
-      const response = await apiClient.post(`/api/conversion/${fileId}`, { format });
+      const response = await conversionService.start(fileId, format);
+      const conversionId = response.conversion?.id;
+      const immediateStatus = normalizeTrackerStatus(response.conversion?.status);
 
-      // Already completed recently
-      if (response.data.downloadUrl && response.data.message === "Conversion already completed recently") {
-        patchConversion(setActiveConversions, tid, {
+      if (!conversionId) {
+        throw new Error("No conversion ID returned");
+      }
+
+      if (immediateStatus === "completed") {
+        removeConverting(setConvertingFiles, fileId);
+        patchConversion(setActiveConversions, trackingId, {
           status: "completed",
-          downloadUrl: response.data.downloadUrl,
-          conversionId: response.data.conversion?.id,
+          conversionId,
+          downloadUrl: response.downloadUrl || `/api/conversion/${conversionId}/download`,
         });
+        return;
+      }
+
+      patchConversion(setActiveConversions, trackingId, {
+        status: immediateStatus === "failed" ? "failed" : "processing",
+        conversionId,
+        error: immediateStatus === "failed" ? "Conversion failed to start" : undefined,
+      });
+
+      if (immediateStatus === "failed") {
         removeConverting(setConvertingFiles, fileId);
         return;
       }
 
-      if (!response.data.conversion) throw new Error("No conversion ID returned");
-      const conversionId = response.data.conversion.id;
-
-      patchConversion(setActiveConversions, tid, { status: "processing", conversionId });
-
-      // Poll with exponential backoff
       pollWithBackoff({
         fn: async () => {
-          const r = await apiClient.get(`/api/conversion/${conversionId}`);
-          return r.data as { status: string; error?: string };
+          return await conversionService.status(conversionId);
         },
         initialDelayMs: 2000,
         maxDelayMs: 30000,
         maxRetries: 30,
-        onSuccess: (data) => {
-          if (data.status === "COMPLETED") {
+        onSuccess: (data: ConversionStatusResponse) => {
+          const normalized = normalizeTrackerStatus(data.status);
+
+          if (normalized === "completed") {
             removeConverting(setConvertingFiles, fileId);
-            patchConversion(setActiveConversions, tid, {
+            patchConversion(setActiveConversions, trackingId, {
               status: "completed",
-              downloadUrl: `/api/conversion/${conversionId}/download`,
               conversionId,
+              downloadUrl: `/api/conversion/${conversionId}/download`,
             });
             return true;
           }
-          if (data.status === "FAILED") {
+
+          if (normalized === "failed") {
             removeConverting(setConvertingFiles, fileId);
-            patchConversion(setActiveConversions, tid, {
+            patchConversion(setActiveConversions, trackingId, {
               status: "failed",
-              error: data.error || "Unknown error",
+              error: data.lastError || data.error || "Unknown error",
             });
             return true;
           }
         },
-        onError: (err) => logger.warn("Failed to check conversion status", { error: err.message, conversionId }),
+        onError: (error) =>
+          logger.warn("Failed to check conversion status", {
+            error: error.message,
+            conversionId,
+          }),
         onTimeout: () => {
           removeConverting(setConvertingFiles, fileId);
-          patchConversion(setActiveConversions, tid, { status: "failed", error: "Conversion timed out" });
-          toast.warning("Conversion timed out", { description: "The conversion is taking longer than expected." });
+          patchConversion(setActiveConversions, trackingId, {
+            status: "failed",
+            error: "Conversion timed out",
+          });
+          toast.warning("Conversion timed out", {
+            description: "The conversion is taking longer than expected.",
+          });
         },
       });
     } catch (error: unknown) {
       removeConverting(setConvertingFiles, fileId);
-      patchConversion(setActiveConversions, tid, {
+      patchConversion(setActiveConversions, trackingId, {
         status: "failed",
         error: error instanceof Error ? error.message : "Failed to start conversion",
       });
@@ -211,13 +266,11 @@ export function useConversions({
     }
   };
 
-  // ---- Bulk conversion ----
-
   const handleBulkConvert = async (format: "pdf" | "ifc"): Promise<void> => {
     if (selectedFiles.length === 0) return;
 
-    const validFiles = selectedFiles.filter((fid) => {
-      const file = project?.files.find((f) => f.id === fid);
+    const validFiles = selectedFiles.filter((fileId) => {
+      const file = project?.files.find((entry) => entry.id === fileId);
       return file ? isConversionSupported(file.type, format) : false;
     });
 
@@ -225,6 +278,7 @@ export function useConversions({
       toast.error(`None of the selected files support conversion to ${format.toUpperCase()}`);
       return;
     }
+
     if (validFiles.length < selectedFiles.length) {
       toast.warning(
         `Skipping ${selectedFiles.length - validFiles.length} files that do not support ${format.toUpperCase()} conversion.`,
@@ -232,20 +286,27 @@ export function useConversions({
     }
 
     try {
-      toast.info(`Starting parallel batch conversion to ${format.toUpperCase()} for ${validFiles.length} files...`, {
-        description: "All conversions will run simultaneously",
-      });
+      toast.info(
+        `Starting parallel batch conversion to ${format.toUpperCase()} for ${validFiles.length} files...`,
+        {
+          description: "All conversions will run simultaneously",
+        },
+      );
 
       addConverting(setConvertingFiles, validFiles);
 
-      const response = await apiClient.post("/api/conversion/batch", { fileIds: validFiles, format });
-      const { batchId, started, failed, errors } = response.data;
+      const response = await conversionService.batch({ fileIds: validFiles, format });
+      const batchId = response.batchId;
+      const started = Number(response.started ?? response.enqueued ?? 0);
+      const failed = Number(response.failed ?? 0);
+      const errors = Array.isArray(response.errors) ? response.errors : [];
 
-      if (failed > 0) {
+      if (failed > 0 && errors.length > 0) {
         toast.warning(`${failed} file(s) could not be converted`, {
-          description: errors.map((e: { error: string }) => e.error).join(", "),
+          description: errors.map((entry) => entry.error).join(", "),
         });
       }
+
       if (started === 0) {
         removeConverting(setConvertingFiles, validFiles);
         return;
@@ -255,49 +316,68 @@ export function useConversions({
 
       pollWithBackoff({
         fn: async () => {
-          const r = await apiClient.get(`/api/conversion/batch/${batchId}`);
-          return r.data as {
-            status: string;
-            summary?: { completed?: number; failed?: number; processing?: number; pending?: number };
-          };
+          return await conversionService.batchStatus(batchId);
         },
         initialDelayMs: 3000,
         maxDelayMs: 30000,
         maxRetries: 30,
-        onSuccess: (data) => {
-          const { status, summary } = data;
-          if (!summary) { logger.warn("Batch status response missing summary"); return; }
-
-          const total = (summary.completed || 0) + (summary.failed || 0) + (summary.processing || 0) + (summary.pending || 0);
+        onSuccess: (data: BatchConversionStatusResponse) => {
+          const normalized = normalizeBatchStatus(data);
+          const { status, summary } = normalized;
+          const total = summary.total;
 
           if (status === "processing") {
-            toast.info(`Batch progress: ${summary.completed || 0}/${total} completed`, {
+            toast.info(`Batch progress: ${summary.completed}/${total} completed`, {
               id: `batch-${batchId}`,
-              description: (summary.processing || 0) > 0 ? `${summary.processing} still processing...` : "Finishing up...",
+              description:
+                summary.processing > 0
+                  ? `${summary.processing} still processing...`
+                  : "Finishing up...",
             });
           }
 
           if (status === "completed" || status === "failed") {
             removeConverting(setConvertingFiles, validFiles);
-            const downloadReady = (summary.completed ?? 0) > 0 && (summary.processing ?? 0) === 0 && (summary.pending ?? 0) === 0;
 
-            if (downloadReady && (summary.completed || 0) > 0) {
-              toast.success("Batch conversion complete!", {
-                id: `batch-${batchId}`,
-                description: `${summary.completed} files ready. Click to download ZIP.`,
-                action: { label: "Download ZIP", onClick: () => window.open(`/api/conversion/batch/${batchId}/download`, "_blank") },
-                duration: 30000,
-              });
-            } else if ((summary.failed || 0) === total) {
+            const downloadUrl = getBatchDownloadUrl(data);
+            const downloadReady =
+              summary.completed > 0 &&
+              summary.processing === 0 &&
+              summary.pending === 0;
+
+            if (downloadReady && summary.completed > 0) {
+              if (downloadUrl) {
+                toast.success("Batch conversion complete!", {
+                  id: `batch-${batchId}`,
+                  description: `${summary.completed} files ready.`,
+                  action: {
+                    label: "Download",
+                    onClick: () => window.open(downloadUrl, "_blank"),
+                  },
+                  duration: 30000,
+                });
+              } else {
+                toast.success("Batch conversion complete!", {
+                  id: `batch-${batchId}`,
+                  description: `${summary.completed} files are ready for next steps.`,
+                });
+              }
+            } else if (summary.failed === total) {
               toast.error("All conversions failed", { id: `batch-${batchId}` });
             }
+
+            fetchProject();
             return true;
           }
         },
-        onError: (err) => logger.warn("Failed to check batch status", { error: err.message }),
+        onError: (error) =>
+          logger.warn("Failed to check batch status", { error: error.message }),
         onTimeout: () => {
           removeConverting(setConvertingFiles, validFiles);
-          toast.warning("Batch conversion polling timed out.", { id: `batch-${batchId}`, description: "Refresh to check status." });
+          toast.warning("Batch conversion polling timed out.", {
+            id: `batch-${batchId}`,
+            description: "Refresh to check status.",
+          });
         },
       });
     } catch (error: unknown) {
@@ -308,25 +388,32 @@ export function useConversions({
     setSelectedFiles([]);
   };
 
-  // ---- Save to project (download modal) ----
-
   const handleSaveToProject = async (): Promise<void> => {
     if (!downloadModal?.conversionId) return;
+
     try {
       toast.info("Saving file to project...");
-      await apiClient.post(`/api/conversion/${downloadModal.conversionId}/save-to-project`);
+      await conversionService.saveToProject(downloadModal.conversionId);
       toast.success("File saved to project successfully!");
       setDownloadModal(null);
       fetchProject();
     } catch (error: unknown) {
-      const axiosError = error as { response?: { data?: { details?: unknown } }; message?: string };
+      const axiosError = error as {
+        response?: { data?: { details?: unknown } };
+        message?: string;
+      };
+
       const errorMessage = axiosError.response?.data?.details
         ? typeof axiosError.response.data.details === "object"
           ? JSON.stringify(axiosError.response.data.details)
           : String(axiosError.response.data.details)
         : axiosError.message || "Unknown error";
+
       showError(error, userRole, "Failed to save file to project");
-      toast.error("Save Failed", { description: errorMessage, duration: 10000 });
+      toast.error("Save Failed", {
+        description: errorMessage,
+        duration: 10000,
+      });
     }
   };
 

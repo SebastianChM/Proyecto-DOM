@@ -190,37 +190,65 @@ export interface ProjectMember {
 // Conversions
 // ---------------------------------------------------------------------------
 
-/** GET /api/conversion/formats — map of source type → supported target formats */
+/** GET /api/conversion/formats - map of source type -> supported target formats */
 export type ConversionFormats = Record<string, string[]>;
 
-/** POST /api/conversion/:fileId — start a single conversion */
-export interface ConversionStartResponse {
-  conversion?: { id: string };
-  downloadUrl?: string;
-  message?: string;
+export interface ConversionFormatsResponse {
+  formats: ConversionFormats;
 }
 
-/** GET /api/conversion/:id — poll conversion status */
+/** POST /api/conversion/:fileId - start a single conversion */
+export interface ConversionStartResponse {
+  success?: boolean;
+  message?: string;
+  conversion?: {
+    id: string;
+    fileId?: string;
+    targetFormat?: string;
+    status?: string;
+    method?: string;
+  };
+  downloadUrl?: string;
+}
+
+/** GET /api/conversion/:id - poll conversion status */
 export interface ConversionStatusResponse {
+  id?: string;
   status: string;
+  lastError?: string | null;
   error?: string;
 }
 
-/** POST /api/conversion/batch — start a batch conversion */
+/** POST /api/conversion/batch - start a batch conversion */
 export interface BatchConversionResponse {
+  success?: boolean;
   batchId: string;
+  started?: number;
+  enqueued?: number;
+  failed?: number;
+  errors?: Array<{ fileId?: string; error: string }>;
 }
 
-/** GET /api/conversion/batch/:id — poll batch conversion status */
+export interface BatchStatusSummary {
+  pending?: number;
+  queued?: number;
+  processing?: number;
+  completed?: number;
+  failed?: number;
+}
+
+/** GET /api/conversion/batch/:id - poll batch conversion status */
 export interface BatchConversionStatusResponse {
+  batchId?: string;
   status: string;
-  conversions: Array<{
-    id: string;
-    fileId: string;
-    status: string;
-    error?: string;
-  }>;
+  summary?: BatchStatusSummary;
+  progress?: number;
+  errors?: Array<{ fileName?: string; error?: string }>;
+  total?: number;
+  counts?: BatchStatusSummary;
+  failures?: Array<{ fileName?: string; error?: string }>;
   zipUrl?: string;
+  downloadUrl?: string;
 }
 
 // ---------------------------------------------------------------------------

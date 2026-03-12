@@ -17,7 +17,7 @@ import type {
   BatchConversionResponse,
   BatchConversionStatusResponse,
   BatchDownloadResponse,
-  ConversionFormats,
+  ConversionFormatsResponse,
   ConversionStartResponse,
   ConversionStatusResponse,
   DashboardStats,
@@ -177,7 +177,7 @@ export const projectMembersService = {
 
 export const conversionService = {
   /** GET /api/conversion/formats — supported conversion formats map */
-  formats: () => api.get<ConversionFormats>("/api/conversion/formats"),
+  formats: () => api.get<ConversionFormatsResponse>("/api/conversion/formats"),
 
   /** POST /api/conversion/:fileId — start a single-file conversion */
   start: (fileId: string, format: string) =>
@@ -194,8 +194,7 @@ export const conversionService = {
   /** POST /api/conversion/batch — start a batch conversion */
   batch: (data: {
     fileIds: string[];
-    targetFormat: string;
-    projectId: string;
+    format: string;
   }) => api.post<BatchConversionResponse>("/api/conversion/batch", data),
 
   /** GET /api/conversion/batch/:id — poll batch conversion status */
