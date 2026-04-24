@@ -46,6 +46,10 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Multi-tenancy (Compliance V3)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
   files       File[]
   comparisons Comparison[]
   members     ProjectMember[]
@@ -339,6 +343,8 @@ model Notification {
   // Related entities
   validationRunId String?
   validationRun   ValidationRun? @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+  complianceRunId String?
+  complianceRun   ComplianceRun? @relation(fields: [complianceRunId], references: [id], onDelete: Cascade)
   issueId         String?
   fileId          String?
   projectId       String?
@@ -642,7 +648,7 @@ model DataSource {
 model ComplianceRun {
   id          String   @id @default(uuid())
   name        String?  // Optional friendly name
-  status      String   @default("PENDING") // "PENDING", "RUNNING", "COMPLETED", "FAILED"
+  status      String   @default("PENDING") // "PENDING", "RUNNING", "COMPLETED", "FAILED", "TIMEOUT", "ERROR"
   
   // Input: Model being validated
   modelUrn    String   // URN of the RVT model
@@ -668,8 +674,14 @@ model ComplianceRun {
   // Error info if failed
   errorMessage String?
   
+  // Compliance V3 extensions
+  configId    String?
+  config      ProjectComplianceConfig? @relation(fields: [configId], references: [id])
+  metadata    Json?    // Para progreso incremental (V3)
+
   // Relation to issues found
   issues      ComplianceIssue[]
+  notifications Notification[]
   
   projectId   String
   createdBy   String?  // User who initiated the run
@@ -704,6 +716,9 @@ model ComplianceIssue {
   
   severity    String   @default("WARNING") // "CRITICAL", "WARNING", "INFO"
   status      String   @default("OPEN")    // "OPEN", "RESOLVED", "IGNORED", "FALSE_POSITIVE"
+  
+  // Compliance V3 extension
+  legalReference String?
   
   // Optional resolution info
   resolvedAt    DateTime?
@@ -807,6 +822,247 @@ model ConversionBatch {
   @@index([userId, createdAt])
   @@index([createdAt])
   @@map("conversion_batch")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, UPLOAD, DOWNLOAD, CONVERSION, COMPLIANCE
+  entity    String   // project, file, conversion, user, compliance-run, etc.
+  entityId  String?
+  details   Json?    // Additional context (old/new values, metadata)
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_log")
+}
+
+// ============================================
+// COMPLIANCE ENGINE V3 - Multi-tenancy
+// ============================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  country   String   // ISO 3166-1 alpha-2: "CL", "ES", "PE"
+  locale    String   @default("es-CL") // BCP 47
+  settings  Json?    // Configuracion general de la org
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  OrgMember[]
+  projects Project[]
+  packs    RegulationPack[]
+}
+
+model OrgMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  role           String       @default("MEMBER") // OWNER, ADMIN, MEMBER
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+}
+
+// ============================================
+// COMPLIANCE ENGINE V3 - Regulation Packs
+// ============================================
+
+model RegulationPack {
+  id             String       @id @default(uuid())
+  code           String       @unique // "CL-MOP-V3", "ES-CTE-DBSI"
+  name           String       // "MOP Manual de Carreteras Vol.3"
+  description    String?
+  country        String       // ISO 3166-1: "CL", "ES", "*" (global)
+  version        String       // "2024.1"
+  status         String       @default("DRAFT") // DRAFT, PUBLISHED, DEPRECATED
+  scope          String[]     // ["STRUCTURAL", "ARCHITECTURAL"]
+  
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  publishedAt    DateTime?
+  deprecatedAt   DateTime?
+
+  requirements   Requirement[]
+  documents      PackDocument[]
+  projectConfigs ProjectComplianceConfig[]
+
+  @@index([country])
+  @@index([status])
+}
+
+model PackDocument {
+  id       String @id @default(uuid())
+  packId   String
+  pack     RegulationPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  name     String // "MOP Vol.3 Cap.4"
+  fileId   String? // Referencia a File si se subio
+  url      String? // Link externo
+  docType  String  // LAW, STANDARD, GUIDELINE, SPEC
+  
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// COMPLIANCE ENGINE V3 - Requirements
+// ============================================
+
+model Requirement {
+  id              String   @id @default(uuid())
+  code            String   // "CL-MOP-V3-4.1.2-R001"
+  packId          String
+  pack            RegulationPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  
+  description     String   // "El hormigon estructural debe tener resistencia minima f'c = 30 MPa"
+  legalReference  String   // "MOP Vol.3 Art.4.1.2"
+  discipline      String   // "STRUCTURAL"
+  severity        String   @default("MANDATORY") // MANDATORY, RECOMMENDED, INFO
+  tags            String[] // ["hormigon", "resistencia", "estructura"]
+  
+  // Verificacion humana
+  status          String   @default("DRAFT") // DRAFT, VERIFIED, ACTIVE, RETIRED
+  verifiedBy      String?  // userId del verificador
+  verifiedAt      DateTime?
+  
+  // Metadata
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conditions      RequirementCondition[]
+  applicability   ApplicabilityRule?
+  overrides       RequirementOverride[]
+
+  @@index([packId])
+  @@index([discipline])
+  @@index([status])
+}
+
+model RequirementCondition {
+  id            String @id @default(uuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  
+  // Que propiedad evaluar
+  propertyRef   String // Referencia al PropertyDictionary.canonicalName: "Width", "FireRating"
+  
+  // Como evaluar
+  operator      String // ">=", "<=", "==", ">", "<", "!=", "range", "exists", "contains", "one_of"
+  value         String // "30" o "F-120" o "REI30,REI60,REI90" (para one_of)
+  unit          String? // "MPa", "mm", "m"
+  tolerance     Float?  // 0.05 = 5%
+  
+  // Agrupacion logica
+  logicGroup    String  @default("AND") // "AND", "OR"
+  sortOrder     Int     @default(0)
+  
+  createdAt     DateTime @default(now())
+}
+
+model ApplicabilityRule {
+  id              String @id @default(uuid())
+  requirementId   String @unique
+  requirement     Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  
+  // A que elementos aplica
+  targetCategories  String[]   // ["Walls", "Structural Columns"]
+  excludeCategories String[]   // ["Curtain Walls"]
+  
+  // Filtros adicionales sobre propiedades
+  propertyFilters   Json?      // {"Level": "Basement", "Function": "Exterior"}
+  
+  scope             String     @default("FILTERED") // ALL, FILTERED
+}
+
+// ============================================
+// COMPLIANCE ENGINE V3 - Property & Category Dictionaries
+// ============================================
+
+model PropertyDictionary {
+  id                String   @id @default(uuid())
+  canonicalName     String   // "Width", "FireRating", "ConcreteStrength"
+  locale            String   // "es-CL", "en-US", "es-ES"
+  displayName       String   // "Ancho", "Width"
+  aliases           String[] // ["Anchura", "W", "Ancho Total"]
+  revitPropertyPath String?  // "Dimensions.Width"
+  ifcPropertyPath   String?  // "Pset_WallCommon.Width"
+  unit              String?  // "mm", "MPa"
+  dataType          String   @default("NUMBER") // NUMBER, STRING, BOOLEAN, ENUM
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([canonicalName, locale])
+  @@index([locale])
+}
+
+model CategoryDictionary {
+  id                String   @id @default(uuid())
+  canonicalName     String   // "Walls", "Structural Columns"
+  locale            String   // "es-CL", "en-US"
+  displayName       String   // "Muros", "Walls"
+  aliases           String[] // ["Muro", "Tabique", "Pared"]
+  revitCategory     String   // Nombre exacto en Revit API
+  ifcEntity         String?  // "IfcWall", "IfcColumn"
+  discipline        String?  // "STRUCTURAL", "ARCHITECTURAL"
+  
+  createdAt         DateTime @default(now())
+
+  @@unique([canonicalName, locale])
+  @@index([locale])
+}
+
+model UnitConversion {
+  id         String @id @default(uuid())
+  fromUnit   String // "mm"
+  toUnit     String // "m"
+  factor     Float  // 0.001
+  category   String // "length", "pressure", "electrical", "area"
+  
+  @@unique([fromUnit, toUnit])
+}
+
+// ============================================
+// COMPLIANCE ENGINE V3 - Project Compliance Config
+// ============================================
+
+model ProjectComplianceConfig {
+  id        String @id @default(uuid())
+  projectId String @unique
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  packs     RegulationPack[]
+  overrides RequirementOverride[]
+  runs      ComplianceRun[]
+}
+
+model RequirementOverride {
+  id            String @id @default(uuid())
+  configId      String
+  config        ProjectComplianceConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  
+  action        String // SKIP, MODIFY_VALUE, CHANGE_SEVERITY
+  newValue      String?
+  newSeverity   String?
+  reason        String
+  approvedBy    String // userId
+  
+  createdAt     DateTime @default(now())
+
+  @@unique([configId, requirementId])
 }
 
 

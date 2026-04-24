@@ -1,5 +1,9 @@
 import { modelDerivativeService } from "./aps/model-derivative.service";
 import { logger } from "../lib/logger";
+import { serviceUnavailable } from "../lib/errors";
+import { categoryDictionaryService } from "./dictionary/category-dictionary.service";
+import { propertyDictionaryService } from "./dictionary/property-dictionary.service";
+import type { CategoryEntry } from "./dictionary/types";
 
 export interface BimProperty {
   elementId: number;
@@ -8,34 +12,33 @@ export interface BimProperty {
   properties: Record<string, unknown>; // Normalized properties (key: value)
 }
 
-export class BimQueryService {
-  // Known category property paths in Revit/APS
-  private readonly CATEGORY_PATHS = [
-    ["Identity Data", "Category"],
-    ["__category__", "Category"],
-    ["Category", "Category"],
-    ["Element", "Category"],
-    ["General", "Category"],
-    ["__name__", "__category__"],
-  ];
+export interface BimQueryConfig {
+  locale?: string;
+  categoryPaths?: [string, string][];
+}
 
-  // Patterns to extract category from element name
-  private readonly NAME_CATEGORY_PATTERNS = [
-    { pattern: /^Cable Tray/i, category: "Cable Trays" },
-    { pattern: /^Conduit/i, category: "Conduits" },
-    { pattern: /^Pipe/i, category: "Pipes" },
-    { pattern: /^Duct/i, category: "Ducts" },
-    { pattern: /^Light|Lumin/i, category: "Lighting Fixtures" },
-    { pattern: /^Panel|Tablero/i, category: "Electrical Equipment" },
-    { pattern: /^MEP_/i, category: "MEP Components" },
-    { pattern: /^ELX/i, category: "Electrical" },
-    { pattern: /^Wall|Muro/i, category: "Walls" },
-    { pattern: /^Floor|Piso|Losa/i, category: "Floors" },
-    { pattern: /^Column|Columna/i, category: "Structural Columns" },
-    { pattern: /^Beam|Viga/i, category: "Structural Framing" },
-    { pattern: /^Door|Puerta/i, category: "Doors" },
-    { pattern: /^Window|Ventana/i, category: "Windows" },
-  ];
+const DEFAULT_CATEGORY_PATHS: [string, string][] = [
+  ["Identity Data", "Category"],
+  ["__category__", "Category"],
+  ["Category", "Category"],
+  ["Element", "Category"],
+  ["General", "Category"],
+  ["__name__", "__category__"],
+];
+
+export interface IBimQueryService {
+  queryModel(urn: string): Promise<BimProperty[]>;
+  getBOM(urn: string): Promise<unknown[]>;
+}
+
+export class BimQueryService implements IBimQueryService {
+  private locale: string;
+  private categoryPaths: [string, string][];
+
+  constructor(config?: BimQueryConfig) {
+    this.locale = config?.locale ?? "en-US";
+    this.categoryPaths = config?.categoryPaths ?? DEFAULT_CATEGORY_PATHS;
+  }
 
   /**
    * Mass extraction optimized for filters.
@@ -59,8 +62,9 @@ export class BimQueryService {
         (err.response?.data?.diagnostic &&
           err.response.data.diagnostic.includes("No Property Database"))
       ) {
-        throw new Error(
-          "APS_MODEL_NOT_READY: The model properties are not yet extracted. Please wait a moment and try again.",
+        throw serviceUnavailable(
+          "The model properties are not yet extracted. Please wait a moment and try again.",
+          "APS_MODEL_NOT_READY",
         );
       }
       throw error;
@@ -74,6 +78,19 @@ export class BimQueryService {
     logger.info(
       `[BIM_QUERY] Raw Objects Found: ${rawProps.data.collection.length}`,
     );
+
+    // Build category map from object tree for proper Revit category resolution
+    const categoryMap = await this.buildCategoryMap(urn);
+    if (Object.keys(categoryMap).length > 0) {
+      logger.info(`[BIM_QUERY] Object tree category map: ${Object.keys(categoryMap).length} entries`);
+    }
+
+    // Pre-load dictionary categories for name-based resolution (both locales)
+    const [categoriesEn, categoriesEs] = await Promise.all([
+      categoryDictionaryService.getAll("en-US"),
+      categoryDictionaryService.getAll("es-CL"),
+    ]);
+    const allCategories = [...categoriesEn, ...categoriesEs];
 
     // Track category distribution for debugging
     const categoryStats: Record<string, number> = {};
@@ -89,8 +106,8 @@ export class BimQueryService {
         const name = element.name || `Element ${element.objectid}`;
         const flatProps: Record<string, unknown> = {};
 
-        // Start with Uncategorized
-        let category = "Uncategorized";
+        // Start with category from object tree (most reliable for Revit)
+        let category = categoryMap[element.objectid || 0] || "Uncategorized";
 
         // Flatten properties and search for category
         if (element.properties) {
@@ -122,9 +139,9 @@ export class BimQueryService {
           }
         }
 
-        // Fallback 1: Check known paths explicitly
+        // Fallback 1: Check known paths explicitly (configurable)
         if (category === "Uncategorized") {
-          for (const [group, prop] of this.CATEGORY_PATHS) {
+          for (const [group, prop] of this.categoryPaths) {
             const propGroup = element.properties?.[group] as
               | Record<string, unknown>
               | undefined;
@@ -136,14 +153,11 @@ export class BimQueryService {
           }
         }
 
-        // Fallback 2: Try extracting from object name patterns
+        // Fallback 2: Resolve from element name using CategoryDictionary
         if (category === "Uncategorized") {
-          for (const { pattern, category: cat } of this
-            .NAME_CATEGORY_PATTERNS) {
-            if (pattern.test(name)) {
-              category = cat;
-              break;
-            }
+          const resolved = this.resolveCategoryFromName(name, allCategories);
+          if (resolved) {
+            category = resolved;
           }
         }
 
@@ -183,58 +197,47 @@ export class BimQueryService {
   async getBOM(urn: string) {
     const elements = await this.queryModel(urn);
 
+    // Resolve property aliases from the dictionary for canonical BOM properties
+    const canonicalNames = ["Family", "Type", "Material", "Volume", "Area", "Length"];
+    const aliasMap = new Map<string, string[]>();
+
+    for (const canonical of canonicalNames) {
+      const entry = await propertyDictionaryService.resolve(canonical, this.locale);
+      const keys = [canonical];
+      if (entry) {
+        keys.push(entry.displayName, ...entry.aliases);
+      }
+      aliasMap.set(canonical, [...new Set(keys)]);
+    }
+
     return elements
       .map((element) => {
         const props = element.properties;
 
-        // Extract Standard Properties using flattened keys
-        // The flatten logic in queryModel puts direct keys (e.g. "Volume") in the root
-
-        const family = this.findProp(props, [
-          "Family",
-          "Familia",
-          "Family Name",
-          "Nombre de familia",
-        ]);
+        // Family: First try dictionary aliases, then extract from element name
+        let family = this.findProp(props, aliasMap.get("Family")!);
+        if (!family) {
+          const nameMatch = element.name?.match(/^(.+?)\s*\[/);
+          if (nameMatch) {
+            family = nameMatch[1].trim();
+          }
+        }
         const typeName =
-          this.findProp(props, [
-            "Type",
-            "Tipo",
-            "Type Name",
-            "Nombre de tipo",
-          ]) || element.name;
-        const material = this.findProp(props, [
-          "Material",
-          "Structural Material",
-          "Material estructural",
-          "Material Name",
-        ]);
+          this.findProp(props, aliasMap.get("Type")!) || element.name;
+        const material = this.findProp(props, aliasMap.get("Material")!);
 
         const volume = this.parseNumeric(
-          this.findProp(props, [
-            "Volume",
-            "Volumen",
-            "Host Volume",
-            "Gross Volume",
-            "Net Volume",
-          ]),
+          this.findProp(props, aliasMap.get("Volume")!),
         );
         const area = this.parseNumeric(
-          this.findProp(props, [
-            "Area",
-            "Área",
-            "Surface Area",
-            "Gross Area",
-            "Host Area",
-          ]),
+          this.findProp(props, aliasMap.get("Area")!),
         );
         const length = this.parseNumeric(
-          this.findProp(props, ["Length", "Longitud", "Curve Length"]),
+          this.findProp(props, aliasMap.get("Length")!),
         );
 
         return {
           id: element.elementId,
-          // externalId: element.externalId, // TODO: Bind ExternalId in queryModel if needed
           name: element.name,
           category: element.category,
           family: String(family || ""),
@@ -269,5 +272,91 @@ export class BimQueryService {
       return parseFloat(cleaned) || 0;
     }
     return 0;
+  }
+
+  /**
+   * Resolve category from element name using CategoryDictionary entries.
+   * Checks if the element name starts with any known displayName, revitCategory, or alias.
+   * Sorted by candidate length (longest first) to prefer more specific matches.
+   */
+  private resolveCategoryFromName(
+    name: string,
+    categories: CategoryEntry[],
+  ): string | null {
+    const lower = name.toLowerCase();
+    let bestMatch: { revitCategory: string; length: number } | null = null;
+
+    for (const cat of categories) {
+      const candidates = [cat.displayName, cat.revitCategory, ...cat.aliases];
+      for (const candidate of candidates) {
+        const candidateLower = candidate.toLowerCase();
+        if (
+          lower.startsWith(candidateLower) &&
+          (!bestMatch || candidateLower.length > bestMatch.length)
+        ) {
+          bestMatch = {
+            revitCategory: cat.revitCategory,
+            length: candidateLower.length,
+          };
+        }
+      }
+    }
+
+    return bestMatch?.revitCategory ?? null;
+  }
+
+  /**
+   * Build a map of objectid → Revit category name from the APS object tree.
+   * The object tree has a hierarchy: Root > Category > Family > Type > Instance
+   * We walk depth=2 nodes (categories) and assign their name to all descendants.
+   */
+  private async buildCategoryMap(urn: string): Promise<Record<number, string>> {
+    const map: Record<number, string> = {};
+    try {
+      const metadata = await modelDerivativeService.getMetadata(urn);
+      const view3d =
+        metadata.data.metadata.find(
+          (m: { role?: string; isMasterView?: boolean }) =>
+            m.role === "3d" && m.isMasterView,
+        ) ||
+        metadata.data.metadata.find(
+          (m: { role?: string }) => m.role === "3d",
+        );
+
+      if (!view3d) return map;
+
+      const tree = await modelDerivativeService.getObjectTree(urn, view3d.guid);
+      if (!tree?.data?.objects) return map;
+
+      // Walk the tree: Root → Categories → Families → Types → Instances
+      interface TreeNode {
+        objectid: number;
+        name: string;
+        objects?: TreeNode[];
+      }
+
+      const walkCategory = (node: TreeNode, categoryName: string) => {
+        map[node.objectid] = categoryName;
+        if (node.objects) {
+          for (const child of node.objects) {
+            walkCategory(child, categoryName);
+          }
+        }
+      };
+
+      const root = tree.data.objects[0] as TreeNode;
+      if (root?.objects) {
+        for (const categoryNode of root.objects) {
+          // depth-1 nodes are Revit categories (Walls, Doors, etc.)
+          walkCategory(categoryNode, categoryNode.name);
+        }
+      }
+
+      logger.debug(`[BIM_QUERY] Category map built: ${Object.keys(map).length} elements mapped`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn(`[BIM_QUERY] Could not build category map from object tree: ${msg}`);
+    }
+    return map;
   }
 }

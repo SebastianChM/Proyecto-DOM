@@ -1,3 +1,6 @@
+import { unitConversionService } from "./dictionary/unit-conversion.service";
+import { logger } from "../lib/logger";
+
 export interface NormalizedValue {
   original: string;
   numericValue: number;
@@ -6,22 +9,12 @@ export interface NormalizedValue {
   standardUnit: string; // 'm', 'Pa', 'kg'
 }
 
-export class UnitNormalizerService {
-  // Supported units map
-  private unitMap: Record<string, string> = {
-    mm: "m",
-    cm: "m",
-    m: "m",
-    km: "m",
-    g: "kg",
-    kg: "kg",
-    ton: "kg",
-    MPa: "Pa",
-    psi: "Pa",
-    bar: "Pa",
-  };
+export interface IUnitNormalizerService {
+  normalize(text: string): Promise<NormalizedValue | null>;
+}
 
-  normalize(text: string): NormalizedValue | null {
+export class UnitNormalizerService implements IUnitNormalizerService {
+  async normalize(text: string): Promise<NormalizedValue | null> {
     // Cleaning
     const cleanText = text.trim().replace(/,/, "."); // Handle "0,5" -> "0.5"
 
@@ -33,43 +26,19 @@ export class UnitNormalizerService {
 
     const val = parseFloat(match[1]);
     const unit = match[2];
-    const standardUnit = this.unitMap[unit];
 
-    if (!standardUnit) return null; // Unknown unit
-
-    return {
-      original: text,
-      numericValue: val,
-      unit: unit,
-      standardValue: this.convertToStandard(val, unit),
-      standardUnit: standardUnit,
-    };
-  }
-
-  private convertToStandard(val: number, unit: string): number {
-    switch (unit) {
-      case "mm":
-        return val / 1000;
-      case "cm":
-        return val / 100;
-      case "m":
-        return val;
-      case "km":
-        return val * 1000;
-      case "g":
-        return val / 1000;
-      case "kg":
-        return val;
-      case "ton":
-        return val * 1000;
-      case "MPa":
-        return val * 1000000;
-      case "bar":
-        return val * 100000;
-      case "psi":
-        return val * 6894.76;
-      default:
-        return val;
+    try {
+      const result = await unitConversionService.normalize(val, unit);
+      return {
+        original: text,
+        numericValue: val,
+        unit: unit,
+        standardValue: result.value,
+        standardUnit: result.unit,
+      };
+    } catch (error) {
+      logger.warn("[UnitNormalizer] Could not normalize", { text, unit, error });
+      return null;
     }
   }
 }

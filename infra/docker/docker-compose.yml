@@ -36,13 +36,13 @@
   redis:
     image: redis:7-alpine
     container_name: dom-bim-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10

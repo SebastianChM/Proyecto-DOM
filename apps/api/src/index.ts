@@ -16,6 +16,7 @@ import path from "path";
 import authRouter from "./routes/auth";
 import usersRouter from "./routes/users";
 import filesRouter from "./routes/files";
+import syncRoutes from "./routes/files/sync.routes";
 import projectsRouter from "./routes/projects";
 import projectMembersRouter from "./routes/project-members";
 import conversionRouter from "./routes/conversion";
@@ -35,6 +36,8 @@ import {
 import dataSourcesRouter from "./routes/data-sources";
 import workflowsRouter from "./routes/workflows";
 import designAutomationCallbackRouter from "./routes/design-automation-callback";
+import auditRouter from "./routes/audit";
+import { complianceV3Router } from "./routes/compliance-v3";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 
@@ -194,7 +197,9 @@ app.use("/api/auth", rateLimiter.authLimiter(), authRouter);
 
 app.use("/api/users", rateLimiter.apiLimiter(), usersRouter);
 
-// Files: Upload limiter for POST, api limiter for GET
+// Files: sync-status needs its own permissive limiter (polled frequently by frontend)
+app.use("/api/files", rateLimiter.apiLimiter(), syncRoutes);
+// Files: Upload limiter for remaining file operations
 app.use("/api/files", rateLimiter.uploadLimiter(), filesRouter);
 
 app.use("/api/projects", rateLimiter.apiLimiter(), projectsRouter);
@@ -246,15 +251,37 @@ app.use(
   rateLimiter.apiLimiter(),
   complianceExportRouter,
 );
+app.use("/api/compliance-v3", rateLimiter.apiLimiter(), complianceV3Router);
 app.use(
   "/api/data-sources",
   rateLimiter.heavyOperationLimiter(),
   dataSourcesRouter,
 );
 app.use("/api/workflows", rateLimiter.apiLimiter(), workflowsRouter);
+app.use("/api/audit", rateLimiter.apiLimiter(), auditRouter);
 
 // Swagger Documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// BullBoard — Queue monitoring UI
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ExpressAdapter } from "@bull-board/express";
+import { Queues as AppQueues } from "./lib/queue";
+
+const bullBoardAdapter = new ExpressAdapter();
+bullBoardAdapter.setBasePath("/admin/queues");
+createBullBoard({
+  queues: [
+    new BullMQAdapter(AppQueues.conversionMd),
+    new BullMQAdapter(AppQueues.conversionDa),
+    new BullMQAdapter(AppQueues.validation),
+    new BullMQAdapter(AppQueues.apsWebhooks),
+    new BullMQAdapter(AppQueues.designAutomationCallback),
+  ],
+  serverAdapter: bullBoardAdapter,
+});
+app.use("/admin/queues", basicAuth, bullBoardAdapter.getRouter());
 
 // Error handling
 import { errorHandler } from "./middleware/error-handler";
