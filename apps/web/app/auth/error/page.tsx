@@ -30,7 +30,7 @@ function ErrorContent() {
     "An unexpected error occurred during authentication.";
 
   return (
-    <Card className="w-full max-w-md shadow-xl border-red-100">
+    <Card className="w-full max-w-md shadow-sm border-red-100">
       <CardHeader className="text-center space-y-4 pb-2">
         <div className="mx-auto bg-red-100 w-16 h-16 rounded-full flex items-center justify-center">
           <AlertCircle className="w-8 h-8 text-red-600" />
@@ -50,7 +50,7 @@ function ErrorContent() {
         )}
       </CardContent>
       <CardFooter className="flex flex-col gap-3 pt-2">
-        <Button asChild className="w-full bg-dom-blue hover:bg-dom-blue-dark">
+        <Button asChild className="w-full bg-brand hover:bg-brand-dark">
           <Link href="/">Return to Login</Link>
         </Button>
         <div className="text-xs text-gray-400">Error Code: {error}</div>

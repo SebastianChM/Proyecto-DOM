@@ -115,7 +115,7 @@ export function ProjectSettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] bg-white dark:glass-panel border-gray-200 dark:border-white/10">
+      <DialogContent className="sm:max-w-[700px] bg-white dark:bg-card border border-border border-gray-200 dark:border-white/10">
         <DialogHeader>
           <DialogTitle>Project Settings</DialogTitle>
           <DialogDescription>

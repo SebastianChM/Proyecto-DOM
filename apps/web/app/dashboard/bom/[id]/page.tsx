@@ -86,7 +86,7 @@ export default function BOMPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black">
-        <div className="glass-card p-8 rounded-2xl flex flex-col items-center gap-4">
+        <div className="bg-card border border-border p-8 rounded-lg flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
           <p className="text-lg font-medium text-foreground animate-pulse">
             Loading BOM Data...
@@ -100,7 +100,7 @@ export default function BOMPage() {
     <div className="space-y-8 animate-fade-in pb-20">
       {/* Header Section */}
       <div className="flex flex-col gap-6">
-        <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border-l-4 border-primary">
+        <div className="bg-card border border-border p-6 rounded-lg flex flex-col md:flex-row items-center justify-between gap-4 border-l-4 border-primary">
           <div className="flex items-center gap-4 w-full md:w-auto">
             <Link
               href={
@@ -110,7 +110,7 @@ export default function BOMPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="glass-button rounded-full h-12 w-12 hover:bg-primary/10 hover:text-primary transition-colors"
+                className="bg-card border border-border rounded-full h-12 w-12 hover:bg-primary/10 hover:text-primary transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -133,7 +133,7 @@ export default function BOMPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="glass-card p-6 rounded-2xl relative overflow-hidden group">
+          <div className="bg-card border border-border p-6 rounded-lg relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <Filter className="h-16 w-16 text-primary" />
             </div>
@@ -148,7 +148,7 @@ export default function BOMPage() {
             </div>
           </div>
 
-          <div className="glass-card p-6 rounded-2xl relative overflow-hidden group">
+          <div className="bg-card border border-border p-6 rounded-lg relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <div className="h-16 w-16 border-4 border-blue-500 rounded-lg"></div>
             </div>
@@ -166,7 +166,7 @@ export default function BOMPage() {
             </div>
           </div>
 
-          <div className="glass-card p-6 rounded-2xl relative overflow-hidden group">
+          <div className="bg-card border border-border p-6 rounded-lg relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <div className="h-16 w-16 border-4 border-orange-500 rounded-full"></div>
             </div>
@@ -187,7 +187,7 @@ export default function BOMPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="bg-card border border-border p-4 rounded-lg flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -207,7 +207,7 @@ export default function BOMPage() {
           </span>
           <Button
             variant="outline"
-            className="glass-button border-white/10 hover:bg-white/10"
+            className="bg-card border border-border border-white/10 hover:bg-white/10"
           >
             <Filter className="h-4 w-4 mr-2" />
             Filters
@@ -216,7 +216,7 @@ export default function BOMPage() {
       </div>
 
       {/* BOM Table */}
-      <div className="glass-card rounded-2xl overflow-hidden shadow-xl border border-white/5">
+      <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm border border-white/5">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>

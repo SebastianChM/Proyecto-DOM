@@ -249,30 +249,61 @@ function SummaryPill({
 export function IssuesList({ runId, onViewElement }: IssuesListProps) {
   // State
   const [issues, setIssues] = useState<ComplianceIssue[]>([]);
-  const [filteredIssues, setFilteredIssues] = useState<ComplianceIssue[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // Severity counts (unfiltered, for summary pills)
+  const [counts, setCounts] = useState<Record<string, number>>({ CRITICAL: 0, WARNING: 0, INFO: 0 });
 
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingIssueId, setUpdatingIssueId] = useState<string | null>(null);
 
-  // Fetch issues
-  const fetchIssues = useCallback(async () => {
+  /** Debounce search input (400ms) */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch issues with server-side pagination and filters
+  const fetchIssues = useCallback(async (targetPage?: number) => {
     setLoading(true);
     setError(null);
 
     try {
+      const p = targetPage ?? page;
+      const params = new URLSearchParams({
+        page: String(p),
+        pageSize: String(pageSize),
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (severityFilter !== "all") params.set("severity", severityFilter);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
       const res = await fetch(
-        `${API_BASE}/api/compliance-v2/runs/${runId}/issues`,
+        `${API_BASE}/api/compliance-v2/runs/${runId}/issues?${params.toString()}`,
       );
       if (!res.ok) {
         throw new Error("No se pudieron cargar las incidencias");
       }
-      const data = await res.json();
-      setIssues(Array.isArray(data) ? data : []);
+      const json = await res.json();
+      setIssues(json.data ?? []);
+      setTotal(json.meta?.total ?? 0);
+      setTotalPages(json.meta?.totalPages ?? 0);
+      setPage(json.meta?.page ?? p);
+      if (json.counts) setCounts(json.counts);
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || "Error de conexión");
@@ -280,37 +311,36 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
     } finally {
       setLoading(false);
     }
-  }, [runId]);
+  }, [runId, page, pageSize, debouncedSearch, severityFilter, statusFilter]);
 
+  /** Re-fetch on filter/pagination change */
   useEffect(() => {
     fetchIssues();
   }, [fetchIssues]);
 
-  // Apply filters
-  useEffect(() => {
-    let result = [...issues];
+  /** Handle severity pill click — toggle filter and reset page */
+  const handleSeverityPillClick = (sev: string) => {
+    setSeverityFilter(severityFilter === sev ? "all" : sev);
+    setPage(1);
+  };
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(
-        (issue) =>
-          issue.ruleName.toLowerCase().includes(term) ||
-          issue.elementName.toLowerCase().includes(term) ||
-          issue.elementCategory.toLowerCase().includes(term) ||
-          issue.propertyName.toLowerCase().includes(term),
-      );
+  /** Handle filter select changes — reset page */
+  const handleSeverityFilterChange = (value: string) => {
+    setSeverityFilter(value);
+    setPage(1);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  /** Handle page change */
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
     }
-
-    if (severityFilter !== "all") {
-      result = result.filter((issue) => issue.severity === severityFilter);
-    }
-
-    if (statusFilter !== "all") {
-      result = result.filter((issue) => issue.status === statusFilter);
-    }
-
-    setFilteredIssues(result);
-  }, [issues, searchTerm, severityFilter, statusFilter]);
+  };
 
   // Update issue status
   const handleUpdateStatus = async (issueId: string, newStatus: string) => {
@@ -330,13 +360,8 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
         throw new Error("Error al actualizar");
       }
 
-      setIssues((prev) =>
-        prev.map((issue) =>
-          issue.id === issueId
-            ? { ...issue, status: newStatus as ComplianceIssue["status"] }
-            : issue,
-        ),
-      );
+      // Refresh current page to get updated data
+      await fetchIssues(page);
     } catch (err: unknown) {
       logger.error("Failed to update issue status", {
         issueId,
@@ -347,69 +372,27 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
     }
   };
 
-  // Group issues by severity
-  const counts = {
-    CRITICAL: issues.filter((i) => i.severity === "CRITICAL").length,
-    WARNING: issues.filter((i) => i.severity === "WARNING").length,
-    INFO: issues.filter((i) => i.severity === "INFO").length,
-  };
-
-  // Loading state
-  if (loading) {
-    return <IssuesListSkeleton />;
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error al cargar incidencias</AlertTitle>
-        <AlertDescription className="mt-2">
-          <p className="mb-3">{error}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchIssues}
-            className="gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Summary Pills */}
       <div className="flex flex-wrap gap-3">
         <SummaryPill
           severity="CRITICAL"
-          count={counts.CRITICAL}
+          count={counts.CRITICAL ?? 0}
           active={severityFilter === "CRITICAL"}
-          onClick={() =>
-            setSeverityFilter(
-              severityFilter === "CRITICAL" ? "all" : "CRITICAL",
-            )
-          }
+          onClick={() => handleSeverityPillClick("CRITICAL")}
         />
         <SummaryPill
           severity="WARNING"
-          count={counts.WARNING}
+          count={counts.WARNING ?? 0}
           active={severityFilter === "WARNING"}
-          onClick={() =>
-            setSeverityFilter(severityFilter === "WARNING" ? "all" : "WARNING")
-          }
+          onClick={() => handleSeverityPillClick("WARNING")}
         />
         <SummaryPill
           severity="INFO"
-          count={counts.INFO}
+          count={counts.INFO ?? 0}
           active={severityFilter === "INFO"}
-          onClick={() =>
-            setSeverityFilter(severityFilter === "INFO" ? "all" : "INFO")
-          }
+          onClick={() => handleSeverityPillClick("INFO")}
         />
       </div>
 
@@ -426,7 +409,7 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                 className="pl-9"
               />
             </div>
-            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <Select value={severityFilter} onValueChange={handleSeverityFilterChange}>
               <SelectTrigger className="w-full sm:w-[160px]">
                 <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Severidad" />
@@ -438,7 +421,7 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                 <SelectItem value="INFO">Información</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
               <SelectTrigger className="w-full sm:w-[160px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
@@ -454,6 +437,26 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
         </CardContent>
       </Card>
 
+      {/* Error State */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error al cargar incidencias</AlertTitle>
+          <AlertDescription className="mt-2">
+            <p className="mb-3">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchIssues()}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Issues Table */}
       <Card className="border border-border overflow-hidden">
         <CardHeader className="bg-muted/30 border-b border-border py-4">
@@ -461,22 +464,30 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
             <div>
               <CardTitle className="text-base">Incidencias</CardTitle>
               <CardDescription>
-                {filteredIssues.length} de {issues.length} incidencias
+                {loading
+                  ? "Cargando..."
+                  : `${issues.length} de ${total} incidencias (pág. ${page}/${totalPages || 1})`}
               </CardDescription>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={fetchIssues}
+              onClick={() => fetchIssues()}
               className="gap-2"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Actualizar
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredIssues.length === 0 ? (
+          {loading ? (
+            <div className="p-4 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : issues.length === 0 ? (
             <EmptyState
               filtered={
                 searchTerm !== "" ||
@@ -500,7 +511,7 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredIssues.map((issue) => {
+                  {issues.map((issue) => {
                     const severity = SEVERITY_CONFIG[issue.severity];
                     const status = STATUS_CONFIG[issue.status];
                     const SeverityIcon = severity.icon;
@@ -655,6 +666,55 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page <= 1 || loading}
+            className="text-muted-foreground"
+          >
+            Anterior
+          </Button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+            .reduce<(number | string)[]>((acc, p, i, arr) => {
+              if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((item, i) =>
+              typeof item === "string" ? (
+                <span key={`dots-${i}`} className="px-2 text-muted-foreground">
+                  {item}
+                </span>
+              ) : (
+                <Button
+                  key={item}
+                  variant={item === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handlePageChange(item)}
+                  disabled={loading}
+                  className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
+                >
+                  {item}
+                </Button>
+              )
+            )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages || loading}
+            className="text-muted-foreground"
+          >
+            Siguiente
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

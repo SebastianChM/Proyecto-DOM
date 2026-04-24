@@ -117,8 +117,19 @@ export default function AdminRBACPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showMembersDialog, setShowMembersDialog] = useState(false);
+
+  // Pagination state - users
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(0);
+  const [usersTotal, setUsersTotal] = useState(0);
+
+  // Pagination state - projects
+  const [projectsPage, setProjectsPage] = useState(1);
+  const [projectsTotalPages, setProjectsTotalPages] = useState(0);
+  const [projectsTotal, setProjectsTotal] = useState(0);
 
   // Verify user is ADMIN
   useEffect(() => {
@@ -131,21 +142,35 @@ export default function AdminRBACPage() {
     }
   }, [user]);
 
+  /** Debounce search input (400ms) */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setUsersPage(1);
+      setProjectsPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [usersData, projectsData] = await Promise.all([
-        adminService.listUsers(),
-        projectsService.list(),
+      const [usersRes, projectsRes] = await Promise.all([
+        adminService.listUsers({ page: usersPage, pageSize: 20, search: debouncedSearch }),
+        projectsService.list({ page: projectsPage, pageSize: 20, search: debouncedSearch }),
       ]);
-      setUsers(usersData);
-      setProjects(projectsData as Project[]);
+      setUsers(usersRes.data);
+      setUsersTotal(usersRes.meta.total);
+      setUsersTotalPages(usersRes.meta.totalPages);
+      setProjects(projectsRes.data as Project[]);
+      setProjectsTotal(projectsRes.meta.total);
+      setProjectsTotalPages(projectsRes.meta.totalPages);
     } catch (error) {
       showError(error, user?.role, "Failed to load admin data");
     } finally {
       setLoading(false);
     }
-  }, [user?.role]);
+  }, [user?.role, usersPage, projectsPage, debouncedSearch]);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -208,25 +233,15 @@ export default function AdminRBACPage() {
     }
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
-  const filteredProjects = projects.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
   if (!user || user.role !== "ADMIN") {
     return null;
   }
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Shield className="w-16 h-16 mx-auto mb-4 text-dom-blue animate-pulse" />
+          <Shield className="w-16 h-16 mx-auto mb-4 text-primary animate-pulse" />
           <p className="text-muted-foreground">Loading admin panel...</p>
         </div>
       </div>
@@ -254,7 +269,7 @@ export default function AdminRBACPage() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="glass-panel border-border bg-card">
+        <Card className="bg-card border border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Users
@@ -262,7 +277,7 @@ export default function AdminRBACPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {users.length}
+              {usersTotal}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {users.filter((u) => u.role === "ADMIN").length} admins
@@ -270,7 +285,7 @@ export default function AdminRBACPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-border bg-card">
+        <Card className="bg-card border border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Projects
@@ -278,7 +293,7 @@ export default function AdminRBACPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {projects.length}
+              {projectsTotal}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {projects.filter((p) => p.isFromAutodesk).length} from Autodesk
@@ -286,7 +301,7 @@ export default function AdminRBACPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-border bg-card">
+        <Card className="bg-card border border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Active Permissions
@@ -302,7 +317,7 @@ export default function AdminRBACPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-border bg-card">
+        <Card className="bg-card border border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               System Status
@@ -334,7 +349,7 @@ export default function AdminRBACPage() {
       </div>
 
       {/* Users Table */}
-      <Card className="glass-panel border-border bg-card">
+      <Card className="bg-card border border-border bg-card">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -362,7 +377,7 @@ export default function AdminRBACPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((u) => {
+              {users.map((u) => {
                 const RoleIcon =
                   ROLE_ICONS[u.role as keyof typeof ROLE_ICONS] || Users;
                 return (
@@ -409,11 +424,38 @@ export default function AdminRBACPage() {
               })}
             </TableBody>
           </Table>
+
+          {/* Users Pagination */}
+          {usersTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4 pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUsersPage(Math.max(1, usersPage - 1))}
+                disabled={usersPage <= 1}
+                className="text-muted-foreground"
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {usersPage} of {usersTotalPages} ({usersTotal} users)
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUsersPage(Math.min(usersTotalPages, usersPage + 1))}
+                disabled={usersPage >= usersTotalPages}
+                className="text-muted-foreground"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Projects Table */}
-      <Card className="glass-panel border-border bg-card">
+      <Card className="bg-card border border-border bg-card">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -441,7 +483,7 @@ export default function AdminRBACPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProjects.map((p) => (
+              {projects.map((p) => (
                 <TableRow
                   key={p.id}
                   className="border-border hover:bg-muted/50"
@@ -486,12 +528,39 @@ export default function AdminRBACPage() {
               ))}
             </TableBody>
           </Table>
+
+          {/* Projects Pagination */}
+          {projectsTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4 pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProjectsPage(Math.max(1, projectsPage - 1))}
+                disabled={projectsPage <= 1}
+                className="text-muted-foreground"
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {projectsPage} of {projectsTotalPages} ({projectsTotal} projects)
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProjectsPage(Math.min(projectsTotalPages, projectsPage + 1))}
+                disabled={projectsPage >= projectsTotalPages}
+                className="text-muted-foreground"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Members Dialog */}
       <Dialog open={showMembersDialog} onOpenChange={setShowMembersDialog}>
-        <DialogContent className="max-w-3xl glass-panel bg-card border-border">
+        <DialogContent className="max-w-3xl bg-card border border-border bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-foreground">
               <Key className="w-5 h-5" />

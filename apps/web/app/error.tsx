@@ -19,7 +19,7 @@ export default function Error({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-4">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-sm max-w-md w-full text-center border border-gray-200 dark:border-gray-700">
         <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
           <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-400" />
         </div>
@@ -30,7 +30,7 @@ export default function Error({
         <div className="flex gap-4 justify-center">
           <Button
             onClick={() => reset()}
-            className="bg-dom-blue hover:bg-dom-blue-dark text-white"
+            className="bg-brand hover:bg-brand-dark text-white"
           >
             Try again
           </Button>

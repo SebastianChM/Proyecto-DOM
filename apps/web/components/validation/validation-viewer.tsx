@@ -169,7 +169,7 @@ export function ValidationViewer({ data, files }: ValidationViewerProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-full">
       {/* Left Panel: Incidents List */}
-      <Card className="lg:col-span-2 h-full flex flex-col border-destructive/20 shadow-md">
+      <Card className="lg:col-span-2 h-full flex flex-col border-destructive/20 shadow-xs">
         <CardHeader className="flex flex-col space-y-3 pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">

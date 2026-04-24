@@ -282,7 +282,7 @@ function CompareViewerContent() {
             <h1 className="text-lg font-bold text-foreground leading-tight">
               Comparison View
             </h1>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold text-dom-blue">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold text-primary">
               {type === "2d" ? "Pixel Compare" : "Geometric Diff"}
             </span>
           </div>

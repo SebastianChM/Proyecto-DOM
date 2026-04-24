@@ -71,7 +71,7 @@ export function LocationPicker({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-gray-800 shadow-2xl">
+      <PopoverContent className="w-[300px] p-0 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-gray-800 shadow-md">
         <div className="flex flex-col">
           <div className="flex items-center border-b px-3">
             <MapPin className="mr-2 h-4 w-4 shrink-0 opacity-50" />

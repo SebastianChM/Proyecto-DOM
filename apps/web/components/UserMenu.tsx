@@ -55,7 +55,7 @@ export function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-56 glass-panel border-white/10"
+        className="w-56 bg-card border border-border border-white/10"
       >
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">

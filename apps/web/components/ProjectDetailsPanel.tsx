@@ -114,7 +114,7 @@ export function ProjectDetailsPanel({
   };
 
   return (
-    <Card className="bg-white dark:glass-panel border-gray-200 dark:border-white/10 shadow-sm relative">
+    <Card className="bg-white dark:bg-card border border-border border-gray-200 dark:border-white/10 shadow-sm relative">
       {onSave && !isEditing && (
         <div className="absolute top-4 right-4 z-10">
           <Button

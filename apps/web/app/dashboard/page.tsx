@@ -91,71 +91,60 @@ export default function DashboardPage() {
   }
 
   const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
-    <Card className="glass-card relative overflow-hidden group">
-      <div
-        className={`absolute -top-6 -right-6 p-4 opacity-[0.03] group-hover:opacity-10 transition-all duration-500 rotate-12 group-hover:rotate-0 ${color}`}
-      >
-        <Icon className="w-32 h-32" />
-      </div>
-      <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-        <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
-          {title}
-        </CardTitle>
-        <div
-          className={`p-2.5 rounded-xl bg-white/5 backdrop-blur-md shadow-inner ${color.replace("text-", "text-")} group-hover:scale-110 transition-transform duration-300`}
-        >
-          <Icon className="w-5 h-5" />
+    <Card className="border border-border shadow-xs relative overflow-hidden group">
+      <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${color}`} />
+          <CardTitle className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {title}
+          </CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="relative z-10">
-        <div className="text-4xl font-black text-foreground mb-2 tracking-tight group-hover:text-glow transition-all">
+      <CardContent className="px-4 pb-4">
+        <div className="text-[22px] font-bold text-foreground tracking-tight">
           {value}
         </div>
-        <p className="text-[11px] font-medium text-muted-foreground flex items-center uppercase tracking-wide">
-          <span className="text-emerald-400 flex items-center mr-2 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20">
-            <ArrowUpRight className="w-3 h-3 mr-1" /> {trend}
+        <div className="mt-1 flex items-center text-[11px]">
+          <span className="text-success-fg bg-success-bg border border-success/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
+            <ArrowUpRight className="w-3 h-3" /> {trend}
           </span>
-          vs last month
-        </p>
+          <span className="text-muted-foreground ml-1.5">vs last month</span>
+        </div>
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-5">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/10">
-        <div className="space-y-2">
-          <h2 className="text-5xl font-black text-foreground tracking-tight animate-in slide-in-from-left-2 duration-500">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-border">
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold text-foreground tracking-tight">
             Welcome back,{" "}
             <span className="text-primary">
               {user?.name?.split(" ")[0] || "User"}
             </span>
           </h2>
-          <p className="text-muted-foreground text-lg max-w-xl animate-in slide-in-from-left-3 duration-700 delay-100">
-            Here&apos;s your project overview for today. System performance is
-            optimal.
+          <p className="text-muted-foreground text-sm">
+            Here&apos;s your project overview for today.
           </p>
         </div>
-        <div className="flex gap-3 animate-in slide-in-from-right-2 duration-500">
+        <div className="flex gap-2">
           <Link href="/dashboard/projects">
-            <Button
-              variant="outline"
-              className="glass-button h-12 px-6 text-base"
-            >
-              <FolderKanban className="mr-2 h-5 w-5" /> View Projects
+            <Button variant="outline" size="sm">
+              <FolderKanban className="mr-1.5 h-4 w-4" /> View Projects
             </Button>
           </Link>
           <Link href="/dashboard/projects">
-            <Button className="h-12 px-6 text-base bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:scale-105">
-              <Plus className="mr-2 h-5 w-5" /> New Project
+            <Button size="sm" className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20">
+              <Plus className="mr-1.5 h-4 w-4" /> New Project
             </Button>
           </Link>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
         <StatCard
           title="Total Projects"
           value={statsLoading ? "..." : stats.totalProjects}
@@ -187,77 +176,64 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Recent Activity */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <Activity className="w-4 h-4 text-primary" />
               Recent Activity
             </h3>
             <Link
               href="/dashboard/projects"
-              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-0.5"
             >
-              View All <ArrowUpRight className="w-4 h-4" />
+              View All <ArrowUpRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {statsLoading ? (
               [1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="glass-panel h-24 animate-pulse rounded-2xl"
+                  className="bg-card border border-border h-16 animate-pulse rounded-lg"
                 ></div>
               ))
             ) : stats.recentActivity.length === 0 ? (
-              <div className="glass-panel p-12 text-center text-muted-foreground rounded-2xl border-dashed">
-                <FolderKanban className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <p>No recent activity found.</p>
+              <div className="bg-card border border-border border-dashed p-8 text-center text-muted-foreground rounded-lg">
+                <FolderKanban className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">No recent activity found.</p>
               </div>
             ) : (
-              stats.recentActivity.map((project: any, index: number) => (
+              stats.recentActivity.map((project: any) => (
                 <Link
                   href={`/dashboard/projects/${project.id}`}
                   key={project.id}
                   className="block group"
                 >
-                  <div className="glass-card p-5 rounded-2xl flex items-center justify-between group-hover:border-primary/30 transition-all duration-300">
-                    <div className="flex items-center gap-5">
-                      <div className="p-4 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                        <FolderKanban className="h-6 w-6" />
+                  <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-between hover:border-primary/30 hover:bg-brand-subtle/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-brand-subtle rounded-md text-primary">
+                        <FolderKanban className="h-4 w-4" />
                       </div>
                       <div>
-                        <h4 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                        <h4 className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                           {project.name}
                         </h4>
-                        <div className="flex flex-col gap-1 mt-1">
-                          <p className="text-xs text-muted-foreground flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Updated{" "}
-                            {new Date(project.updatedAt).toLocaleDateString()}
-                          </p>
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(project.updatedAt).toLocaleDateString()}
                           {project.location && (
-                            <p className="text-[10px] text-muted-foreground/80 flex items-center uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse"></span>
-                              {project.location.split(",")[0]}
-                            </p>
+                            <span className="ml-1.5">· {project.location.split(",")[0]}</span>
                           )}
-                        </div>
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                          Files
-                        </div>
-                        <div className="font-mono text-lg font-bold text-foreground">
-                          {project._count?.files || 0}
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-full bg-white/5 group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                        <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-white" />
-                      </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono hidden sm:block">
+                        {project._count?.files || 0} files
+                      </span>
+                      <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                     </div>
                   </div>
                 </Link>
@@ -266,9 +242,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <h3 className="text-xl font-bold text-foreground">System Health</h3>
-          <Card className="glass-panel border-border">
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">System Health</h3>
+          <Card className="border border-border shadow-xs">
             <CardContent className="p-6 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -307,7 +283,7 @@ export default function DashboardPage() {
                 <progress
                   value={stats.totalSize}
                   max={100 * 1024 * 1024 * 1024}
-                  className="w-full h-2 rounded-full overflow-hidden appearance-none border-none bg-secondary mb-1 [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:bg-dom-blue [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-dom-blue [&::-moz-progress-bar]:rounded-full"
+                  className="w-full h-1.5 rounded-full overflow-hidden appearance-none border-none bg-secondary [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:bg-primary [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-primary [&::-moz-progress-bar]:rounded-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{formatBytes(stats.totalSize)} Used</span>

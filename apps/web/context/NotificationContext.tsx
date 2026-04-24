@@ -153,6 +153,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       logger.debug("Socket disconnected");
     });
 
+    socketInstance.on("connect_error", (error: Error) => {
+      logger.error("Socket connection error", { error: error.message });
+    });
+
     // setSocket(socketInstance)
 
     return () => {

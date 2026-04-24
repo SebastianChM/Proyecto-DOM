@@ -135,9 +135,9 @@ export function NotificationBell() {
 
       {/* Notification Panel */}
       {showPanel && (
-        <div className="absolute right-0 top-full mt-2 w-96 max-h-[600px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl z-[100] overflow-hidden flex flex-col animate-fade-in">
+        <div className="absolute right-0 top-full mt-2 w-96 max-h-[600px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-[100] overflow-hidden flex flex-col animate-fade-in">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-dom-blue/10 to-purple-500/10">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-primary/10 to-purple-500/10">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Notifications
@@ -193,7 +193,7 @@ export function NotificationBell() {
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="p-8 text-center text-gray-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dom-blue mx-auto mb-2" />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
                 Loading...
               </div>
             ) : notifications.length === 0 ? (

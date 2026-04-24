@@ -131,7 +131,7 @@ function FileActionsDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-56 glass-panel border-white/10"
+        className="w-56 bg-card border border-border border-white/10"
       >
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground uppercase tracking-wider">
           File Actions
@@ -351,7 +351,7 @@ export function FilesTabContent({
                 placeholder="Search files..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-black/20 border-white/10 text-white placeholder:text-gray-500 focus:border-dom-blue/50 transition-all"
+                className="pl-9 bg-black/20 border-white/10 text-white placeholder:text-gray-500 focus:border-primary/50 transition-all"
               />
             </div>
 
@@ -362,7 +362,7 @@ export function FilesTabContent({
                   onClick={() => setActiveFilter(filter)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     activeFilter === filter
-                      ? "bg-dom-blue text-white shadow-lg"
+                      ? "bg-brand text-white shadow-lg"
                       : "text-gray-400 hover:text-white hover:bg-white/5"
                   }`}
                 >
@@ -386,7 +386,7 @@ export function FilesTabContent({
                       variant="outline"
                       size="sm"
                       onClick={onBatchDownload}
-                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-dom-blue/20 hover:text-dom-blue"
+                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-brand/20 hover:text-primary"
                     >
                       <HardDrive className="h-4 w-4" />
                     </Button>
@@ -402,7 +402,7 @@ export function FilesTabContent({
                       variant="outline"
                       size="sm"
                       onClick={() => onBulkConvert("pdf")}
-                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-dom-blue/20 hover:text-dom-blue"
+                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-brand/20 hover:text-primary"
                     >
                       <FileText className="h-4 w-4" />
                     </Button>
@@ -419,7 +419,7 @@ export function FilesTabContent({
                       size="sm"
                       onClick={onCompareFiles}
                       disabled={selectedFiles.length !== 2}
-                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-dom-blue/20 hover:text-dom-blue disabled:opacity-30"
+                      className="h-8 w-8 p-0 border-white/10 bg-white/5 hover:bg-brand/20 hover:text-primary disabled:opacity-30"
                     >
                       <GitCompare className="h-4 w-4" />
                     </Button>
@@ -449,7 +449,7 @@ export function FilesTabContent({
                 allFiles.length > 0
               }
               onCheckedChange={toggleSelectAll}
-              className="border-white/20 data-[state=checked]:bg-dom-blue data-[state=checked]:border-dom-blue"
+              className="border-white/20 data-[state=checked]:bg-brand data-[state=checked]:border-primary"
             />
           </div>
           <div>Name</div>
@@ -468,7 +468,7 @@ export function FilesTabContent({
                 return (
                   <div key={type} className="space-y-2 animate-fade-in">
                     <div className="flex items-center gap-2 px-2">
-                      <span className="text-xs font-bold text-dom-blue bg-dom-blue/10 px-2 py-1 rounded-md">
+                      <span className="text-xs font-bold text-primary bg-brand-subtle px-2 py-1 rounded-md">
                         {type}
                       </span>
                       <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
@@ -495,7 +495,7 @@ export function FilesTabContent({
 
         {/* Upload Zone */}
         <div
-          className={`glass-panel border-dashed border-2 border-white/10 rounded-2xl p-8 text-center transition-all duration-300 group ${uploading ? "bg-primary/5 border-primary/30" : "hover:bg-white/5 hover:border-primary/30"}`}
+          className={`bg-card border border-border border-dashed border-2 border-white/10 rounded-lg p-8 text-center transition-all duration-300 group ${uploading ? "bg-primary/5 border-primary/30" : "hover:bg-white/5 hover:border-primary/30"}`}
           onDragOver={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -540,7 +540,7 @@ export function FilesTabContent({
 
       {/* Bulk Actions Bar — fixed bottom slide-in */}
       {selectedFiles.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-background/90 backdrop-blur-xl border border-primary/20 text-foreground px-6 py-4 rounded-2xl shadow-2xl shadow-primary/20 flex items-center gap-6 z-50 animate-slide-up ring-1 ring-white/10">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-background/90 backdrop-blur-xl border border-primary/20 text-foreground px-6 py-4 rounded-lg shadow-md shadow-primary/20 flex items-center gap-6 z-50 animate-slide-up ring-1 ring-white/10">
           <div className="flex items-center gap-3 border-r border-white/10 pr-6">
             <div className="bg-primary/20 p-2 rounded-lg">
               <CheckSquare className="h-5 w-5 text-primary" />

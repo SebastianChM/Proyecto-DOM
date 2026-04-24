@@ -52,7 +52,7 @@ export function FileRowComponent({
 }: FileRowProps) {
   const getIcon = (type: string) => {
     const t = type.toLowerCase();
-    if (t.includes("rvt")) return <Box className="h-5 w-5 text-dom-blue" />;
+    if (t.includes("rvt")) return <Box className="h-5 w-5 text-primary" />;
     if (t.includes("dwg"))
       return <Layers className="h-5 w-5 text-yellow-500" />;
     if (t.includes("pdf")) return <FileText className="h-5 w-5 text-red-500" />;
@@ -163,11 +163,11 @@ export function FileRowComponent({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-4 bg-card dark:glass-card rounded-2xl transition-all duration-300 group relative overflow-hidden ${isSelected ? "ring-2 ring-dom-blue/20 bg-blue-50/50" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+      className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-4 bg-card dark:bg-card border border-border rounded-lg transition-all duration-300 group relative overflow-hidden ${isSelected ? "ring-2 ring-primary/20 bg-blue-50/50" : "shadow-sm hover:shadow-xs hover:-translate-y-0.5"}`}
     >
       {/* Selection Highlight Bar */}
       {isSelected && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-dom-blue" />
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand" />
       )}
 
       <div
@@ -180,7 +180,7 @@ export function FileRowComponent({
               checked={isSelected}
               onCheckedChange={() => onSelect()}
               onClick={(e) => e.stopPropagation()}
-              className="w-5 h-5 border-2 border-gray-300 rounded-md data-[state=checked]:bg-dom-blue data-[state=checked]:border-dom-blue transition-all cursor-pointer"
+              className="w-5 h-5 border-2 border-gray-300 rounded-md data-[state=checked]:bg-brand data-[state=checked]:border-primary transition-all cursor-pointer"
             />
           </ClientOnly>
         )}
@@ -202,7 +202,7 @@ export function FileRowComponent({
         </div>
         <div className="min-w-0 flex flex-col gap-0.5">
           <p
-            className={`font-semibold text-base text-gray-800 dark:text-white truncate transition-colors ${normalizedStatus === "READY" && onView ? "cursor-pointer hover:text-dom-blue" : ""}`}
+            className={`font-semibold text-base text-gray-800 dark:text-white truncate transition-colors ${normalizedStatus === "READY" && onView ? "cursor-pointer hover:text-primary" : ""}`}
             onClick={normalizedStatus === "READY" && onView ? onView : undefined}
           >
             {fileName}

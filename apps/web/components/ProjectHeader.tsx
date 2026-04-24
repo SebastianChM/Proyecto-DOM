@@ -35,7 +35,7 @@ export function ProjectHeader({
         <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
           <Link
             href="/dashboard"
-            className="hover:text-dom-blue hover:underline transition-colors"
+            className="hover:text-primary hover:underline transition-colors"
           >
             {clientName}
           </Link>
@@ -81,7 +81,7 @@ export function ProjectHeader({
             variant="outline"
             size="sm"
             onClick={onSettings}
-            className="dark:glass-button"
+            className="dark:bg-card border border-border"
           >
             <Settings className="h-4 w-4 mr-2" />
             Settings
@@ -90,7 +90,7 @@ export function ProjectHeader({
             variant="outline"
             size="sm"
             onClick={onImportAps}
-            className="dark:glass-button text-dom-blue border-dom-blue/30 hover:bg-dom-blue/10"
+            className="dark:bg-card border border-border text-primary border-primary/30 hover:bg-brand-subtle"
           >
             <Cloud className="h-4 w-4 mr-2" />
             Import from Autodesk
@@ -98,7 +98,7 @@ export function ProjectHeader({
           <Button
             size="sm"
             onClick={onNewFile}
-            className="bg-dom-blue hover:bg-dom-blue-dark text-white shadow-lg shadow-dom-blue/20"
+            className="bg-brand hover:bg-brand-dark text-white shadow-lg shadow-primary/20"
           >
             <Upload className="h-4 w-4 mr-2" />
             New File

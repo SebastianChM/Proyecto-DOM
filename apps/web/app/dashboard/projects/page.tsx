@@ -55,11 +55,17 @@ export default function ProjectsPage() {
   const [newProject, setNewProject] = useState({ name: "", description: "" });
   const [creating, setCreating] = useState(false);
 
-  // Search & Filter State
+  // Search & Filter State (server-side)
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "name">(
     "newest",
   );
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 18; // 6 per row x 3 rows
 
   // Delete State
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
@@ -71,20 +77,53 @@ export default function ProjectsPage() {
   const [isAutodeskDialogOpen, setIsAutodeskDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
+  const fetchProjects = async (pg?: number, q?: string, sort?: string) => {
     try {
-      const data = await projectsService.list();
-      setProjects(Array.isArray(data) ? data : []);
+      setLoading(true);
+      const currentPage = pg ?? page;
+      const currentSearch = q ?? searchQuery;
+      const currentSort = sort ?? sortOrder;
+
+      const sortBy = currentSort === "name" ? "name" : "updatedAt";
+      const sortOrd = currentSort === "oldest" ? "asc" : currentSort === "name" ? "asc" : "desc";
+
+      const result = await projectsService.list({
+        page: currentPage,
+        pageSize,
+        search: currentSearch || undefined,
+        sortBy,
+        sortOrder: sortOrd,
+      });
+
+      setProjects(result.data);
+      setTotalPages(result.meta.totalPages);
+      setTotal(result.meta.total);
     } catch (error) {
       showError(error, user?.role, "Failed to load projects");
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+    fetchProjects(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchProjects(1, searchQuery, sortOrder);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchProjects(newPage);
   };
 
   const handleImportFromAutodesk = async (data: {
@@ -105,7 +144,7 @@ export default function ProjectsPage() {
 
       toast.success("Project linked successfully! Synchronization started.");
       setIsAutodeskDialogOpen(false);
-      fetchProjects();
+      fetchProjects(1);
     } catch (error) {
       showError(error, user?.role, "Failed to link project");
     } finally {
@@ -177,72 +216,46 @@ export default function ProjectsPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  // Filtered & Sorted Projects
-  const filteredProjects = projects
-    .filter(
-      (project) =>
-        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (project.description &&
-          project.description
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())),
-    )
-    .sort((a, b) => {
-      if (sortOrder === "newest")
-        return (
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      if (sortOrder === "oldest")
-        return (
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-      if (sortOrder === "name") return a.name.localeCompare(b.name);
-      return 0;
-    });
-
   const toggleSort = () => {
-    setSortOrder((current) => {
-      if (current === "newest") return "oldest";
-      if (current === "oldest") return "name";
-      return "newest";
-    });
-    toast.info(
-      `Sorting by: ${sortOrder === "newest" ? "Oldest" : sortOrder === "oldest" ? "Name" : "Newest"}`,
-    );
+    const next = sortOrder === "newest" ? "oldest" : sortOrder === "oldest" ? "name" : "newest";
+    setSortOrder(next);
+    setPage(1);
+    fetchProjects(1, searchQuery, next);
+    toast.info(`Sorting by: ${next === "newest" ? "Newest" : next === "oldest" ? "Oldest" : "Name"}`);
   };
 
   return (
     <div className="space-y-8">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-slide-up">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 className="text-4xl font-bold text-foreground tracking-tight animate-in slide-in-from-left-2">
+          <h2 className="text-xl font-bold text-foreground tracking-tight">
             Projects
           </h2>
-          <p className="text-muted-foreground mt-2 text-lg animate-in slide-in-from-left-3 delay-100">
+          <p className="text-muted-foreground mt-0.5 text-sm">
             Manage your BIM portfolio.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground group-hover:text-primary transition-colors h-4 w-4" />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground h-3.5 w-3.5" />
             <Input
               placeholder="Search projects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground w-64 focus-visible:ring-primary focus-visible:border-primary rounded-xl shadow-sm transition-all focus:w-72"
+              className="pl-8 h-9 w-56 text-sm rounded-md"
             />
           </div>
           <Button
             variant="outline"
             size="icon"
             onClick={toggleSort}
-            className="glass-button rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+            className="h-9 w-9 rounded-md"
             title="Toggle Sort Order"
           >
             <Filter
-              className={`h-4 w-4 ${sortOrder !== "newest" ? "text-primary" : ""}`}
+              className={`h-3.5 w-3.5 ${sortOrder !== "newest" ? "text-primary" : ""}`}
             />
           </Button>
 
@@ -255,12 +268,13 @@ export default function ProjectsPage() {
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
-                    className="glass-button rounded-xl hover:bg-primary/10 hover:text-primary transition-colors mr-2"
+                    size="sm"
+                    className="mr-2"
                   >
-                    <Database className="mr-2 h-4 w-4" /> Link from Autodesk
+                    <Database className="mr-1.5 h-3.5 w-3.5" /> Link from Autodesk
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="glass-panel border-border text-foreground sm:max-w-2xl">
+                <DialogContent className="border-border text-foreground sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold">
                       Link Autodesk Project
@@ -280,13 +294,13 @@ export default function ProjectsPage() {
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-dom-blue hover:bg-dom-blue-dark text-white shadow-lg shadow-dom-blue/30 transition-all hover:scale-105 rounded-xl px-6">
-                    <Plus className="mr-2 h-4 w-4" /> New Project
+                  <Button size="sm" className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20">
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> New Project
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="glass-panel border-border text-foreground sm:max-w-md">
+                <DialogContent className="border-border text-foreground sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">
+                    <DialogTitle className="text-base font-bold">
                       Create New Project
                     </DialogTitle>
                     <DialogDescription className="text-muted-foreground">
@@ -305,7 +319,7 @@ export default function ProjectsPage() {
                         onChange={(e) =>
                           setNewProject({ ...newProject, name: e.target.value })
                         }
-                        className="bg-card border-border text-foreground focus-visible:ring-dom-blue"
+                        className="bg-card border-border text-foreground focus-visible:ring-primary"
                         minLength={3}
                         maxLength={50}
                       />
@@ -327,7 +341,7 @@ export default function ProjectsPage() {
                             description: e.target.value,
                           })
                         }
-                        className="bg-card border-border text-foreground focus-visible:ring-dom-blue"
+                        className="bg-card border-border text-foreground focus-visible:ring-primary"
                       />
                     </div>
                   </div>
@@ -342,7 +356,7 @@ export default function ProjectsPage() {
                     <Button
                       onClick={handleCreateProject}
                       disabled={creating}
-                      className="bg-dom-blue hover:bg-dom-blue-dark text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       {creating ? "Creating..." : "Create Project"}
                     </Button>
@@ -360,7 +374,7 @@ export default function ProjectsPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="glass-panel border-border text-foreground sm:max-w-md">
+        <DialogContent className="border-border text-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-red-500">
               Delete Project
@@ -395,21 +409,21 @@ export default function ProjectsPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="glass-card h-48 rounded-2xl animate-pulse"
+              className="bg-card border border-border h-40 rounded-lg animate-pulse"
             ></div>
           ))}
         </div>
-      ) : filteredProjects.length === 0 ? (
-        <div className="glass-panel rounded-3xl p-16 text-center border-dashed border-border animate-fade-in">
-          <div className="bg-secondary w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 animate-float">
-            <Folder className="h-10 w-10 text-dom-blue" />
+      ) : projects.length === 0 ? (
+        <div className="bg-card border border-dashed border-border rounded-lg p-10 text-center">
+          <div className="bg-muted w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Folder className="h-7 w-7 text-primary" />
           </div>
-          <h3 className="text-2xl font-bold text-foreground mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-1">
             {searchQuery
               ? "No projects match your search"
               : "No projects found"}
           </h3>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
             {searchQuery
               ? "Try adjusting your search terms."
               : "Get started by creating your first project to manage your BIM models."}
@@ -424,19 +438,24 @@ export default function ProjectsPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProjects.map((project, index) => (
-            <Link href={`/dashboard/projects/${project.id}`} key={project.id}>
-              <div
-                className={`glass-card rounded-2xl p-6 h-full group relative overflow-hidden animate-slide-up delay-${Math.min(index * 100, 1000)} hover:scale-[1.02] transition-all duration-300`}
-              >
-                {/* Hover Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <>
+          {/* Results info */}
+          <div className="text-sm text-muted-foreground">
+            Showing {projects.length} of {total} projects
+            {searchQuery && <> matching &quot;{searchQuery}&quot;</>}
+          </div>
 
-                <div className="relative z-10 flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary group-hover:scale-110 transition-all duration-300 shadow-sm border border-primary/20">
-                      <Folder className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project, index) => (
+              <Link href={`/dashboard/projects/${project.id}`} key={project.id}>
+                <div
+                  className="bg-card border border-border rounded-lg p-4 h-full group relative hover:border-primary/30 transition-colors"
+                >
+
+                <div className="flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="p-2 bg-brand-subtle rounded-md text-primary">
+                      <Folder className="h-4 w-4" />
                     </div>
                     <Button
                       variant="ghost"
@@ -449,7 +468,7 @@ export default function ProjectsPage() {
                     </Button>
                   </div>
 
-                  <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
+                  <h3 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
                     {project.name}
                   </h3>
 
@@ -472,18 +491,18 @@ export default function ProjectsPage() {
                     </div>
                   )}
 
-                  <p className="text-muted-foreground text-sm line-clamp-2 mb-6 flex-1">
+                  <p className="text-muted-foreground text-xs line-clamp-2 mb-4 flex-1">
                     {project.description || "No description provided."}
                   </p>
 
-                  <div className="flex items-center justify-between pt-4 border-t-2 border-border">
+                  <div className="flex items-center justify-between pt-3 border-t border-border">
                     <div className="flex items-center text-xs text-muted-foreground">
-                      <FileText className="mr-1.5 h-3.5 w-3.5" />
+                      <FileText className="mr-1 h-3 w-3" />
                       <span className="font-medium text-foreground">
                         {project._count?.files ?? 0} Files
                       </span>
                     </div>
-                    <span className="text-[10px] font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border">
+                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
                       {new Date(project.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -491,7 +510,56 @@ export default function ProjectsPage() {
               </div>
             </Link>
           ))}
-        </div>
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page <= 1}
+                className="text-muted-foreground"
+              >
+                Previous
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                .reduce<(number | string)[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, i) =>
+                  typeof item === "string" ? (
+                    <span key={`dots-${i}`} className="px-2 text-muted-foreground">
+                      {item}
+                    </span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={item === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(item)}
+                      className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
+                    >
+                      {item}
+                    </Button>
+                  )
+                )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page >= totalPages}
+                className="text-muted-foreground"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOM BIM Platform — Prototype v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* ================================================================
+   RESET
+   ================================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ================================================================
+   DESIGN TOKENS
+   Inspired by: Linear (dark-first), Vercel Geist (10-step scales),
+   shadcn/ui (semantic pairs), Stripe (depth + vibrancy)
+   ================================================================ */
+:root {
+  /* --- Backgrounds (3-level surface hierarchy) --- */
+  --bg-app:       #f7f7f8;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #ffffff;
+  --bg-muted:     #efefef;
+  --bg-inset:     #e8e8ec;
+  --bg-sidebar:   #fafafa;
+
+  /* --- Foregrounds (4-level text hierarchy) --- */
+  --fg:           #0c0c0d;
+  --fg-secondary: #3b3b44;
+  --fg-muted:     #6c6c78;
+  --fg-subtle:    #9c9caa;
+
+  /* --- Borders (3-level like Geist) --- */
+  --border:       #e5e5ea;
+  --border-hover: #d1d1d9;
+  --border-active:#bbbbc4;
+
+  /* --- Brand (Indigo — more vibrant than v3) --- */
+  --brand:        #4f46e5;
+  --brand-hover:  #4338ca;
+  --brand-light:  #6366f1;
+  --brand-subtle: #eef2ff;
+  --brand-muted:  #c7d2fe;
+  --brand-glow:   rgba(99,102,241,.12);
+  --fg-on-brand:  #ffffff;
+
+  /* --- Semantic Colors (vibrant) --- */
+  --green:        #10b981;
+  --green-bg:     #ecfdf5;
+  --green-border: #a7f3d0;
+  --green-fg:     #047857;
+
+  --amber:        #f59e0b;
+  --amber-bg:     #fffbeb;
+  --amber-border: #fde68a;
+  --amber-fg:     #b45309;
+
+  --red:          #ef4444;
+  --red-bg:       #fef2f2;
+  --red-border:   #fecaca;
+  --red-fg:       #dc2626;
+
+  --blue:         #3b82f6;
+  --blue-bg:      #eff6ff;
+  --blue-border:  #bfdbfe;
+  --blue-fg:      #2563eb;
+
+  --violet:       #8b5cf6;
+  --violet-bg:    #f5f3ff;
+  --violet-fg:    #7c3aed;
+
+  /* --- Shadows (soft & layered) --- */
+  --shadow-xs:    0 1px 2px rgba(0,0,0,.04);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:    0 4px 8px -2px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.04);
+  --shadow-lg:    0 12px 24px -4px rgba(0,0,0,.1), 0 4px 8px -2px rgba(0,0,0,.06);
+
+  /* --- Radii --- */
+  --radius:       10px;
+  --radius-sm:    8px;
+  --radius-xs:    6px;
+  --radius-lg:    14px;
+  --radius-full:  9999px;
+}
+
+/* ================================================================
+   DARK MODE — Inspired by Linear's near-black + Vercel Geist dark
+   ================================================================ */
+.dark {
+  --bg-app:       #0a0a0c;
+  --bg-surface:   #111114;
+  --bg-elevated:  #191920;
+  --bg-muted:     #1c1c22;
+  --bg-inset:     #232329;
+  --bg-sidebar:   #0e0e11;
+
+  --fg:           #ededf0;
+  --fg-secondary: #b4b4be;
+  --fg-muted:     #74747e;
+  --fg-subtle:    #4a4a54;
+
+  --border:       #1e1e24;
+  --border-hover: #2c2c34;
+  --border-active:#3a3a44;
+
+  --brand:        #818cf8;
+  --brand-hover:  #a5b4fc;
+  --brand-light:  #6366f1;
+  --brand-subtle: rgba(99,102,241,.12);
+  --brand-muted:  rgba(129,140,248,.2);
+  --brand-glow:   rgba(99,102,241,.08);
+  --fg-on-brand:  #0c0c0d;
+
+  --green:        #34d399;
+  --green-bg:     rgba(16,185,129,.1);
+  --green-border: rgba(52,211,153,.2);
+  --green-fg:     #34d399;
+
+  --amber:        #fbbf24;
+  --amber-bg:     rgba(245,158,11,.1);
+  --amber-border: rgba(251,191,36,.2);
+  --amber-fg:     #fbbf24;
+
+  --red:          #f87171;
+  --red-bg:       rgba(239,68,68,.1);
+  --red-border:   rgba(248,113,113,.2);
+  --red-fg:       #f87171;
+
+  --blue:         #60a5fa;
+  --blue-bg:      rgba(59,130,246,.1);
+  --blue-border:  rgba(96,165,250,.2);
+  --blue-fg:      #60a5fa;
+
+  --violet:       #a78bfa;
+  --violet-bg:    rgba(139,92,246,.1);
+  --violet-fg:    #a78bfa;
+
+  --shadow-xs:    0 1px 2px rgba(0,0,0,.2);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-md:    0 4px 8px -2px rgba(0,0,0,.4), 0 2px 4px -2px rgba(0,0,0,.3);
+  --shadow-lg:    0 12px 24px -4px rgba(0,0,0,.5), 0 4px 8px -2px rgba(0,0,0,.4);
+}
+
+/* ================================================================
+   BASE
+   ================================================================ */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-app);
+  color: var(--fg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  height: 100vh;
+  font-size: 13px;
+}
+::selection { background: var(--brand-subtle); color: var(--brand); }
+
+/* ================================================================
+   PROTO BAR (floating, blurred)
+   ================================================================ */
+.proto-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 38px;
+  background: rgba(10,10,12,.85); backdrop-filter: blur(16px) saturate(180%);
+  display: flex; align-items: center; gap: 1px;
+  padding: 0 12px; z-index: 9999; border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.proto-bar .label { color: rgba(255,255,255,.3); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; margin-right: 10px; }
+.proto-bar button {
+  padding: 4px 11px; border: none; background: transparent; color: rgba(255,255,255,.45);
+  font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 5px;
+  font-family: inherit; transition: all .12s;
+}
+.proto-bar button:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.75); }
+.proto-bar button.on { background: var(--brand-light); color: #fff; }
+.proto-bar .divider { width: 1px; height: 14px; background: rgba(255,255,255,.08); margin: 0 6px; }
+.proto-bar .right { margin-left: auto; display: flex; gap: 4px; }
+.proto-bar .theme-btn { color: rgba(255,255,255,.4) !important; }
+.proto-bar .theme-btn.on { background: rgba(255,255,255,.1) !important; color: #fff !important; }
+
+/* ================================================================
+   SCREENS
+   ================================================================ */
+.screen { display: none; position: absolute; top: 38px; left: 0; right: 0; bottom: 0; }
+.screen.on { display: flex; }
+
+/* ================================================================
+   LOGIN
+   ================================================================ */
+.login-screen { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+.login-left {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 64px 72px; position: relative; overflow: hidden;
+  background: #0c0a1a;
+}
+.login-left::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 50%, rgba(79,70,229,.2) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 20%, rgba(139,92,246,.15) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 60% 80%, rgba(59,130,246,.1) 0%, transparent 60%);
+  pointer-events: none;
+}
+/* Subtle grid pattern */
+.login-left::after {
+  content: ''; position: absolute; inset: 0; opacity: .04;
+  background-image:
+    linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+.login-left .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 48px; z-index: 1; }
+.login-left .logo-icon {
+  width: 42px; height: 42px; background: linear-gradient(135deg, #6366f1, #4f46e5);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; color: #fff; letter-spacing: -.02em;
+  box-shadow: 0 0 24px rgba(99,102,241,.35), 0 4px 12px rgba(0,0,0,.3);
+}
+.login-left .logo-text { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
+.login-left .logo-sub { font-size: 9px; text-transform: uppercase; letter-spacing: .18em; color: rgba(165,180,252,.7); font-weight: 600; }
+.login-left h1 {
+  font-size: 44px; font-weight: 800; line-height: 1.06; letter-spacing: -.035em;
+  color: #fff; margin-bottom: 16px; z-index: 1;
+}
+.login-left h1 span {
+  background: linear-gradient(135deg, #a5b4fc, #818cf8, #c4b5fd);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.login-left .desc { font-size: 15px; color: rgba(165,180,252,.6); line-height: 1.7; max-width: 380px; z-index: 1; }
+.login-left .stats {
+  display: flex; gap: 36px; margin-top: 48px; padding-top: 28px;
+  border-top: 1px solid rgba(255,255,255,.06); z-index: 1;
+}
+.login-left .stat-val { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
+.login-left .stat-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: rgba(129,140,248,.5); margin-top: 2px; font-weight: 600; }
+
+.login-right { display: flex; align-items: center; justify-content: center; background: var(--bg-app); position: relative; }
+.login-right::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 1px; background: var(--border); }
+.login-card { width: 100%; max-width: 380px; padding: 0 32px; }
+.login-card h2 { font-size: 22px; font-weight: 700; color: var(--fg); margin-bottom: 5px; letter-spacing: -.02em; }
+.login-card .sub { color: var(--fg-muted); font-size: 13px; margin-bottom: 24px; }
+.login-card .user-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--bg-surface); border-radius: var(--radius); border: 1px solid var(--border);
+  margin-bottom: 14px; transition: all .15s; cursor: pointer;
+}
+.login-card .user-row:hover { border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
+.login-card .avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.login-card .user-name { font-weight: 600; color: var(--fg); font-size: 13px; }
+.login-card .user-email { color: var(--fg-muted); font-size: 11.5px; }
+.login-card .btn-brand {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; border: none;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 0 0 0 rgba(99,102,241,0), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.login-card .btn-brand:hover {
+  box-shadow: 0 2px 8px rgba(79,70,229,.35), 0 0 0 3px var(--brand-glow);
+  transform: translateY(-0.5px);
+}
+.login-card .btn-brand svg { width: 15px; height: 15px; }
+.login-card .btn-alt {
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  padding: 9px; background: transparent; color: var(--fg-muted);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit;
+  margin-top: 8px; transition: all .15s;
+}
+.login-card .btn-alt:hover { background: var(--bg-muted); color: var(--fg-secondary); border-color: var(--border-hover); }
+.login-card .footer { text-align: center; color: var(--fg-subtle); font-size: 10.5px; margin-top: 28px; }
+
+/* ================================================================
+   APP SHELL
+   ================================================================ */
+.app-shell { display: flex; height: 100%; background: var(--bg-app); }
+
+/* --- Sidebar (dimmer than content like Linear) --- */
+.sidebar {
+  width: 232px; min-width: 232px; height: 100%;
+  background: var(--bg-sidebar); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.sb-header {
+  padding: 14px 14px 10px; display: flex; align-items: center; gap: 9px;
+  border-bottom: 1px solid var(--border);
+}
+.sb-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900; color: #fff; letter-spacing: -.01em;
+  box-shadow: 0 0 12px rgba(99,102,241,.2);
+}
+.sb-brand { font-size: 14px; font-weight: 800; color: var(--fg); letter-spacing: -.015em; }
+.sb-tag { font-size: 8.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--fg-subtle); font-weight: 600; }
+
+.sb-nav { flex: 1; overflow-y: auto; padding: 6px 6px; }
+.sb-section { margin-bottom: 2px; }
+.sb-label {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--fg-subtle); padding: 10px 10px 5px; user-select: none;
+}
+.sb-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-radius: var(--radius-xs); color: var(--fg-muted); font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: all .1s; margin-bottom: 0px; position: relative;
+}
+.sb-item:hover { background: var(--bg-muted); color: var(--fg-secondary); }
+.sb-item.active {
+  background: var(--brand-subtle); color: var(--brand); font-weight: 600;
+}
+.sb-item.active::before {
+  content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2.5px;
+  background: var(--brand); border-radius: 0 2px 2px 0;
+}
+.sb-item svg { width: 15px; height: 15px; flex-shrink: 0; stroke-width: 1.8; }
+.sb-item .badge {
+  margin-left: auto; background: var(--red); color: #fff; font-size: 9px;
+  font-weight: 700; padding: 0 5px; border-radius: var(--radius-full); min-width: 15px; text-align: center; line-height: 15px;
+}
+
+.sb-footer { padding: 6px; border-top: 1px solid var(--border); }
+.sb-user {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background .1s;
+}
+.sb-user:hover { background: var(--bg-muted); }
+.sb-user .sb-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 9.5px; flex-shrink: 0;
+}
+.sb-user .sb-uname { font-size: 11.5px; font-weight: 600; color: var(--fg); }
+.sb-user .sb-urole { font-size: 10px; color: var(--fg-subtle); }
+.sb-user .sb-logout { margin-left: auto; color: var(--fg-subtle); display: flex; cursor: pointer; }
+.sb-user .sb-logout:hover { color: var(--red); }
+.sb-user .sb-logout svg { width: 13px; height: 13px; }
+
+/* --- Main Area --- */
+.main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* --- Top Bar --- */
+.topbar {
+  height: 48px; min-height: 48px; background: var(--bg-surface);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  padding: 0 16px; gap: 10px;
+}
+.breadcrumb { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.breadcrumb a { color: var(--fg-subtle); text-decoration: none; cursor: pointer; transition: color .1s; }
+.breadcrumb a:hover { color: var(--fg-secondary); }
+.breadcrumb .sep { color: var(--fg-subtle); font-size: 10px; }
+.breadcrumb .current { color: var(--fg); font-weight: 600; }
+
+.search-trigger {
+  margin-left: auto; display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px; background: var(--bg-muted); border: 1px solid var(--border);
+  border-radius: var(--radius-xs); color: var(--fg-subtle); font-size: 12px;
+  cursor: pointer; min-width: 180px; transition: all .12s;
+}
+.search-trigger:hover { border-color: var(--border-hover); background: var(--bg-inset); }
+.search-trigger svg { width: 13px; height: 13px; flex-shrink: 0; }
+.search-trigger kbd {
+  margin-left: auto; background: var(--bg-surface); border: 1px solid var(--border);
+  padding: 0 4px; border-radius: 3px; font-size: 10px; font-family: inherit;
+  color: var(--fg-subtle); line-height: 16px;
+}
+.topbar-actions { display: flex; align-items: center; gap: 2px; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: var(--radius-xs); border: none;
+  background: transparent; color: var(--fg-muted); display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: all .1s; position: relative;
+}
+.icon-btn:hover { background: var(--bg-muted); color: var(--fg); }
+.icon-btn svg { width: 16px; height: 16px; }
+.icon-btn .red-dot {
+  position: absolute; top: 5px; right: 5px; width: 5px; height: 5px;
+  background: var(--red); border-radius: 50%;
+}
+.top-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 9px; cursor: pointer; margin-left: 2px;
+}
+
+/* --- Page Container --- */
+.page { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+.page-title { font-size: 20px; font-weight: 700; letter-spacing: -.025em; color: var(--fg); }
+.page-desc { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+.page-actions { display: flex; gap: 6px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+  border-radius: var(--radius-xs); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .12s; border: none;
+}
+.btn svg { width: 13px; height: 13px; }
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.btn-primary:hover { box-shadow: 0 2px 8px rgba(79,70,229,.3), inset 0 1px 0 rgba(255,255,255,.08); transform: translateY(-0.5px); }
+.btn-secondary { background: var(--bg-surface); color: var(--fg-secondary); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg-muted); border-color: var(--border-hover); }
+
+/* --- Toolbar --- */
+.toolbar {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 14px;
+}
+.search-field {
+  display: flex; align-items: center; gap: 5px; padding: 5px 8px;
+  background: var(--bg-muted); border: 1px solid transparent;
+  border-radius: var(--radius-xs); min-width: 180px; transition: all .12s;
+}
+.search-field:focus-within { border-color: var(--brand); background: var(--bg-surface); box-shadow: 0 0 0 2px var(--brand-glow); }
+.search-field svg { width: 13px; height: 13px; color: var(--fg-subtle); flex-shrink: 0; }
+.search-field input { border: none; background: transparent; outline: none; font-size: 12px; color: var(--fg); width: 100%; font-family: inherit; }
+.search-field input::placeholder { color: var(--fg-subtle); }
+.select-field {
+  padding: 5px 8px; background: var(--bg-muted); border: 1px solid transparent;
+  border-radius: var(--radius-xs); color: var(--fg-muted); font-size: 12px;
+  cursor: pointer; font-family: inherit; font-weight: 500; -webkit-appearance: none; transition: all .12s;
+}
+.select-field:hover { border-color: var(--border); }
+.tab-group { display: flex; background: var(--bg-muted); border-radius: var(--radius-xs); padding: 2px; margin-left: auto; }
+.tab-btn {
+  padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  color: var(--fg-subtle); cursor: pointer; border: none; background: transparent;
+  font-family: inherit; transition: all .1s;
+}
+.tab-btn.on { background: var(--bg-surface); color: var(--fg); box-shadow: var(--shadow-xs); }
+
+/* --- Stat Cards --- */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.stat-card {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; transition: all .15s;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-hover); }
+.stat-card .sc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.stat-card .sc-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+}
+.stat-card .sc-icon svg { width: 15px; height: 15px; }
+.stat-card .sc-icon.blue { background: var(--blue-bg); color: var(--blue-fg); }
+.stat-card .sc-icon.green { background: var(--green-bg); color: var(--green-fg); }
+.stat-card .sc-icon.violet { background: var(--violet-bg); color: var(--violet-fg); }
+.stat-card .sc-icon.amber { background: var(--amber-bg); color: var(--amber-fg); }
+.stat-card .sc-label { font-size: 11px; color: var(--fg-muted); }
+.stat-card .sc-val { font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: var(--fg); }
+.stat-card .sc-trend {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px;
+  font-weight: 600; margin-top: 4px; padding: 1px 6px; border-radius: var(--radius-full);
+}
+.sc-trend.up { background: var(--green-bg); color: var(--green-fg); }
+.sc-trend.neutral { background: var(--bg-muted); color: var(--fg-subtle); }
+
+/* --- Cards --- */
+.card {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.card-head h3 { font-size: 12px; font-weight: 650; color: var(--fg); }
+.card-head .link { font-size: 11px; font-weight: 600; color: var(--brand); cursor: pointer; }
+.card-head .link:hover { text-decoration: underline; }
+.card-head .counter { font-size: 9px; font-weight: 700; background: var(--bg-muted); color: var(--fg-subtle); padding: 1px 5px; border-radius: 3px; }
+.card-body { padding: 6px 14px 14px; }
+
+/* --- Dashboard Grid --- */
+.dash-grid { display: grid; grid-template-columns: 1fr 320px; gap: 12px; }
+
+/* --- Project Rows in Dashboard --- */
+.proj-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); cursor: pointer; transition: opacity .1s;
+}
+.proj-row:last-child { border: none; }
+.proj-row:hover { opacity: .8; }
+.proj-row .proj-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.proj-row .proj-icon svg { width: 16px; height: 16px; }
+.proj-row .proj-icon.blue { background: var(--blue-bg); color: var(--blue-fg); }
+.proj-row .proj-icon.green { background: var(--green-bg); color: var(--green-fg); }
+.proj-row .proj-icon.violet { background: var(--violet-bg); color: var(--violet-fg); }
+.proj-row .proj-name { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+.proj-row .proj-meta { font-size: 10.5px; color: var(--fg-subtle); margin-top: 1px; }
+.proj-row .proj-status { margin-left: auto; padding: 2px 7px; border-radius: var(--radius-full); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.status-active { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-border); }
+.status-review { background: var(--amber-bg); color: var(--amber-fg); border: 1px solid var(--amber-border); }
+.status-draft { background: var(--bg-muted); color: var(--fg-subtle); border: 1px solid var(--border); }
+
+/* --- Tasks --- */
+.task-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.task-row:last-child { border: none; }
+.task-dot { width: 5px; height: 5px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.task-dot.r { background: var(--red); box-shadow: 0 0 6px var(--red-bg); }
+.task-dot.a { background: var(--amber); box-shadow: 0 0 6px var(--amber-bg); }
+.task-dot.b { background: var(--blue); box-shadow: 0 0 6px var(--blue-bg); }
+.task-text { font-size: 12px; color: var(--fg); }
+.task-sub { font-size: 10.5px; color: var(--fg-subtle); margin-top: 1px; }
+
+/* --- Timeline --- */
+.tl-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; }
+.tl-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-hover); margin-top: 5px; flex-shrink: 0; }
+.tl-text { font-size: 11.5px; color: var(--fg-muted); flex: 1; line-height: 1.5; }
+.tl-text strong { color: var(--fg); font-weight: 600; }
+.tl-time { font-size: 10px; color: var(--fg-subtle); white-space: nowrap; }
+
+/* --- Project Grid --- */
+.project-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.project-card {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all .15s;
+}
+.project-card:hover { box-shadow: var(--shadow-md); border-color: var(--brand-muted); transform: translateY(-1px); }
+.project-card .pc-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+.project-card .pc-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+.project-card .pc-icon svg { width: 18px; height: 18px; }
+.project-card .pc-menu { color: var(--fg-subtle); cursor: pointer; display: flex; padding: 2px; border-radius: 4px; }
+.project-card .pc-menu:hover { background: var(--bg-muted); color: var(--fg-secondary); }
+.project-card .pc-menu svg { width: 14px; height: 14px; }
+.project-card h4 { font-size: 13px; font-weight: 650; color: var(--fg); margin-bottom: 2px; letter-spacing: -.01em; }
+.project-card .pc-client { font-size: 10.5px; color: var(--fg-subtle); margin-bottom: 2px; }
+.project-card .pc-desc { font-size: 11.5px; color: var(--fg-muted); line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.project-card .pc-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border); }
+.project-card .pc-files { font-size: 10.5px; color: var(--fg-muted); font-weight: 600; display: flex; align-items: center; gap: 3px; }
+.project-card .pc-files svg { width: 12px; height: 12px; }
+.project-card .pc-date { font-size: 9.5px; color: var(--fg-subtle); background: var(--bg-muted); padding: 2px 6px; border-radius: 3px; }
+
+/* --- Pagination --- */
+.pagination { display: flex; align-items: center; gap: 3px; margin-top: 18px; }
+.pagination .pg-info { margin-right: auto; font-size: 11px; color: var(--fg-subtle); }
+.pagination button {
+  height: 28px; min-width: 28px; border-radius: var(--radius-xs); border: 1px solid var(--border);
+  background: var(--bg-surface); color: var(--fg-muted); font-size: 11px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .1s; display: flex; align-items: center;
+  justify-content: center; padding: 0 4px;
+}
+.pagination button:hover { background: var(--bg-muted); color: var(--fg); border-color: var(--border-hover); }
+.pagination button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.pagination .nav-pg { padding: 0 8px; }
+
+/* --- File Rows --- */
+.file-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-bottom: 5px; cursor: pointer; transition: all .12s;
+}
+.file-row:hover { box-shadow: var(--shadow-sm); border-color: var(--border-hover); }
+.file-row .f-check {
+  width: 15px; height: 15px; border: 1.5px solid var(--border-active); border-radius: 3px;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .1s;
+}
+.file-row .f-check.on { background: var(--brand); border-color: var(--brand); }
+.file-row .f-check.on svg { width: 9px; height: 9px; color: #fff; }
+.file-row .f-type {
+  width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center;
+  justify-content: center; font-size: 9px; font-weight: 800; flex-shrink: 0; letter-spacing: -.02em;
+}
+.f-type.rvt { background: var(--blue-bg); color: var(--blue-fg); border: 1px solid var(--blue-border); }
+.f-type.dwg { background: rgba(236,72,153,.08); color: #ec4899; border: 1px solid rgba(236,72,153,.15); }
+.f-type.pdf { background: var(--red-bg); color: var(--red-fg); border: 1px solid var(--red-border); }
+.f-type.ifc { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-border); }
+.file-row .f-name { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+.file-row .f-meta { font-size: 10.5px; color: var(--fg-subtle); margin-top: 1px; }
+.file-row .f-project { font-size: 10.5px; color: var(--fg-muted); background: var(--bg-muted); padding: 2px 7px; border-radius: var(--radius-full); white-space: nowrap; border: 1px solid var(--border); }
+.file-row .f-status { padding: 2px 7px; border-radius: var(--radius-full); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.f-status.ok { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-border); }
+.f-status.pr { background: var(--amber-bg); color: var(--amber-fg); border: 1px solid var(--amber-border); }
+.file-row .f-actions { display: flex; gap: 1px; }
+.file-row .f-act {
+  width: 26px; height: 26px; border-radius: 5px; border: none; background: transparent;
+  color: var(--fg-subtle); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.file-row .f-act svg { width: 13px; height: 13px; }
+.file-row .f-act:hover { background: var(--bg-muted); color: var(--brand); }
+
+/* --- BOM Table --- */
+.data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.data-table th {
+  text-align: left; padding: 7px 10px; font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--fg-subtle);
+  border-bottom: 1px solid var(--border); background: var(--bg-muted);
+}
+.data-table td { padding: 8px 10px; font-size: 12px; color: var(--fg); border-bottom: 1px solid var(--border); }
+.data-table tr:hover td { background: var(--brand-subtle); }
+.data-table .chip { display: inline-block; padding: 1px 7px; border-radius: var(--radius-full); font-size: 10px; font-weight: 600; background: var(--bg-muted); color: var(--fg-muted); border: 1px solid var(--border); }
+.data-table .mono { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11px; color: var(--fg-secondary); }
+
+/* --- Compliance --- */
+.comp-grid { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
+.score-ring {
+  width: 110px; height: 110px; border-radius: 50%;
+  background: conic-gradient(var(--green) 0% 73%, var(--amber) 73% 85%, var(--red) 85% 100%);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;
+  box-shadow: 0 0 20px rgba(52,211,153,.1);
+}
+.score-ring .inner {
+  width: 90px; height: 90px; border-radius: 50%; background: var(--bg-surface);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.score-ring .score-val { font-size: 26px; font-weight: 800; color: var(--fg); letter-spacing: -.02em; }
+.score-ring .score-lbl { font-size: 8.5px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+
+.severity-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.sev-pill {
+  flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; gap: 9px; transition: all .12s;
+  background: var(--bg-surface);
+}
+.sev-pill:hover { box-shadow: var(--shadow-sm); }
+.sev-pill.selected { box-shadow: 0 0 0 2px var(--brand); border-color: transparent; }
+.sev-pill .sev-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sev-pill.critical .sev-dot { background: var(--red); box-shadow: 0 0 8px var(--red-bg); }
+.sev-pill.warning .sev-dot { background: var(--amber); box-shadow: 0 0 8px var(--amber-bg); }
+.sev-pill.info .sev-dot { background: var(--blue); box-shadow: 0 0 8px var(--blue-bg); }
+.sev-pill .sev-count { font-size: 16px; font-weight: 800; color: var(--fg); letter-spacing: -.02em; }
+.sev-pill .sev-label { font-size: 9.5px; color: var(--fg-subtle); font-weight: 500; }
+
+.issues-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.issues-table th { text-align: left; padding: 7px 8px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-subtle); border-bottom: 1px solid var(--border); background: var(--bg-muted); }
+.issues-table td { padding: 9px 8px; font-size: 11.5px; color: var(--fg); border-bottom: 1px solid var(--border); vertical-align: top; }
+.issues-table tr:hover td { background: var(--bg-muted); }
+.sev-badge { display: inline-flex; padding: 2px 7px; border-radius: var(--radius-full); font-size: 10px; font-weight: 600; }
+.sev-badge.critical { background: var(--red-bg); color: var(--red-fg); border: 1px solid var(--red-border); }
+.sev-badge.warning { background: var(--amber-bg); color: var(--amber-fg); border: 1px solid var(--amber-border); }
+.sev-badge.info { background: var(--blue-bg); color: var(--blue-fg); border: 1px solid var(--blue-border); }
+.status-pill { display: inline-flex; padding: 2px 7px; border-radius: var(--radius-full); font-size: 10px; font-weight: 600; }
+.status-pill.open { background: var(--red-bg); color: var(--red-fg); border: 1px solid var(--red-border); }
+.status-pill.resolved { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-border); }
+.code-token { font-size: 10.5px; background: var(--bg-muted); padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; border: 1px solid var(--border); }
+.mono-sm { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11px; }
+
+/* --- Settings --- */
+.settings-layout { display: grid; grid-template-columns: 170px 1fr; gap: 18px; }
+.settings-nav { display: flex; flex-direction: column; gap: 1px; }
+.settings-link {
+  padding: 6px 10px; border-radius: var(--radius-xs); font-size: 12px; font-weight: 500;
+  color: var(--fg-muted); cursor: pointer; display: flex; align-items: center; gap: 7px;
+}
+.settings-link svg { width: 14px; height: 14px; }
+.settings-link:hover { background: var(--bg-muted); color: var(--fg-secondary); }
+.settings-link.active { background: var(--brand-subtle); color: var(--brand); font-weight: 600; }
+.settings-section { margin-bottom: 24px; }
+.settings-section h3 { font-size: 14px; font-weight: 650; margin-bottom: 2px; letter-spacing: -.01em; }
+.settings-section .s-desc { font-size: 11.5px; color: var(--fg-subtle); margin-bottom: 14px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.setting-label { font-size: 12.5px; font-weight: 500; color: var(--fg); }
+.setting-hint { font-size: 10.5px; color: var(--fg-subtle); margin-top: 1px; }
+.toggle { width: 34px; height: 18px; border-radius: 9px; background: var(--bg-inset); position: relative; cursor: pointer; transition: background .15s; flex-shrink: 0; border: 1px solid var(--border); }
+.toggle.on { background: var(--brand-light); border-color: var(--brand-light); }
+.toggle::after { content: ''; width: 14px; height: 14px; border-radius: 50%; background: #fff; position: absolute; top: 1px; left: 1px; transition: transform .15s; box-shadow: var(--shadow-sm); }
+.toggle.on::after { transform: translateX(16px); }
+.text-input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-xs); font-size: 12px; background: var(--bg-app); color: var(--fg); width: 220px; font-family: inherit; transition: all .15s; }
+.text-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-glow); }
+
+/* --- Responsive --- */
+@media (max-width: 1200px) {
+  .project-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid, .comp-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- =============================== PROTO BAR =============================== -->
+<div class="proto-bar">
+  <span class="label">DOM v4</span>
+  <button class="on" onclick="go('login')">Login</button>
+  <button onclick="go('dashboard')">Dashboard</button>
+  <button onclick="go('projects')">Projects</button>
+  <button onclick="go('files')">Files</button>
+  <button onclick="go('bom')">BOM</button>
+  <button onclick="go('compliance')">Compliance</button>
+  <button onclick="go('settings')">Settings</button>
+  <span class="divider"></span>
+  <div class="right">
+    <button class="theme-btn" id="btnLight" onclick="setTheme('light')">Light</button>
+    <button class="theme-btn on" id="btnDark" onclick="setTheme('dark')">Dark</button>
+  </div>
+</div>
+
+<!-- =============================== LOGIN =============================== -->
+<div class="screen on" id="s-login">
+  <div class="login-screen">
+    <div class="login-left">
+      <div class="logo-row">
+        <div class="logo-icon">ID</div>
+        <div><div class="logo-text">DOM</div><div class="logo-sub">BIM Platform</div></div>
+      </div>
+      <h1>Engineering<br>the <span>Future</span></h1>
+      <p class="desc">Advanced BIM project management, automated compliance validation, and seamless collaboration for enterprise engineering.</p>
+      <div class="stats">
+        <div><div class="stat-val">75+</div><div class="stat-label">Years of Excellence</div></div>
+        <div><div class="stat-val">Global</div><div class="stat-label">Presence & Impact</div></div>
+        <div><div class="stat-val">5000+</div><div class="stat-label">Team Members</div></div>
+      </div>
+    </div>
+    <div class="login-right">
+      <div class="login-card">
+        <h2>Welcome back</h2>
+        <p class="sub">Continue with your account or switch</p>
+        <div class="user-row">
+          <div class="avatar">SC</div>
+          <div><div class="user-name">Sebastian Chirino</div><div class="user-email">sebastian.chirino@dom.com</div></div>
+        </div>
+        <button class="btn-brand" onclick="go('dashboard')">
+          Continue as Sebastian
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+        <button class="btn-alt">Sign in with different account</button>
+        <div class="footer">2026 Sebastian Chirino</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== DASHBOARD =============================== -->
+<div class="screen" id="s-dashboard">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-dash"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><span class="current">Dashboard</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head">
+          <div><div class="page-title">Good morning, Sebastian</div><div class="page-desc">Here's what's happening with your projects today</div></div>
+          <div class="page-actions"><button class="btn btn-primary" onclick="go('projects')"><i data-lucide="plus"></i> New Project</button></div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon blue"><i data-lucide="folder"></i></div><div class="sc-label">Projects</div></div><div class="sc-val">12</div><div class="sc-trend up"><i data-lucide="trending-up" style="width:11px;height:11px"></i> +2 this month</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon green"><i data-lucide="file-text"></i></div><div class="sc-label">Files</div></div><div class="sc-val">47</div><div class="sc-trend up"><i data-lucide="trending-up" style="width:11px;height:11px"></i> +12 this week</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon violet"><i data-lucide="box"></i></div><div class="sc-label">Active Models</div></div><div class="sc-val">8</div><div class="sc-trend neutral">3 processing</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon amber"><i data-lucide="hard-drive"></i></div><div class="sc-label">Storage Used</div></div><div class="sc-val">2.4 GB</div><div class="sc-trend neutral">68% of quota</div></div>
+        </div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-head"><h3>Recent Projects</h3><a class="link" onclick="go('projects')">View All</a></div>
+            <div class="card-body">
+              <div class="proj-row"><div class="proj-icon blue"><i data-lucide="building-2"></i></div><div style="flex:1;min-width:0"><div class="proj-name">Hospital Zona Norte</div><div class="proj-meta">Updated 2h ago · 5 files · Salud Norte SpA</div></div><span class="proj-status status-active">Active</span></div>
+              <div class="proj-row"><div class="proj-icon green"><i data-lucide="factory"></i></div><div style="flex:1;min-width:0"><div class="proj-name">Industrial Plant — Phase 2</div><div class="proj-meta">Updated 1d ago · 12 files · MinoraChem Ltd</div></div><span class="proj-status status-review">In Review</span></div>
+              <div class="proj-row"><div class="proj-icon violet"><i data-lucide="building"></i></div><div style="flex:1;min-width:0"><div class="proj-name">Office Tower Madrid</div><div class="proj-meta">Updated 3d ago · 8 files · Inmobiliaria Central</div></div><span class="proj-status status-draft">Draft</span></div>
+              <div class="proj-row"><div class="proj-icon blue"><i data-lucide="milestone"></i></div><div style="flex:1;min-width:0"><div class="proj-name">Bridge Rehabilitation A-42</div><div class="proj-meta">Updated 5d ago · 3 files · DGT</div></div><span class="proj-status status-active">Active</span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card">
+              <div class="card-head"><h3>Pending Tasks</h3><span class="counter">5</span></div>
+              <div class="card-body">
+                <div class="task-row"><div class="task-dot r"></div><div><div class="task-text">3 compliance issues need review</div><div class="task-sub">Hospital Zona Norte</div></div></div>
+                <div class="task-row"><div class="task-dot a"></div><div><div class="task-text">2 files still processing</div><div class="task-sub">ETA ~5 minutes</div></div></div>
+                <div class="task-row"><div class="task-dot b"></div><div><div class="task-text">1 pending invitation</div><div class="task-sub">Office Tower Madrid</div></div></div>
+              </div>
+            </div>
+            <div class="card" style="flex:1">
+              <div class="card-head"><h3>Activity</h3></div>
+              <div class="card-body">
+                <div class="tl-row"><div class="tl-dot" style="background:var(--green)"></div><div class="tl-text"><strong>You</strong> uploaded 3 files to Hospital Norte</div><div class="tl-time">2h ago</div></div>
+                <div class="tl-row"><div class="tl-dot" style="background:var(--blue)"></div><div class="tl-text">Compliance run completed on <strong>Industrial Plant</strong></div><div class="tl-time">5h ago</div></div>
+                <div class="tl-row"><div class="tl-dot" style="background:var(--violet)"></div><div class="tl-text"><strong>Maria Lopez</strong> joined Office Tower as Editor</div><div class="tl-time">1d ago</div></div>
+                <div class="tl-row"><div class="tl-dot" style="background:var(--fg-subtle)"></div><div class="tl-text">PDF conversion finished for <strong>Bridge_v2.rvt</strong></div><div class="tl-time">2d ago</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== PROJECTS =============================== -->
+<div class="screen" id="s-projects">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-proj"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><a onclick="go('dashboard')">Home</a><span class="sep">/</span><span class="current">Projects</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head"><div><div class="page-title">Projects</div><div class="page-desc">Manage your BIM projects and team collaboration</div></div><div class="page-actions"><button class="btn btn-secondary"><i data-lucide="link"></i> Import</button><button class="btn btn-primary"><i data-lucide="plus"></i> New Project</button></div></div>
+        <div class="toolbar">
+          <div class="search-field"><i data-lucide="search"></i><input placeholder="Search projects..." /></div>
+          <select class="select-field"><option>All Status</option><option>Active</option><option>In Review</option><option>Draft</option></select>
+          <select class="select-field"><option>Sort: Newest</option><option>Oldest</option><option>Name A-Z</option></select>
+          <div class="tab-group"><button class="tab-btn on">Grid</button><button class="tab-btn">List</button></div>
+        </div>
+        <div class="project-grid">
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--blue-bg);color:var(--blue-fg)"><i data-lucide="building-2"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>Hospital Zona Norte</h4><div class="pc-client">Salud Norte SpA · Santiago, Chile</div><div class="pc-desc">Complete BIM model for the new regional hospital. Structural and MEP coordination with compliance validation.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 5 Files</span><span class="proj-status status-active">Active</span><span class="pc-date">2h ago</span></div></div>
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--green-bg);color:var(--green-fg)"><i data-lucide="factory"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>Industrial Plant — Phase 2</h4><div class="pc-client">MinoraChem Ltd · Antofagasta, Chile</div><div class="pc-desc">Expansion project for chemical processing facility. Phase 2 includes new storage and processing units.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 12 Files</span><span class="proj-status status-review">In Review</span><span class="pc-date">1d ago</span></div></div>
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--violet-bg);color:var(--violet-fg)"><i data-lucide="building"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>Office Tower Madrid</h4><div class="pc-client">Inmobiliaria Central · Madrid, Spain</div><div class="pc-desc">25-story office building in the financial district. LEED Gold certification target.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 8 Files</span><span class="proj-status status-draft">Draft</span><span class="pc-date">3d ago</span></div></div>
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--blue-bg);color:var(--blue-fg)"><i data-lucide="milestone"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>Bridge Rehabilitation A-42</h4><div class="pc-client">DGT · Toledo, Spain</div><div class="pc-desc">Structural rehabilitation of the A-42 highway bridge. Seismic reinforcement and deck widening.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 3 Files</span><span class="proj-status status-active">Active</span><span class="pc-date">5d ago</span></div></div>
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--amber-bg);color:var(--amber-fg)"><i data-lucide="graduation-cap"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>University Campus Extension</h4><div class="pc-client">Universidad de Chile · Santiago</div><div class="pc-desc">New engineering faculty building with labs, lecture halls and research facilities.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 6 Files</span><span class="proj-status status-active">Active</span><span class="pc-date">1w ago</span></div></div>
+          <div class="project-card"><div class="pc-top"><div class="pc-icon" style="background:var(--green-bg);color:var(--green-fg)"><i data-lucide="heart-pulse"></i></div><div class="pc-menu"><i data-lucide="more-horizontal"></i></div></div><h4>Clinic Renovation Bilbao</h4><div class="pc-client">Osakidetza · Bilbao, Spain</div><div class="pc-desc">Interior renovation of the existing clinic. Accessibility improvements and new emergency area.</div><div class="pc-bottom"><span class="pc-files"><i data-lucide="file-text"></i> 4 Files</span><span class="proj-status status-review">In Review</span><span class="pc-date">2w ago</span></div></div>
+        </div>
+        <div class="pagination"><span class="pg-info">Showing 6 of 12 projects</span><button class="nav-pg">Prev</button><button class="on">1</button><button>2</button><button class="nav-pg">Next</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== FILES =============================== -->
+<div class="screen" id="s-files">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-files"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><a onclick="go('dashboard')">Home</a><span class="sep">/</span><span class="current">All Files</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head"><div><div class="page-title">All Files</div><div class="page-desc">Global view of all project documents</div></div><div class="page-actions"><button class="btn btn-secondary"><i data-lucide="download"></i> Download</button><button class="btn btn-secondary"><i data-lucide="file-output"></i> Convert PDF</button></div></div>
+        <div class="toolbar">
+          <div class="search-field"><i data-lucide="search"></i><input placeholder="Search files..." /></div>
+          <div class="tab-group"><button class="tab-btn on">All</button><button class="tab-btn">RVT</button><button class="tab-btn">DWG</button><button class="tab-btn">PDF</button><button class="tab-btn">IFC</button></div>
+          <select class="select-field"><option>All Projects</option><option>Hospital Zona Norte</option><option>Industrial Plant</option></select>
+        </div>
+        <div style="font-size:11px;color:var(--fg-subtle);margin-bottom:6px">Showing 6 of 47 files</div>
+        <div class="file-row"><div class="f-check"></div><div class="f-type rvt">RVT</div><div style="flex:1;min-width:0"><div class="f-name">Hospital_Estructura_v3.rvt</div><div class="f-meta">24.5 MB · Apr 15, 2026</div></div><span class="f-project">Hospital Zona Norte</span><span class="f-status ok">Ready</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="file-row"><div class="f-check on"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="f-type rvt">RVT</div><div style="flex:1;min-width:0"><div class="f-name">Hospital_MEP_v2.rvt</div><div class="f-meta">18.3 MB · Apr 14, 2026</div></div><span class="f-project">Hospital Zona Norte</span><span class="f-status ok">Ready</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="file-row"><div class="f-check"></div><div class="f-type dwg">DWG</div><div style="flex:1;min-width:0"><div class="f-name">Planta_Industrial_Layout.dwg</div><div class="f-meta">8.7 MB · Apr 13, 2026</div></div><span class="f-project">Industrial Plant</span><span class="f-status pr">Processing</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="file-row"><div class="f-check"></div><div class="f-type pdf">PDF</div><div style="flex:1;min-width:0"><div class="f-name">Office_Tower_Specs.pdf</div><div class="f-meta">3.2 MB · Apr 12, 2026</div></div><span class="f-project">Office Tower Madrid</span><span class="f-status ok">Ready</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="file-row"><div class="f-check"></div><div class="f-type ifc">IFC</div><div style="flex:1;min-width:0"><div class="f-name">Bridge_A42_Structural.ifc</div><div class="f-meta">15.1 MB · Apr 10, 2026</div></div><span class="f-project">Bridge A-42</span><span class="f-status ok">Ready</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="file-row"><div class="f-check"></div><div class="f-type rvt">RVT</div><div style="flex:1;min-width:0"><div class="f-name">Campus_Edificio_Ingenieria.rvt</div><div class="f-meta">31.0 MB · Apr 8, 2026</div></div><span class="f-project">University Campus</span><span class="f-status ok">Ready</span><div class="f-actions"><button class="f-act"><i data-lucide="eye"></i></button><button class="f-act"><i data-lucide="download"></i></button><button class="f-act"><i data-lucide="more-horizontal"></i></button></div></div>
+        <div class="pagination"><span class="pg-info">Showing 6 of 47 files</span><button class="nav-pg">Prev</button><button class="on">1</button><button>2</button><button>3</button><span style="color:var(--fg-subtle);font-size:11px;padding:0 2px">...</span><button>5</button><button class="nav-pg">Next</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== BOM =============================== -->
+<div class="screen" id="s-bom">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-bom"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><a onclick="go('dashboard')">Home</a><span class="sep">/</span><span class="current">BOM & Quantities</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head"><div><div class="page-title">BOM & Quantities</div><div class="page-desc">Bill of materials and quantity takeoffs from BIM models</div></div><div class="page-actions"><button class="btn btn-secondary"><i data-lucide="download"></i> Export CSV</button></div></div>
+        <div class="stats-row">
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon blue"><i data-lucide="hash"></i></div><div class="sc-label">Total Elements</div></div><div class="sc-val">1,247</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon green"><i data-lucide="layers"></i></div><div class="sc-label">Unique Types</div></div><div class="sc-val">156</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon violet"><i data-lucide="package"></i></div><div class="sc-label">Categories</div></div><div class="sc-val">12</div></div>
+          <div class="stat-card"><div class="sc-top"><div class="sc-icon amber"><i data-lucide="ruler"></i></div><div class="sc-label">Total Volume</div></div><div class="sc-val">3,845 m3</div></div>
+        </div>
+        <div class="toolbar">
+          <div class="search-field"><i data-lucide="search"></i><input placeholder="Search by type, family, material..." /></div>
+          <select class="select-field"><option>All Categories</option><option>Walls</option><option>Floors</option><option>Columns</option><option>Windows</option><option>Doors</option></select>
+          <div class="tab-group"><button class="tab-btn on">Aggregated</button><button class="tab-btn">Raw</button></div>
+        </div>
+        <div class="card" style="overflow:hidden">
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>Category</th><th>Family</th><th>Type</th><th>Material</th><th style="text-align:right">Count</th><th style="text-align:right">Volume (m3)</th><th style="text-align:right">Area (m2)</th><th style="text-align:right">Length (m)</th></tr></thead>
+              <tbody>
+                <tr><td><span class="chip">Walls</span></td><td>Basic Wall</td><td>Interior 150mm</td><td>Concrete</td><td class="mono" style="text-align:right">124</td><td class="mono" style="text-align:right">186.5</td><td class="mono" style="text-align:right">1,243.2</td><td class="mono" style="text-align:right">—</td></tr>
+                <tr><td><span class="chip">Walls</span></td><td>Basic Wall</td><td>Exterior 300mm</td><td>Reinforced Concrete</td><td class="mono" style="text-align:right">48</td><td class="mono" style="text-align:right">312.8</td><td class="mono" style="text-align:right">1,042.7</td><td class="mono" style="text-align:right">—</td></tr>
+                <tr><td><span class="chip">Floors</span></td><td>Floor</td><td>Generic 200mm</td><td>Concrete</td><td class="mono" style="text-align:right">36</td><td class="mono" style="text-align:right">720.0</td><td class="mono" style="text-align:right">3,600.0</td><td class="mono" style="text-align:right">—</td></tr>
+                <tr><td><span class="chip">Columns</span></td><td>Concrete-Rect</td><td>600x600mm</td><td>Reinforced Concrete</td><td class="mono" style="text-align:right">64</td><td class="mono" style="text-align:right">138.2</td><td class="mono" style="text-align:right">—</td><td class="mono" style="text-align:right">384.0</td></tr>
+                <tr><td><span class="chip">Framing</span></td><td>Steel-W Wide Flange</td><td>W310x97</td><td>Steel</td><td class="mono" style="text-align:right">89</td><td class="mono" style="text-align:right">42.7</td><td class="mono" style="text-align:right">—</td><td class="mono" style="text-align:right">534.0</td></tr>
+                <tr><td><span class="chip">Windows</span></td><td>Fixed</td><td>1200x1500mm</td><td>Aluminum + Glass</td><td class="mono" style="text-align:right">96</td><td class="mono" style="text-align:right">—</td><td class="mono" style="text-align:right">172.8</td><td class="mono" style="text-align:right">—</td></tr>
+                <tr><td><span class="chip">Doors</span></td><td>Single-Flush</td><td>900x2100mm</td><td>Wood</td><td class="mono" style="text-align:right">72</td><td class="mono" style="text-align:right">—</td><td class="mono" style="text-align:right">136.1</td><td class="mono" style="text-align:right">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pagination"><span class="pg-info">Showing 7 of 156 types</span><button class="nav-pg">Prev</button><button class="on">1</button><button>2</button><button>3</button><button>4</button><button class="nav-pg">Next</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== COMPLIANCE =============================== -->
+<div class="screen" id="s-compliance">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-comp"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><a onclick="go('dashboard')">Home</a><span class="sep">/</span><a>Compliance</a><span class="sep">/</span><span class="current">Results</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head"><div><div class="page-title">Compliance Results</div><div class="page-desc">Hospital Zona Norte — Run #47 · April 15, 2026</div></div><div class="page-actions"><button class="btn btn-secondary"><i data-lucide="file-spreadsheet"></i> Excel</button><button class="btn btn-secondary"><i data-lucide="file-text"></i> PDF</button><button class="btn btn-primary"><i data-lucide="save"></i> Save Run</button></div></div>
+        <div class="comp-grid">
+          <div>
+            <div class="severity-row">
+              <div class="sev-pill critical"><div class="sev-dot"></div><div><div class="sev-count">7</div><div class="sev-label">Critical</div></div></div>
+              <div class="sev-pill warning selected"><div class="sev-dot"></div><div><div class="sev-count">12</div><div class="sev-label">Warning</div></div></div>
+              <div class="sev-pill info"><div class="sev-dot"></div><div><div class="sev-count">23</div><div class="sev-label">Info</div></div></div>
+            </div>
+            <div class="toolbar">
+              <div class="search-field"><i data-lucide="search"></i><input placeholder="Search rules, elements..." /></div>
+              <select class="select-field"><option>All Severity</option><option>Critical</option><option>Warning</option><option>Info</option></select>
+              <select class="select-field"><option>All Status</option><option>Open</option><option>Resolved</option></select>
+            </div>
+            <div class="card" style="overflow:hidden">
+              <div class="card-head"><h3>Issues <span style="font-size:10px;color:var(--fg-subtle);font-weight:400;margin-left:2px">12 of 42</span></h3><button class="btn btn-secondary" style="font-size:10px;padding:3px 7px"><i data-lucide="refresh-cw" style="width:11px;height:11px"></i> Refresh</button></div>
+              <div style="overflow-x:auto">
+                <table class="issues-table">
+                  <thead><tr><th>Severity</th><th>Rule</th><th>Element</th><th>Property</th><th>Expected</th><th>Found</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="sev-badge warning">Warning</span></td><td style="font-weight:600">Min Wall Thickness</td><td>Wall-Int-043<br><span style="font-size:10px;color:var(--fg-subtle)">Interior Walls</span></td><td><span class="code-token">Width</span></td><td class="mono-sm" style="color:var(--green-fg)">≥ 150mm</td><td class="mono-sm" style="color:var(--red-fg)">120mm</td><td><span class="status-pill open">Open</span></td></tr>
+                    <tr><td><span class="sev-badge warning">Warning</span></td><td style="font-weight:600">Fire Resistance</td><td>Wall-Ext-012<br><span style="font-size:10px;color:var(--fg-subtle)">Exterior Walls</span></td><td><span class="code-token">FireRating</span></td><td class="mono-sm" style="color:var(--green-fg)">F-120</td><td class="mono-sm" style="color:var(--red-fg)">F-90</td><td><span class="status-pill open">Open</span></td></tr>
+                    <tr><td><span class="sev-badge warning">Warning</span></td><td style="font-weight:600">Ceiling Height</td><td>Room-204<br><span style="font-size:10px;color:var(--fg-subtle)">Patient Rooms</span></td><td><span class="code-token">Height</span></td><td class="mono-sm" style="color:var(--green-fg)">≥ 2700mm</td><td class="mono-sm" style="color:var(--red-fg)">2600mm</td><td><span class="status-pill resolved">Resolved</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card"><div class="card-head"><h3>Compliance Score</h3></div><div class="card-body" style="text-align:center"><div class="score-ring"><div class="inner"><div class="score-val">73%</div><div class="score-lbl">Compliant</div></div></div><div style="display:flex;gap:16px;justify-content:center;margin-top:4px"><div style="text-align:center"><div style="font-size:15px;font-weight:800;color:var(--green-fg)">31</div><div style="font-size:9.5px;color:var(--fg-subtle);font-weight:500">Passed</div></div><div style="text-align:center"><div style="font-size:15px;font-weight:800;color:var(--red-fg)">11</div><div style="font-size:9.5px;color:var(--fg-subtle);font-weight:500">Failed</div></div></div></div></div>
+            <div class="card" style="margin-top:10px"><div class="card-head"><h3>Run Details</h3></div><div class="card-body">
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--fg-subtle)">Model</span><span style="font-size:11px;font-weight:600">Hospital_v3.rvt</span></div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--fg-subtle)">Spec</span><span style="font-size:11px;font-weight:600">MOP Chile 2024</span></div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--fg-subtle)">Rules</span><span style="font-size:11px;font-weight:600">42 rules applied</span></div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:11px;color:var(--fg-subtle)">Duration</span><span style="font-size:11px;font-weight:600">2.4 seconds</span></div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== SETTINGS =============================== -->
+<div class="screen" id="s-settings">
+  <div class="app-shell">
+    <div class="sidebar" id="sb-set"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><a onclick="go('dashboard')">Home</a><span class="sep">/</span><span class="current">Settings</span></div>
+        <div class="search-trigger"><i data-lucide="search"></i><span>Search everything...</span><kbd>⌘K</kbd></div>
+        <div class="topbar-actions"><button class="icon-btn"><i data-lucide="bell"></i><span class="red-dot"></span></button><div class="top-avatar">SC</div></div>
+      </div>
+      <div class="page">
+        <div class="page-head"><div><div class="page-title">Settings</div><div class="page-desc">Manage your account preferences and platform configuration</div></div></div>
+        <div class="settings-layout">
+          <div class="settings-nav">
+            <div class="settings-link active"><i data-lucide="user"></i> Profile</div>
+            <div class="settings-link"><i data-lucide="palette"></i> Appearance</div>
+            <div class="settings-link"><i data-lucide="bell"></i> Notifications</div>
+            <div class="settings-link"><i data-lucide="key-round"></i> Security</div>
+          </div>
+          <div>
+            <div class="card" style="padding:20px">
+              <div class="settings-section"><h3>Profile</h3><div class="s-desc">Your personal information and account details</div>
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding:14px;background:var(--bg-muted);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;font-weight:800;flex-shrink:0">SC</div>
+                  <div><div style="font-size:15px;font-weight:700">Sebastian Chirino</div><div style="font-size:11px;color:var(--fg-subtle)">sebastian.chirino@dom.com</div><div style="margin-top:3px"><span style="background:var(--brand-subtle);color:var(--brand);padding:2px 7px;border-radius:var(--radius-full);font-size:9.5px;font-weight:700;letter-spacing:.03em">ADMIN</span></div></div>
+                  <button class="btn btn-secondary" style="margin-left:auto;font-size:11px">Change Photo</button>
+                </div>
+                <div class="setting-row"><div><div class="setting-label">Display Name</div><div class="setting-hint">This is how others see you</div></div><input class="text-input" value="Sebastian Chirino" /></div>
+                <div class="setting-row"><div><div class="setting-label">Email</div><div class="setting-hint">Linked to your Autodesk account</div></div><span style="font-size:11.5px;color:var(--fg-subtle)">sebastian.chirino@dom.com</span></div>
+              </div>
+              <div class="settings-section"><h3>Appearance</h3><div class="s-desc">Customize how the platform looks</div>
+                <div class="setting-row"><div><div class="setting-label">Dark Mode</div><div class="setting-hint">Switch between light and dark theme</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+                <div class="setting-row"><div><div class="setting-label">Compact Mode</div><div class="setting-hint">Reduce spacing for denser display</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+              <div class="settings-section"><h3>Notifications</h3><div class="s-desc">Control which notifications you receive</div>
+                <div class="setting-row"><div><div class="setting-label">Project Updates</div><div class="setting-hint">Get notified when projects change</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+                <div class="setting-row"><div><div class="setting-label">File Processing</div><div class="setting-hint">Notify when conversions complete</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+                <div class="setting-row"><div><div class="setting-label">Compliance Alerts</div><div class="setting-hint">Critical issue notifications</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function go(n){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('on')});
+  document.querySelectorAll('.proto-bar button:not(.theme-btn)').forEach(function(b){b.classList.remove('on')});
+  var s=document.getElementById('s-'+n);if(s)s.classList.add('on');
+  document.querySelectorAll('.proto-bar button').forEach(function(b){
+    if(b.textContent.toLowerCase().trim()===n)b.classList.add('on');
+  });
+  renderSidebars(n);
+}
+function setTheme(t){
+  if(t==='dark'){document.documentElement.classList.add('dark');document.getElementById('btnDark').classList.add('on');document.getElementById('btnLight').classList.remove('on')}
+  else{document.documentElement.classList.remove('dark');document.getElementById('btnLight').classList.add('on');document.getElementById('btnDark').classList.remove('on')}
+}
+function buildSidebar(active){
+  var sections=[
+    {label:'Main',items:[
+      {icon:'layout-dashboard',text:'Dashboard',id:'dashboard'},
+      {icon:'folder',text:'Projects',id:'projects'},
+      {icon:'file-text',text:'All Files',id:'files'}
+    ]},
+    {label:'Analysis',items:[
+      {icon:'clipboard-list',text:'BOM & Quantities',id:'bom'},
+      {icon:'box',text:'3D Viewer',id:''}
+    ]},
+    {label:'Compliance',items:[
+      {icon:'upload',text:'Validation',id:''},
+      {icon:'list-checks',text:'Rules',id:''},
+      {icon:'bar-chart-3',text:'Results',id:'compliance',badge:'3'}
+    ]},
+    {label:'System',items:[
+      {icon:'settings',text:'Settings',id:'settings'},
+      {icon:'shield',text:'Admin Panel',id:''}
+    ]}
+  ];
+  var h='<div class="sb-header"><div class="sb-icon">ID</div><div><div class="sb-brand">DOM</div><div class="sb-tag">BIM Platform</div></div></div><div class="sb-nav">';
+  sections.forEach(function(sec){
+    h+='<div class="sb-section"><div class="sb-label">'+sec.label+'</div>';
+    sec.items.forEach(function(it){
+      var cls=it.id===active?' active':'';
+      var click=it.id?' onclick="go(\''+it.id+'\')"':'';
+      var badge=it.badge?'<span class="badge">'+it.badge+'</span>':'';
+      h+='<div class="sb-item'+cls+'"'+click+'><i data-lucide="'+it.icon+'"></i><span>'+it.text+'</span>'+badge+'</div>';
+    });
+    h+='</div>';
+  });
+  h+='</div><div class="sb-footer"><div class="sb-user"><div class="sb-avatar">SC</div><div><div class="sb-uname">Sebastian Chirino</div><div class="sb-urole">Administrator</div></div><span class="sb-logout" onclick="go(\'login\')"><i data-lucide="log-out"></i></span></div></div>';
+  return h;
+}
+function renderSidebars(active){
+  ['sb-dash','sb-proj','sb-files','sb-bom','sb-comp','sb-set'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.innerHTML=buildSidebar(active);
+  });
+  if(typeof lucide!=='undefined')lucide.createIcons();
+}
+document.addEventListener('DOMContentLoaded',function(){renderSidebars('dashboard');if(typeof lucide!=='undefined')lucide.createIcons()});
+</script>
+</body>
+</html>

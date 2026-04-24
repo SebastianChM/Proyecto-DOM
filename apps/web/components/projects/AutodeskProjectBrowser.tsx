@@ -220,7 +220,7 @@ export function AutodeskProjectBrowser({ onSelect, onCancel }: BrowserProps) {
             </Button>
           )}
           <div className="flex items-center text-sm">
-            <Database className="w-4 h-4 mr-2 text-dom-blue" />
+            <Database className="w-4 h-4 mr-2 text-primary" />
             {path.map((p, i) => (
               <div key={i} className="flex items-center whitespace-nowrap">
                 {i > 0 && (
@@ -419,7 +419,7 @@ export function AutodeskProjectBrowser({ onSelect, onCancel }: BrowserProps) {
           <Button
             onClick={handleConfirm}
             disabled={!selectedFolder}
-            className="bg-dom-blue hover:bg-dom-blue-dark text-white shadow-lg shadow-dom-blue/20"
+            className="bg-brand hover:bg-brand-dark text-white shadow-lg shadow-primary/20"
           >
             Link Selected Folder
           </Button>

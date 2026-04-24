@@ -84,7 +84,7 @@ export function ConversionTracker({
       {activeConversions.map((conversion) => (
         <div
           key={conversion.id}
-          className="bg-gray-900/95 backdrop-blur-xl text-white p-4 rounded-xl shadow-2xl border border-white/10 animate-in slide-in-from-right-5"
+          className="bg-gray-900/95 backdrop-blur-xl text-white p-4 rounded-xl shadow-md border border-white/10 animate-in slide-in-from-right-5"
         >
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 mt-0.5">
@@ -118,7 +118,7 @@ export function ConversionTracker({
         <div
           key={conversion.id}
           className={cn(
-            "backdrop-blur-xl text-white p-4 rounded-xl shadow-2xl border animate-in slide-in-from-right-5",
+            "backdrop-blur-xl text-white p-4 rounded-xl shadow-md border animate-in slide-in-from-right-5",
             conversion.status === "completed"
               ? "bg-green-900/90 border-green-500/30"
               : "bg-red-900/90 border-red-500/30",

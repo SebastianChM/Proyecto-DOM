@@ -42,27 +42,25 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-4xl font-bold tracking-tight text-foreground">
-            Settings
-          </h2>
-          <p className="mt-2 text-lg text-muted-foreground">
-            Manage your account and preferences.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-xl font-bold tracking-tight text-foreground">
+          Settings
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Manage your account and preferences.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Profile Card */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="glass-panel border-border rounded-2xl p-6 border-l-4 border-dom-blue relative overflow-hidden shadow-md">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-dom-blue/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+          <div className="bg-card border border-border rounded-lg p-6 border-l-4 border-primary relative overflow-hidden shadow-xs">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-brand/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
 
             <div className="flex flex-col items-center text-center relative z-10">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-dom-blue to-purple-500 flex items-center justify-center text-3xl font-bold text-white ring-4 ring-white/10 mb-4 shadow-xl">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-3xl font-bold text-white ring-4 ring-white/10 mb-4 shadow-sm">
                 SC
               </div>
               <h3 className="text-xl font-bold text-foreground">
@@ -103,7 +101,7 @@ export default function SettingsPage() {
         {/* Settings Sections */}
         <div className="lg:col-span-2 space-y-6">
           {/* Appearance */}
-          <div className="glass-panel border-border rounded-2xl p-6 shadow-md">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-xs">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-2 bg-purple-500/10 rounded-lg">
                 <Palette className="w-5 h-5 text-purple-400" />
@@ -147,7 +145,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Notifications */}
-          <div className="glass-panel border-border rounded-2xl p-6 shadow-md">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-xs">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-2 bg-green-500/10 rounded-lg">
                 <Bell className="w-5 h-5 text-green-400" />
@@ -191,10 +189,10 @@ export default function SettingsPage() {
           </div>
 
           {/* Account */}
-          <div className="glass-panel border-border rounded-2xl p-6 shadow-md">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-xs">
             <div className="flex items-center space-x-3 mb-6">
-              <div className="p-2 bg-dom-blue/10 rounded-lg">
-                <User className="w-5 h-5 text-dom-blue" />
+              <div className="p-2 bg-brand-subtle rounded-lg">
+                <User className="w-5 h-5 text-primary" />
               </div>
               <h3 className="text-lg font-bold text-foreground">Account</h3>
             </div>
@@ -211,14 +209,14 @@ export default function SettingsPage() {
                   id="username"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-card border-border text-foreground focus-visible:ring-dom-blue"
+                  className="bg-card border-border text-foreground focus-visible:ring-primary"
                 />
               </div>
               <div className="flex justify-end mt-2">
                 <Button
                   onClick={handleSave}
                   disabled={saving}
-                  className="bg-dom-blue hover:bg-dom-blue-dark text-white"
+                  className="bg-brand hover:bg-brand-dark text-white"
                 >
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>

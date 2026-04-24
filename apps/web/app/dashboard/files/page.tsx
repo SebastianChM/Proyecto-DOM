@@ -45,27 +45,24 @@ interface FileItem {
   projectName?: string;
   projectId?: string;
   progress?: number;
+  project?: { id: string; name: string };
 }
 
-interface Project {
+interface FilterProject {
   id: string;
   name: string;
-  files: FileItem[];
+  fileCount: number;
 }
 
 export default function AllFilesPage() {
   const { user } = useUser();
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("ALL");
-  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [tempSelectedProjectIds, setTempSelectedProjectIds] = useState<
-    Set<string>
-  >(new Set());
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [filterProjects, setFilterProjects] = useState<FilterProject[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [supportedFormats, setSupportedFormats] = useState<Record<string, string[]>>(
@@ -77,36 +74,61 @@ export default function AllFilesPage() {
     token?: string;
   } | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  /** Debounce search input (400ms) */
   useEffect(() => {
-    const fetchAllFiles = async () => {
-      try {
-        // Fetch all projects to get all files
-        // Ideally we would have a dedicated /api/files endpoint
-        const response = await apiClient.get("/api/projects");
-        const projects: Project[] = Array.isArray(response.data)
-          ? response.data
-          : [];
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-        // Flatten files and attach project name
-        const allFiles = projects.flatMap((project) =>
-          (project.files || []).map((file) => ({
-            ...file,
-            projectName: project.name,
-            projectId: project.id,
-          })),
-        );
+  /** Fetch files from /api/files/all with server-side pagination and filters */
+  const fetchFiles = async (targetPage?: number) => {
+    try {
+      setLoading(true);
+      const p = targetPage ?? page;
+      const params = new URLSearchParams({
+        page: String(p),
+        pageSize: String(pageSize),
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (activeFilter !== "ALL") params.set("type", activeFilter);
+      if (selectedProjectId) params.set("projectId", selectedProjectId);
 
-        setFiles(allFiles);
-        setProjects(projects);
-      } catch (error) {
-        showError(error, user?.role, "Failed to load files");
-      } finally {
-        setLoading(false);
-      }
-    };
+      const response = await apiClient.get(`/api/files/all?${params.toString()}`);
+      const { meta, filters, data } = response.data;
 
-    fetchAllFiles();
-  }, [user?.role]);
+      // Flatten project info into each file
+      const filesWithProject = (data as FileItem[]).map((f) => ({
+        ...f,
+        projectName: f.project?.name,
+        projectId: f.project?.id ?? f.projectId,
+      }));
+
+      setFiles(filesWithProject);
+      setTotal(meta.total);
+      setTotalPages(meta.totalPages);
+      setPage(meta.page);
+      if (filters?.projects) setFilterProjects(filters.projects);
+    } catch (error) {
+      showError(error, user?.role, "Failed to load files");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Re-fetch when pagination, search, or filters change */
+  useEffect(() => {
+    void fetchFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, activeFilter, selectedProjectId, page]);
 
   useEffect(() => {
     const fetchSupportedFormats = async () => {
@@ -156,41 +178,11 @@ export default function AllFilesPage() {
     });
   };
 
-  const filteredFiles = files.filter((file) => {
-    const matchesSearch =
-      file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (file.projectName?.toLowerCase() || "").includes(
-        searchQuery.toLowerCase(),
-      );
-
-    const matchesProject =
-      selectedProjectIds.size === 0 ||
-      (file.projectId ? selectedProjectIds.has(file.projectId) : false);
-
-    if (activeFilter === "ALL") return matchesSearch && matchesProject;
-    return matchesSearch && matchesProject && file.type === activeFilter;
-  });
-
-  // Note: toggleSelectAll is available but not currently used in the UI
-  // Keeping it for potential future use
-  void function toggleSelectAll(checked: boolean) {
-    if (checked) {
-      const newSelected = new Set(selectedFiles);
-      filteredFiles.forEach((f) => newSelected.add(f.id));
-      setSelectedFiles(newSelected);
-
-      const nonConvertibleCount = filteredFiles.filter(
-        (f) => !canConvertFileToPdf(f),
-      ).length;
-      if (nonConvertibleCount > 0) {
-        toast.info(
-          `Selected all files. Note: ${nonConvertibleCount} files cannot be converted to PDF.`,
-        );
-      }
-    } else {
-      const newSelected = new Set(selectedFiles);
-      filteredFiles.forEach((f) => newSelected.delete(f.id));
-      setSelectedFiles(newSelected);
+  /** Handle page change */
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -327,7 +319,7 @@ export default function AllFilesPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card p-4 rounded-2xl shadow-sm border border-border/50">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card p-4 rounded-lg shadow-sm border border-border/50">
         {/* Left: Search & Filter */}
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="relative w-full md:w-72">
@@ -344,10 +336,13 @@ export default function AllFilesPage() {
             {["ALL", "RVT", "DWG", "PDF"].map((filter) => (
               <button
                 key={filter}
-                onClick={() => setActiveFilter(filter)}
+                onClick={() => {
+                  setActiveFilter(filter);
+                  setPage(1);
+                }}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeFilter === filter
-                    ? "bg-white text-dom-blue shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-white/50"
                 }`}
               >
@@ -358,12 +353,7 @@ export default function AllFilesPage() {
 
           <DropdownMenu
             open={isFilterOpen}
-            onOpenChange={(open) => {
-              setIsFilterOpen(open);
-              if (open) {
-                setTempSelectedProjectIds(new Set(selectedProjectIds));
-              }
-            }}
+            onOpenChange={setIsFilterOpen}
           >
             <DropdownMenuTrigger asChild>
               <Button
@@ -371,17 +361,19 @@ export default function AllFilesPage() {
                 className="h-10 border-transparent bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
               >
                 <Filter className="mr-2 h-4 w-4" />
-                Filter Projects
-                {selectedProjectIds.size > 0 && (
-                  <span className="ml-2 bg-dom-blue text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                    {selectedProjectIds.size}
+                {selectedProjectId
+                  ? filterProjects.find((p) => p.id === selectedProjectId)?.name ?? "Project"
+                  : "Filter Projects"}
+                {selectedProjectId && (
+                  <span className="ml-2 bg-brand text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                    1
                   </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-72 p-0 rounded-xl border-border/50 shadow-xl"
+              className="w-72 p-0 rounded-xl border-border/50 shadow-sm"
             >
               <div className="p-4 border-b border-border/50">
                 <DropdownMenuLabel className="p-0 text-sm font-semibold text-foreground">
@@ -390,60 +382,50 @@ export default function AllFilesPage() {
               </div>
 
               <div className="max-h-[300px] overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                {projects.length === 0 ? (
+                {filterProjects.length === 0 ? (
                   <div className="p-8 text-sm text-muted-foreground text-center">
                     No projects found
                   </div>
                 ) : (
-                  projects.map((project) => (
+                  filterProjects.map((project) => (
                     <div
                       key={project.id}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const newSelected = new Set(tempSelectedProjectIds);
-                        if (newSelected.has(project.id)) {
-                          newSelected.delete(project.id);
-                        } else {
-                          newSelected.add(project.id);
-                        }
-                        setTempSelectedProjectIds(newSelected);
+                      onClick={() => {
+                        setSelectedProjectId(
+                          selectedProjectId === project.id ? "" : project.id
+                        );
+                        setPage(1);
+                        setIsFilterOpen(false);
                       }}
                     >
                       <Checkbox
-                        checked={tempSelectedProjectIds.has(project.id)}
-                        className="border-gray-300 data-[state=checked]:bg-dom-blue data-[state=checked]:border-dom-blue rounded-md h-4 w-4"
+                        checked={selectedProjectId === project.id}
+                        className="border-gray-300 data-[state=checked]:bg-brand data-[state=checked]:border-primary rounded-md h-4 w-4"
                       />
-                      <span className="text-sm text-muted-foreground group-hover:text-foreground truncate transition-colors">
+                      <span className="text-sm text-muted-foreground group-hover:text-foreground truncate transition-colors flex-1">
                         {project.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {project.fileCount}
                       </span>
                     </div>
                   ))
                 )}
               </div>
 
-              <div className="p-3 border-t border-border/50 flex items-center justify-between bg-secondary/30">
+              <div className="p-3 border-t border-border/50 flex items-center justify-end bg-secondary/30">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setTempSelectedProjectIds(new Set());
-                    setSelectedProjectIds(new Set());
+                    setSelectedProjectId("");
+                    setPage(1);
                     setIsFilterOpen(false);
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   Clear
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSelectedProjectIds(tempSelectedProjectIds);
-                    setIsFilterOpen(false);
-                  }}
-                  className="bg-dom-blue hover:bg-dom-blue/90 text-white h-8 text-xs font-bold rounded-lg px-4"
-                >
-                  Apply Filter
                 </Button>
               </div>
             </DropdownMenuContent>
@@ -451,18 +433,26 @@ export default function AllFilesPage() {
         </div>
       </div>
 
+      {/* Results info */}
+      {!loading && files.length > 0 && (
+        <div className="text-sm text-muted-foreground">
+          Showing {files.length} of {total} files
+          {debouncedSearch && <> matching &quot;{debouncedSearch}&quot;</>}
+        </div>
+      )}
+
       {/* File List */}
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="bg-card h-20 animate-pulse rounded-2xl shadow-sm"
+              className="bg-card h-20 animate-pulse rounded-lg shadow-sm"
             ></div>
           ))}
         </div>
-      ) : filteredFiles.length === 0 ? (
-        <div className="bg-card rounded-3xl p-16 text-center border border-dashed border-border/50 shadow-sm">
+      ) : files.length === 0 ? (
+        <div className="bg-card rounded-lg p-16 text-center border border-dashed border-border/50 shadow-sm">
           <div className="bg-secondary/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
             <FileText className="h-10 w-10 text-muted-foreground" />
           </div>
@@ -475,8 +465,9 @@ export default function AllFilesPage() {
           </p>
         </div>
       ) : (
+        <>
         <div className="space-y-4">
-          {filteredFiles.map((file) => (
+          {files.map((file) => (
             <FileRow
               key={file.id}
               fileName={file.name}
@@ -496,7 +487,7 @@ export default function AllFilesPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleViewFile(file)}
-                    className="text-dom-blue hover:bg-blue-50 hover:text-blue-700 font-medium rounded-lg"
+                    className="text-primary hover:bg-blue-50 hover:text-blue-700 font-medium rounded-lg"
                   >
                     <Eye className="h-4 w-4 mr-2" /> View
                   </Button>
@@ -514,13 +505,62 @@ export default function AllFilesPage() {
             />
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1}
+              className="text-muted-foreground"
+            >
+              Previous
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | string)[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((item, i) =>
+                typeof item === "string" ? (
+                  <span key={`dots-${i}`} className="px-2 text-muted-foreground">
+                    {item}
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={item === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(item)}
+                    className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
+                  >
+                    {item}
+                  </Button>
+                )
+              )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages}
+              className="text-muted-foreground"
+            >
+              Next
+            </Button>
+          </div>
+        )}
+        </>
       )}
 
       {/* Bulk Actions Bar */}
       {selectedFiles.size > 0 && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-xl text-white pl-4 pr-6 py-3 rounded-full shadow-2xl flex items-center gap-6 z-50 animate-in slide-in-from-bottom-4 border border-white/10 ring-1 ring-black/20">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-xl text-white pl-4 pr-6 py-3 rounded-full shadow-md flex items-center gap-6 z-50 animate-in slide-in-from-bottom-4 border border-white/10 ring-1 ring-black/20">
           <div className="flex items-center gap-4 border-r border-gray-700 pr-4">
-            <div className="bg-dom-blue text-white text-xs font-bold px-2 py-1 rounded-full w-6 h-6 flex items-center justify-center">
+            <div className="bg-brand text-white text-xs font-bold px-2 py-1 rounded-full w-6 h-6 flex items-center justify-center">
               {selectedFiles.size}
             </div>
             <span className="font-medium text-sm">Selected</span>

@@ -101,11 +101,11 @@ export default function ViewerPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <div className="glass-card p-8 rounded-2xl flex flex-col items-center gap-4">
+        <div className="bg-card border border-border p-8 rounded-lg flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 border-4 border-dom-blue/30 border-t-dom-blue rounded-full animate-spin"></div>
+            <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 bg-dom-blue/20 rounded-full animate-pulse"></div>
+              <div className="w-8 h-8 bg-brand/20 rounded-full animate-pulse"></div>
             </div>
           </div>
           <p className="text-lg font-medium animate-pulse text-muted-foreground">
@@ -119,7 +119,7 @@ export default function ViewerPage() {
   if (!file) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <div className="glass-card p-8 rounded-2xl text-center max-w-md border border-border">
+        <div className="bg-card border border-border p-8 rounded-lg text-center max-w-md border border-border">
           <h2 className="text-2xl font-bold mb-2 text-foreground">
             File Not Found
           </h2>
@@ -127,7 +127,7 @@ export default function ViewerPage() {
             The requested file could not be located.
           </p>
           <Link href="/dashboard">
-            <Button className="w-full bg-dom-blue hover:bg-dom-blue-dark text-white">
+            <Button className="w-full bg-brand hover:bg-brand-dark text-white">
               Return to Dashboard
             </Button>
           </Link>
@@ -139,7 +139,7 @@ export default function ViewerPage() {
   if (!isViewerReady(file.status, file.apsUrn)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <div className="glass-card p-8 rounded-2xl text-center max-w-md border-l-4 border-yellow-500 shadow-lg border-y border-r border-border">
+        <div className="bg-card border border-border p-8 rounded-lg text-center max-w-md border-l-4 border-yellow-500 shadow-lg border-y border-r border-border">
           <h2 className="text-xl font-bold mb-4 text-foreground">
             File Not Ready
           </h2>
@@ -180,7 +180,7 @@ export default function ViewerPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="glass-button rounded-full h-12 w-12 text-foreground bg-background/50 hover:bg-background/80 hover:scale-110 transition-all shadow-lg border border-border"
+                  className="bg-card border border-border rounded-full h-12 w-12 text-foreground bg-background/50 hover:bg-background/80 hover:scale-110 transition-all shadow-lg border border-border"
                 >
                   <ArrowLeft className="h-6 w-6" />
                 </Button>
@@ -195,7 +195,7 @@ export default function ViewerPage() {
           </Tooltip>
         </TooltipProvider>
 
-        <div className="glass-panel px-6 py-2.5 rounded-full flex items-center gap-4 shadow-2xl backdrop-blur-xl border-border animate-in slide-in-from-top-4 duration-500 bg-background/80">
+        <div className="bg-card border border-border px-6 py-2.5 rounded-full flex items-center gap-4 shadow-md backdrop-blur-xl border-border animate-in slide-in-from-top-4 duration-500 bg-background/80">
           <h1 className="text-lg font-bold text-foreground tracking-tight">
             {file.name}
           </h1>
@@ -213,7 +213,7 @@ export default function ViewerPage() {
           variant="ghost"
           size="sm"
           onClick={toggleFullscreen}
-          className="glass-button text-foreground bg-background/50 hover:bg-background/80 gap-2 rounded-full px-4 h-10 shadow-lg border border-border"
+          className="bg-card border border-border text-foreground bg-background/50 hover:bg-background/80 gap-2 rounded-full px-4 h-10 shadow-lg border border-border"
         >
           {isFullscreen ? (
             <>

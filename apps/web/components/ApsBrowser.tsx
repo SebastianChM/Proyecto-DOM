@@ -219,10 +219,10 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="glass-panel border-white/10 text-white sm:max-w-2xl h-[600px] flex flex-col">
+      <DialogContent className="bg-card border border-border border-white/10 text-white sm:max-w-2xl h-[600px] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            <Database className="h-5 w-5 text-dom-blue" />
+            <Database className="h-5 w-5 text-primary" />
             Browse Autodesk Projects
           </DialogTitle>
           <DialogDescription className="text-gray-400">
@@ -265,7 +265,7 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
         <ScrollArea className="flex-1 pr-4">
           {loading ? (
             <div className="flex items-center justify-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-dom-blue" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : needsLogin ? (
             <div className="flex flex-col items-center justify-center h-full space-y-4 text-center p-8">
@@ -283,7 +283,7 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
               </div>
               <Button
                 onClick={handleConnect}
-                className="bg-dom-blue hover:bg-dom-blue-dark"
+                className="bg-brand hover:bg-brand-dark"
               >
                 Connect with Autodesk
               </Button>
@@ -307,7 +307,7 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
                   className={cn(
                     "flex items-center p-3 rounded-lg cursor-pointer transition-all border border-transparent",
                     selectedFile?.id === item.id
-                      ? "bg-dom-blue/20 border-dom-blue/50"
+                      ? "bg-brand/20 border-primary/50"
                       : "hover:bg-white/5 hover:border-white/10",
                   )}
                 >
@@ -355,7 +355,7 @@ export function ApsBrowser({ isOpen, onClose, onImport }: ApsBrowserProps) {
           <Button
             onClick={handleConfirmImport}
             disabled={!selectedFile || loading}
-            className="bg-dom-blue hover:bg-dom-blue-dark text-white"
+            className="bg-brand hover:bg-brand-dark text-white"
           >
             {loading ? "Importing..." : "Link Selected File"}
           </Button>

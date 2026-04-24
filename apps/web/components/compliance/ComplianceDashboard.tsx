@@ -175,7 +175,7 @@ function StatCard({
   return (
     <Card
       className={cn(
-        "border transition-all duration-200 hover:shadow-md",
+        "border transition-all duration-200 hover:shadow-xs",
         variantStyles[variant],
       )}
     >
@@ -250,7 +250,7 @@ function RunCard({
 
   return (
     <Card
-      className="border border-border hover:border-primary/30 transition-all duration-200 hover:shadow-md group cursor-pointer"
+      className="border border-border hover:border-primary/30 transition-all duration-200 hover:shadow-xs group cursor-pointer"
       onClick={() => onViewIssues?.(run.id)}
     >
       <CardContent className="p-5">

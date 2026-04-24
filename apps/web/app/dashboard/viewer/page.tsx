@@ -57,7 +57,7 @@ function ViewerContent() {
 
   if (urn && token) {
     return (
-      <div className="h-[calc(100vh-100px)] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative">
+      <div className="h-[calc(100vh-100px)] w-full rounded-lg overflow-hidden border border-white/10 shadow-md relative">
         <Viewer token={token} urn={urn} />
       </div>
     );
@@ -76,10 +76,10 @@ function ViewerContent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Upload Card */}
-        <Card className="glass-panel border-dashed border-2 border-border hover:border-dom-blue/50 transition-all cursor-pointer group h-64 flex items-center justify-center">
+        <Card className="bg-card border border-border border-dashed border-2 border-border hover:border-primary/50 transition-all cursor-pointer group h-64 flex items-center justify-center">
           <CardContent className="text-center">
             <div className="bg-secondary w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-              <Upload className="h-8 w-8 text-dom-blue" />
+              <Upload className="h-8 w-8 text-primary" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-2">
               Quick View
@@ -89,7 +89,7 @@ function ViewerContent() {
             </p>
             <Button
               variant="outline"
-              className="glass-button border-border hover:bg-secondary"
+              className="bg-card border border-border hover:bg-secondary"
             >
               Select File
             </Button>
@@ -100,13 +100,13 @@ function ViewerContent() {
         {recentFiles.map((file) => (
           <Card
             key={file.id}
-            className="glass-panel hover:bg-secondary transition-all group border-border"
+            className="bg-card border border-border hover:bg-secondary transition-all group border-border"
           >
             <CardContent className="p-6 flex flex-col h-full justify-between">
               <div>
                 <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-dom-blue/10 rounded-xl">
-                    <Box className="h-6 w-6 text-dom-blue" />
+                  <div className="p-3 bg-brand-subtle rounded-xl">
+                    <Box className="h-6 w-6 text-primary" />
                   </div>
                   <span className="text-xs font-mono text-muted-foreground bg-secondary px-2 py-1 rounded border border-border">
                     {file.type}
@@ -123,7 +123,7 @@ function ViewerContent() {
                 </p>
               </div>
               <Button
-                className="w-full mt-4 bg-dom-blue/10 hover:bg-dom-blue text-dom-blue hover:text-white border border-dom-blue/20"
+                className="w-full mt-4 bg-brand-subtle hover:bg-brand text-primary hover:text-white border border-primary/20"
                 onClick={() =>
                   (window.location.href = `/dashboard/viewer?urn=${file.apsUrn}`)
                 }

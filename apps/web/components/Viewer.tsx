@@ -36,6 +36,7 @@ export default function Viewer({
 }: ViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
+  const origWarnRef = useRef<((...args: any[]) => void) | null>(null);
   const { user } = useUser();
 
   // Hooks must be called before any early return
@@ -99,6 +100,22 @@ export default function Viewer({
           env: "AutodeskProduction",
           accessToken: token,
           isAEC: true,
+          logLevel: 3, // ERROR only — suppress cosmetic texture warnings
+        };
+
+        // Filter known cosmetic texture warnings from the Autodesk viewer
+        const origWarn = console.warn;
+        origWarnRef.current = origWarn;
+        const textureWarningPatterns = [
+          /texture/i,
+          /material.*not.*found/i,
+          /power of two/i,
+          /image.*decode/i,
+        ];
+        console.warn = (...args: any[]) => {
+          const msg = args.join(" ");
+          if (textureWarningPatterns.some((p) => p.test(msg))) return;
+          origWarn.apply(console, args);
         };
 
         window.Autodesk.Viewing.Initializer(options, () => {
@@ -110,6 +127,7 @@ export default function Viewer({
               containerRef.current,
             );
             newViewer.start();
+            newViewer.loadExtension("Autodesk.Measure");
             viewerRef.current = newViewer;
 
             if (onViewerInitialized) {
@@ -134,6 +152,10 @@ export default function Viewer({
       if (viewerRef.current) {
         viewerRef.current.finish();
         viewerRef.current = null;
+      }
+      if (origWarnRef.current) {
+        console.warn = origWarnRef.current;
+        origWarnRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

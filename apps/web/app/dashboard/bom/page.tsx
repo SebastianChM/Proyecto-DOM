@@ -1,11 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/axios-config";
-import { TableProperties, ChevronRight, Box, Database } from "lucide-react";
+import {
+  TableProperties,
+  ChevronRight,
+  ChevronLeft,
+  Box,
+  Database,
+  Search,
+  Download,
+  BarChart3,
+  Filter,
+  Layers,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {} from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -13,6 +24,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/error-handler";
 import { useUser } from "@/context/UserContext";
@@ -23,16 +35,42 @@ interface Project {
   files: any[];
 }
 
-interface BOMItem {
-  id: number;
-  name: string;
+interface BomMeta {
+  mode: string;
+  totalRawElements: number;
+  totalFiltered: number;
+  totalAggregated: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalItems: number;
+}
+
+interface BomSummaryCategory {
+  category: string;
+  count: number;
+  uniqueTypes: number;
+  totalVolume: number;
+  totalArea: number;
+  totalLength: number;
+}
+
+interface AggregatedBomItem {
   category: string;
   family: string;
   type: string;
   material: string;
-  volume: number;
-  area: number;
   count: number;
+  totalVolume: number;
+  totalArea: number;
+  totalLength: number;
+}
+
+interface BomResponse {
+  meta: BomMeta;
+  categories: string[];
+  summary: BomSummaryCategory[];
+  data: AggregatedBomItem[];
 }
 
 export default function BOMPage() {
@@ -40,8 +78,15 @@ export default function BOMPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState<any | null>(null);
-  const [bomData, setBomData] = useState<BOMItem[]>([]);
+  const [bomResponse, setBomResponse] = useState<BomResponse | null>(null);
   const [loadingBom, setLoadingBom] = useState(false);
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [showSummary, setShowSummary] = useState(true);
+  const pageSize = 50;
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -58,70 +103,96 @@ export default function BOMPage() {
     fetchProjects();
   }, [user?.role]);
 
-  const handleFileSelect = async (file: any) => {
+  const fetchBom = useCallback(
+    async (fileId: string, pg: number, cat: string, q: string) => {
+      setLoadingBom(true);
+      try {
+        const params = new URLSearchParams({
+          mode: "aggregated",
+          page: String(pg),
+          pageSize: String(pageSize),
+        });
+        if (cat) params.set("category", cat);
+        if (q) params.set("search", q);
+
+        const response = await apiClient.get(
+          `/api/files/${fileId}/bom?${params.toString()}`
+        );
+        setBomResponse(response.data);
+      } catch (error) {
+        showError(error, user?.role, "Failed to load BOM data");
+        setBomResponse(null);
+      } finally {
+        setLoadingBom(false);
+      }
+    },
+    [user?.role]
+  );
+
+  const handleFileSelect = (file: any) => {
     if (file.status !== "READY") {
       toast.error("File must be processed (READY) to extract quantities.");
       return;
     }
-
     setSelectedFile(file);
-    setLoadingBom(true);
+    setSearch("");
+    setCategoryFilter("");
+    setPage(1);
+    fetchBom(file.id, 1, "", "");
+  };
 
+  // Debounced search
+  useEffect(() => {
+    if (!selectedFile) return;
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchBom(selectedFile.id, 1, categoryFilter, search);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, categoryFilter]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (selectedFile) fetchBom(selectedFile.id, newPage, categoryFilter, search);
+  };
+
+  const handleCategoryClick = (cat: string) => {
+    const newCat = categoryFilter === cat ? "" : cat;
+    setCategoryFilter(newCat);
+    setPage(1);
+  };
+
+  const handleExportCSV = async () => {
+    if (!selectedFile) return;
     try {
-      const response = await apiClient.get(`/api/files/${file.id}/bom`);
-      setBomData(response.data);
+      const response = await apiClient.get(
+        `/api/files/${selectedFile.id}/bom/export?mode=aggregated`,
+        { responseType: "blob" }
+      );
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `BOM_${selectedFile.name}_aggregated.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("BOM exported successfully");
     } catch (error) {
-      showError(error, user?.role, "Failed to load BOM data");
-      setBomData([]);
-    } finally {
-      setLoadingBom(false);
+      showError(error, user?.role, "Failed to export CSV");
     }
   };
 
-  const handleExportCSV = () => {
-    if (bomData.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    const headers = [
-      "Category",
-      "Family",
-      "Type",
-      "Material",
-      "Qty",
-      "Volume (m3)",
-    ];
-    const rows = bomData.map((item) => [
-      item.category,
-      item.family,
-      item.type,
-      item.material,
-      item.count,
-      Number(item.volume || 0).toFixed(2),
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${selectedFile.name}_BOM.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success("BOM exported successfully");
-  };
+  const meta = bomResponse?.meta;
+  const summary = bomResponse?.summary || [];
+  const categories = bomResponse?.categories || [];
+  const data = bomResponse?.data || [];
 
   return (
-    <div className="space-y-8 animate-fade-in h-[calc(100vh-100px)] flex flex-col">
+    <div className="space-y-6 animate-fade-in h-[calc(100vh-100px)] flex flex-col">
       <div>
-        <h2 className="text-4xl font-bold text-foreground tracking-tight text-glow">
+        <h2 className="text-4xl font-bold text-foreground tracking-tight ">
           BOM & Quantities
         </h2>
         <p className="text-muted-foreground mt-2 text-lg">
@@ -132,7 +203,7 @@ export default function BOMPage() {
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         {/* Sidebar: File Selection */}
         <div className="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col gap-4 overflow-hidden">
-          <Card className="h-full flex flex-col glass-panel border-border">
+          <Card className="h-full flex flex-col bg-card border border-border">
             <CardHeader>
               <CardTitle className="text-lg">Select Model</CardTitle>
               <CardDescription>Choose a file to analyze</CardDescription>
@@ -166,7 +237,7 @@ export default function BOMPage() {
                             onClick={() => handleFileSelect(file)}
                             className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-all flex items-center justify-between group ${
                               selectedFile?.id === file.id
-                                ? "bg-dom-blue text-white shadow-lg"
+                                ? "bg-brand text-white shadow-lg"
                                 : "hover:bg-secondary text-foreground"
                             }`}
                           >
@@ -187,10 +258,10 @@ export default function BOMPage() {
           </Card>
         </div>
 
-        {/* Main Content: BOM Table */}
-        <div className="col-span-12 md:col-span-8 lg:col-span-9 flex flex-col overflow-hidden">
-          <Card className="h-full flex flex-col glass-panel border-border">
-            {!selectedFile ? (
+        {/* Main Content */}
+        <div className="col-span-12 md:col-span-8 lg:col-span-9 flex flex-col overflow-hidden gap-4">
+          {!selectedFile ? (
+            <Card className="h-full flex flex-col bg-card border border-border">
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <TableProperties className="h-16 w-16 mb-4 opacity-20" />
                 <p className="text-lg font-medium">No model selected</p>
@@ -198,11 +269,13 @@ export default function BOMPage() {
                   Select a BIM model from the list to view quantities.
                 </p>
               </div>
-            ) : loadingBom ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dom-blue"></div>
-              </div>
-            ) : bomData.length === 0 ? (
+            </Card>
+          ) : loadingBom && !bomResponse ? (
+            <Card className="h-full flex items-center justify-center bg-card border border-border">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </Card>
+          ) : !bomResponse || data.length === 0 ? (
+            <Card className="h-full flex flex-col bg-card border border-border">
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <Database className="h-16 w-16 mb-4 opacity-20" />
                 <p className="text-lg font-medium">No Data Available</p>
@@ -210,69 +283,257 @@ export default function BOMPage() {
                   Could not extract properties from this model.
                 </p>
               </div>
-            ) : (
-              <div className="flex flex-col h-full">
-                <div className="p-6 border-b border-border flex justify-between items-center bg-card">
-                  <div>
-                    <h3 className="text-xl font-bold text-foreground">
-                      {selectedFile.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {bomData.length} items found
-                    </p>
-                  </div>
+            </Card>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              {showSummary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-shrink-0">
+                  <Card className="bg-card border border-border">
+                    <CardContent className="p-4">
+                      <div className="text-2xl font-bold text-foreground">
+                        {meta?.totalRawElements.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total Elements</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border border-border">
+                    <CardContent className="p-4">
+                      <div className="text-2xl font-bold text-foreground">
+                        {meta?.totalAggregated.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Unique Types</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border border-border">
+                    <CardContent className="p-4">
+                      <div className="text-2xl font-bold text-foreground">
+                        {categories.length}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Categories</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border border-border">
+                    <CardContent className="p-4">
+                      <div className="text-2xl font-bold text-foreground">
+                        {summary.reduce((s, c) => s + c.totalVolume, 0).toFixed(1)} m³
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total Volume</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Category Summary (collapsible) */}
+              {showSummary && summary.length > 0 && (
+                <Card className="flex-shrink-0 bg-card border border-border">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" /> Categories Breakdown
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-3">
+                    <div className="flex flex-wrap gap-2">
+                      {summary.map((cat) => (
+                        <button
+                          key={cat.category}
+                          onClick={() => handleCategoryClick(cat.category)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            categoryFilter === cat.category
+                              ? "bg-brand text-white shadow-xs"
+                              : "bg-secondary text-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          {cat.category}
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 ${
+                              categoryFilter === cat.category
+                                ? "border-white/50 text-white"
+                                : ""
+                            }`}
+                          >
+                            {cat.count}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Toolbar */}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, family, type, material..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 bg-card border-border"
+                  />
+                </div>
+
+                {categoryFilter && (
+                  <Badge
+                    variant="secondary"
+                    className="gap-1 cursor-pointer"
+                    onClick={() => handleCategoryClick(categoryFilter)}
+                  >
+                    <Filter className="h-3 w-3" />
+                    {categoryFilter}
+                    <span className="ml-1 text-muted-foreground">×</span>
+                  </Badge>
+                )}
+
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSummary(!showSummary)}
+                    className="text-muted-foreground"
+                  >
+                    <Layers className="h-4 w-4 mr-1" />
+                    {showSummary ? "Hide" : "Show"} Summary
+                  </Button>
                   <Button
                     variant="outline"
-                    className="glass-button text-foreground border-border hover:bg-secondary"
+                    size="sm"
+                    className="bg-card border border-border"
                     onClick={handleExportCSV}
                   >
+                    <Download className="h-4 w-4 mr-1" />
                     Export CSV
                   </Button>
                 </div>
-                <div className="flex-1 overflow-auto bg-card">
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-muted-foreground uppercase bg-secondary sticky top-0 backdrop-blur-md z-10">
-                      <tr>
-                        <th className="px-6 py-3">Category</th>
-                        <th className="px-6 py-3">Family</th>
-                        <th className="px-6 py-3">Type</th>
-                        <th className="px-6 py-3">Material</th>
-                        <th className="px-6 py-3 text-right">Qty</th>
-                        <th className="px-6 py-3 text-right">Vol (m³)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {bomData.map((item, idx) => (
-                        <tr
-                          key={idx}
-                          className="hover:bg-secondary/50 transition-colors"
-                        >
-                          <td className="px-6 py-3 font-medium text-foreground">
-                            {item.category}
-                          </td>
-                          <td className="px-6 py-3 text-muted-foreground">
-                            {item.family}
-                          </td>
-                          <td className="px-6 py-3 text-muted-foreground">
-                            {item.type}
-                          </td>
-                          <td className="px-6 py-3 text-muted-foreground">
-                            {item.material}
-                          </td>
-                          <td className="px-6 py-3 text-right text-foreground font-semibold">
-                            {item.count}
-                          </td>
-                          <td className="px-6 py-3 text-right text-muted-foreground">
-                            {Number(item.volume || 0).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
               </div>
-            )}
-          </Card>
+
+              {/* Filtered info */}
+              {meta && (meta.totalFiltered !== meta.totalRawElements || categoryFilter || search) && (
+                <div className="text-xs text-muted-foreground flex-shrink-0">
+                  Showing {meta.totalItems} aggregated rows from {meta.totalFiltered.toLocaleString()} elements
+                  {meta.totalFiltered !== meta.totalRawElements && (
+                    <> (filtered from {meta.totalRawElements.toLocaleString()} total)</>
+                  )}
+                </div>
+              )}
+
+              {/* Data Table */}
+              <Card className="flex-1 min-h-0 flex flex-col bg-card border border-border overflow-hidden">
+                {loadingBom ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-muted-foreground uppercase bg-secondary sticky top-0 backdrop-blur-md z-10">
+                        <tr>
+                          <th className="px-4 py-3">Category</th>
+                          <th className="px-4 py-3">Family</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Material</th>
+                          <th className="px-4 py-3 text-right">Count</th>
+                          <th className="px-4 py-3 text-right">Volume (m³)</th>
+                          <th className="px-4 py-3 text-right">Area (m²)</th>
+                          <th className="px-4 py-3 text-right">Length (m)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {data.map((item, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-secondary/50 transition-colors"
+                          >
+                            <td className="px-4 py-2.5">
+                              <button
+                                className="font-medium text-foreground hover:text-primary transition-colors"
+                                onClick={() => handleCategoryClick(item.category)}
+                              >
+                                {item.category}
+                              </button>
+                            </td>
+                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[180px]" title={item.family}>
+                              {item.family || "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[200px]" title={item.type}>
+                              {item.type || "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[150px]" title={item.material}>
+                              {item.material || "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-foreground">
+                              {item.count}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                              {item.totalVolume > 0 ? item.totalVolume.toFixed(3) : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                              {item.totalArea > 0 ? item.totalArea.toFixed(3) : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                              {item.totalLength > 0 ? item.totalLength.toFixed(3) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {meta && meta.totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card flex-shrink-0">
+                    <div className="text-xs text-muted-foreground">
+                      Page {meta.page} of {meta.totalPages} · {meta.totalItems} rows
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={meta.page <= 1}
+                        onClick={() => handlePageChange(meta.page - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      {Array.from({ length: Math.min(meta.totalPages, 7) }, (_, i) => {
+                        // Show pages around current
+                        let p: number;
+                        if (meta.totalPages <= 7) {
+                          p = i + 1;
+                        } else if (meta.page <= 4) {
+                          p = i + 1;
+                        } else if (meta.page >= meta.totalPages - 3) {
+                          p = meta.totalPages - 6 + i;
+                        } else {
+                          p = meta.page - 3 + i;
+                        }
+                        return (
+                          <Button
+                            key={p}
+                            variant={p === meta.page ? "default" : "ghost"}
+                            size="sm"
+                            className={`w-8 h-8 p-0 ${p === meta.page ? "bg-brand text-white" : ""}`}
+                            onClick={() => handlePageChange(p)}
+                          >
+                            {p}
+                          </Button>
+                        );
+                      })}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={meta.page >= meta.totalPages}
+                        onClick={() => handlePageChange(meta.page + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

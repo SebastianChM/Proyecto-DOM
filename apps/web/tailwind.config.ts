@@ -52,10 +52,52 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        "dom-blue": "#10069f", // DOM Corporate Blue (Updated)
-        "dom-blue-dark": "#0d0580", // Darker shade of new blue
-        "dom-blue-light": "#4d46ff", // Lighter shade
-        "dom-black": "#1A1A1D",
+        /* --- DOM Brand (Indigo scale) --- */
+        brand: {
+          DEFAULT: "#4f46e5",
+          hover: "#4338ca",
+          light: "#6366f1",
+          subtle: "hsl(var(--brand-subtle))",
+          muted: "hsl(var(--brand-muted))",
+          glow: "hsl(var(--brand-glow))",
+        },
+        /* --- Sidebar --- */
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          border: "hsl(var(--sidebar-border))",
+        },
+        /* --- Semantic Colors --- */
+        success: {
+          DEFAULT: "hsl(var(--green))",
+          bg: "hsl(var(--green-bg))",
+          fg: "hsl(var(--green-fg))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--amber))",
+          bg: "hsl(var(--amber-bg))",
+          fg: "hsl(var(--amber-fg))",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--red))",
+          bg: "hsl(var(--red-bg))",
+          fg: "hsl(var(--red-fg))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--blue))",
+          bg: "hsl(var(--blue-bg))",
+          fg: "hsl(var(--blue-fg))",
+        },
+        violet: {
+          DEFAULT: "hsl(var(--violet))",
+          bg: "hsl(var(--violet-bg))",
+          fg: "hsl(var(--violet-fg))",
+        },
+        /* --- Legacy compat (referenced in existing components) --- */
+        "dom-blue": "#4f46e5",
+        "dom-blue-dark": "#4338ca",
+        "dom-blue-light": "#6366f1",
+        "dom-black": "#0c0c0d",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -63,9 +105,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       animation: {
-        "fade-in": "fade-in 0.5s ease-out",
-        "slide-up": "slide-up 0.5s ease-out",
-        "pulse-blue": "pulse-blue 3s infinite",
+        "fade-in": "fade-in 0.3s ease-out",
+        "slide-up": "slide-up 0.3s ease-out",
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "progress-indeterminate": "progress-indeterminate 1.5s infinite linear",
@@ -76,20 +117,8 @@ const config: Config = {
           "100%": { opacity: "1" },
         },
         "slide-up": {
-          "0%": { transform: "translateY(20px)", opacity: "0" },
+          "0%": { transform: "translateY(8px)", opacity: "0" },
           "100%": { transform: "translateY(0)", opacity: "1" },
-        },
-        "slide-in-right": {
-          "0%": { transform: "translateX(20px)", opacity: "0" },
-          "100%": { transform: "translateX(0)", opacity: "1" },
-        },
-        "scale-in": {
-          "0%": { transform: "scale(0.95)", opacity: "0" },
-          "100%": { transform: "scale(1)", opacity: "1" },
-        },
-        "pulse-blue": {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.7" },
         },
         "accordion-down": {
           from: { height: "0" },

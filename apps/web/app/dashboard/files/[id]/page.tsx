@@ -156,13 +156,13 @@ export default function FileHistoryPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="bg-white dark:glass-panel border border-gray-200 dark:border-white/10 rounded-2xl p-6 flex items-center justify-between border-l-4 border-purple-500 shadow-sm">
+      <div className="bg-white dark:bg-card border border-border border border-gray-200 dark:border-white/10 rounded-lg p-6 flex items-center justify-between border-l-4 border-purple-500 shadow-sm">
         <div className="flex items-center space-x-4">
           <Link href={`/dashboard/projects/${data.file.projectId}`}>
             <Button
               variant="ghost"
               size="icon"
-              className="dark:glass-button bg-gray-50 dark:bg-white/10 rounded-full h-12 w-12 border border-gray-200 dark:border-white/20 hover:bg-gray-100 dark:hover:bg-white/20"
+              className="dark:bg-card border border-border bg-gray-50 dark:bg-white/10 rounded-full h-12 w-12 border border-gray-200 dark:border-white/20 hover:bg-gray-100 dark:hover:bg-white/20"
             >
               <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-white" />
             </Button>
@@ -190,7 +190,7 @@ export default function FileHistoryPage() {
       </div>
 
       {/* Version History */}
-      <div className="bg-white dark:glass-panel border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-card border border-border border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden shadow-sm">
         <div className="p-6 border-b dark:border-white/10 border-gray-200 dark:bg-white/5 bg-gray-50">
           <h3 className="text-xl font-bold dark:text-white text-gray-900 flex items-center">
             <div className="p-2 bg-purple-500/10 rounded-lg mr-3">

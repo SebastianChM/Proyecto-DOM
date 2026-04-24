@@ -54,8 +54,18 @@ export const authService = {
 // ---------------------------------------------------------------------------
 
 export const projectsService = {
-  /** GET /api/projects — list projects for current user */
-  list: () => api.get<Project[]>("/api/projects"),
+  /** GET /api/projects — paginated list of projects */
+  list: (params?: { page?: number; pageSize?: number; search?: string; status?: string; sortBy?: string; sortOrder?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params?.search) qs.set("search", params.search);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.sortBy) qs.set("sortBy", params.sortBy);
+    if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+    const q = qs.toString();
+    return api.get<{ meta: { page: number; pageSize: number; total: number; totalPages: number }; data: Project[] }>(`/api/projects${q ? `?${q}` : ""}`);
+  },
 
   /** GET /api/projects/:id — full project with files */
   get: (id: string) => api.get<ProjectDetail>(`/api/projects/${id}`),
@@ -136,8 +146,16 @@ export const filesService = {
 // ---------------------------------------------------------------------------
 
 export const adminService = {
-  /** GET /api/users — list all users (admin only) */
-  listUsers: () => api.get<UserSummary[]>("/api/users"),
+  /** GET /api/users — paginated list of users (admin only) */
+  listUsers: (params?: { page?: number; pageSize?: number; search?: string; role?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params?.search) qs.set("search", params.search);
+    if (params?.role) qs.set("role", params.role);
+    const q = qs.toString();
+    return api.get<{ meta: { page: number; pageSize: number; total: number; totalPages: number }; data: UserSummary[] }>(`/api/users${q ? `?${q}` : ""}`);
+  },
 
   /** PUT /api/admin/users/:id/role — change a user's global role */
   changeUserRole: (userId: string, role: string) =>

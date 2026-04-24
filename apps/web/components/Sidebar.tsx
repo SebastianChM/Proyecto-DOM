@@ -7,7 +7,6 @@ import {
   Settings,
   LogOut,
   Building2,
-  ChevronRight,
   FolderKanban,
   FileText,
   TableProperties,
@@ -22,163 +21,167 @@ import Image from "next/image";
 import apiClient from "@/lib/axios-config";
 import { useUser } from "@/context/UserContext";
 import { logger } from "@/lib/logger";
+import type { LucideIcon } from "lucide-react";
 
-const baseSidebarItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: FolderKanban, label: "Projects", href: "/dashboard/projects" },
-  { icon: FileText, label: "All Files", href: "/dashboard/files" },
-  { icon: TableProperties, label: "BOM & Quantities", href: "/dashboard/bom" },
-  { icon: Box, label: "3D Viewer", href: "/dashboard/viewer" },
+interface NavItem {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
-    icon: FileCheck,
-    label: "Structure Validation",
-    href: "/dashboard/validation",
+    title: "Main",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+      { icon: FolderKanban, label: "Projects", href: "/dashboard/projects" },
+      { icon: FileText, label: "All Files", href: "/dashboard/files" },
+    ],
   },
   {
-    icon: ClipboardCheck,
-    label: "Reglas Compliance",
-    href: "/dashboard/compliance/rules",
+    title: "Analysis",
+    items: [
+      { icon: TableProperties, label: "BOM & Quantities", href: "/dashboard/bom" },
+      { icon: Box, label: "3D Viewer", href: "/dashboard/viewer" },
+    ],
   },
   {
-    icon: ListChecks,
-    label: "Resultados",
-    href: "/dashboard/compliance/results",
+    title: "Compliance",
+    items: [
+      { icon: FileCheck, label: "Validation", href: "/dashboard/validation" },
+      { icon: ClipboardCheck, label: "Rules", href: "/dashboard/compliance/rules" },
+      { icon: ListChecks, label: "Results", href: "/dashboard/compliance/results" },
+    ],
   },
-  { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+  {
+    title: "System",
+    items: [
+      { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, loading } = useUser();
 
-  // Add admin panel for admins only
-  const sidebarItems =
-    user?.role === "ADMIN"
-      ? [
-          ...baseSidebarItems,
-          { icon: Shield, label: "Admin Panel", href: "/dashboard/sys/acl" },
-        ]
-      : baseSidebarItems;
+  // Inject admin item into System group
+  const groups = user?.role === "ADMIN"
+    ? navGroups.map((g) =>
+        g.title === "System"
+          ? { ...g, items: [...g.items, { icon: Shield, label: "Admin Panel", href: "/dashboard/sys/acl" }] }
+          : g,
+      )
+    : navGroups;
 
   const handleLogout = async () => {
     if (!user) {
-      // If guest, redirect to login
       window.location.href = "/api/auth/login";
       return;
     }
-
     try {
-      // Call backend logout endpoint
       await apiClient.post("/api/auth/logout");
-      // Redirect to login page
       window.location.href = "/";
     } catch (error) {
       logger.warn("Logout failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Force redirect even if API fails
       window.location.href = "/";
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
+  const getInitials = (name: string) =>
+    name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase()
       .substring(0, 2);
-  };
 
   return (
-    <aside className="w-64 h-screen fixed left-0 top-0 bg-card border-r border-border flex flex-col z-50 transition-all duration-300 shadow-sm">
-      {/* Logo Area */}
-      <div className="h-24 flex items-center px-6 border-b border-border bg-background/50 backdrop-blur-sm">
-        <div
-          className="flex items-center space-x-4 group cursor-pointer"
-          onClick={() => (window.location.href = "/dashboard")}
-        >
-          <div className="bg-dom-blue text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-dom-blue/20 group-hover:scale-110 transition-transform duration-300">
-            <Building2 className="w-6 h-6" />
+    <aside className="w-64 h-screen sticky top-0 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-30">
+      {/* Logo — compact */}
+      <div className="h-12 flex items-center px-4 border-b border-sidebar-border shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+          <div className="bg-brand text-white w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold">
+            <Building2 className="w-4 h-4" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground tracking-tight">
-              DOM
-            </h1>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-medium">
-              BIM Platform
-            </p>
+          <div className="leading-none">
+            <span className="text-sm font-bold text-sidebar-foreground tracking-tight">DOM</span>
+            <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] ml-1.5">BIM</span>
           </div>
-        </div>
+        </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-        {sidebarItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                className={cn(
-                  "flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-200 group cursor-pointer relative overflow-hidden",
-                  isActive
-                    ? "bg-dom-blue text-white shadow-md shadow-dom-blue/20"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                )}
-              >
-                <div className="flex items-center space-x-3 z-10">
-                  <item.icon
-                    className={cn(
-                      "w-5 h-5 transition-colors duration-200",
-                      isActive
-                        ? "text-white"
-                        : "text-muted-foreground group-hover:text-dom-blue",
-                    )}
-                  />
-                  <span className="font-medium tracking-wide text-sm">
-                    {item.label}
-                  </span>
-                </div>
-                {isActive && (
-                  <ChevronRight className="w-4 h-4 text-white/50 animate-in slide-in-from-left-2" />
-                )}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User Profile / Logout */}
-      <div className="p-4 border-t border-border bg-background/50">
-        <div
-          onClick={handleLogout}
-          className="glass-card p-3 rounded-xl flex items-center justify-between group cursor-pointer hover:border-red-500/30 hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-all duration-300"
-        >
-          <div className="flex items-center space-x-3">
-            {user?.picture ? (
-              <Image
-                src={user.picture}
-                alt={user.name}
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full ring-2 ring-border group-hover:ring-red-500/30 transition-all"
-                unoptimized
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-dom-blue to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-md">
-                {user ? getInitials(user.name) : "..."}
-              </div>
-            )}
-            <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-bold text-foreground group-hover:text-red-600 transition-colors truncate max-w-[120px]">
-                {loading ? "Loading..." : user ? user.name : "Guest User"}
-              </span>
-              <span className="text-[10px] text-muted-foreground group-hover:text-red-500/70 transition-colors uppercase tracking-wider">
-                {user ? "Click to Log Out" : "Sign In"}
-              </span>
+      {/* Navigation — grouped */}
+      <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
+        {groups.map((group) => (
+          <div key={group.title} className="mb-3">
+            <div className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              {group.title}
+            </div>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      className={cn(
+                        "relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors",
+                        isActive
+                          ? "bg-brand-subtle text-primary"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                    >
+                      {/* Left active indicator */}
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-4 rounded-r-full bg-primary" />
+                      )}
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
-          <LogOut className="w-4 h-4 text-muted-foreground group-hover:text-red-500 transition-transform group-hover:translate-x-1" />
+        ))}
+      </nav>
+
+      {/* User footer — minimal */}
+      <div className="p-2.5 border-t border-sidebar-border">
+        <div
+          onClick={handleLogout}
+          className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent transition-colors group"
+        >
+          {user?.picture ? (
+            <Image
+              src={user.picture}
+              alt={user.name}
+              width={28}
+              height={28}
+              className="w-7 h-7 rounded-full"
+              unoptimized
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand to-violet flex items-center justify-center text-[10px] font-bold text-white">
+              {user ? getInitials(user.name) : ".."}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-sidebar-foreground truncate">
+              {loading ? "Loading..." : user ? user.name : "Guest"}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {user ? "Sign out" : "Sign in"}
+            </div>
+          </div>
+          <LogOut className="w-3.5 h-3.5 text-muted-foreground group-hover:text-danger shrink-0" />
         </div>
       </div>
     </aside>

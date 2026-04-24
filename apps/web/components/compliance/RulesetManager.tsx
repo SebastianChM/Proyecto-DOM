@@ -238,7 +238,7 @@ export function RulesetManager() {
             className={`min-w-[250px] cursor-pointer transition-all ${
               selectedRuleset?.id === rs.id
                 ? "ring-2 ring-blue-500 shadow-lg"
-                : "hover:shadow-md"
+                : "hover:shadow-xs"
             }`}
             onClick={() => setSelectedRuleset(rs)}
           >
