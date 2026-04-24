@@ -10,7 +10,8 @@
   "workspaces": [
     "apps/api",
     "apps/web",
-    "packages/database"
+    "packages/database",
+    "packages/z-schema-patched"
   ],
   "scripts": {
     "dev:infra": "node tools/scripts/infra.js up -d",
@@ -64,8 +65,7 @@
   "overrides": {
     "rimraf": "^4.4.1",
     "glob": "^13.0.0",
-    "unzipper": "^0.12.3",
-    "z-schema": "file:./packages/z-schema-patched"
+    "unzipper": "^0.12.3"
   },
   "dependencies": {
     "validator": "^13.15.26"
