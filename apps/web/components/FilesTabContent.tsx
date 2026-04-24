@@ -81,7 +81,7 @@ interface OperationsProps {
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onView: (file: ProjectFileDetail) => void;
   onDelete: (fileId: string) => void;
-  onStartTranslation: (fileId: string) => void;
+  onStartTranslation: (file: ProjectFileDetail) => void;
   onBatchDownload: () => void;
   onValidate: (file: ProjectFileDetail) => void;
   onCompareFiles: () => void;
@@ -218,7 +218,7 @@ function FileRowWithActions({
   isSelected: boolean;
   onSelect: () => void;
   onView: (f: ProjectFileDetail) => void;
-  onRetry: (id: string) => void;
+  onRetry: (file: ProjectFileDetail) => void;
   onDelete: (id: string) => void;
   onValidate: (f: ProjectFileDetail) => void;
   onConvert: (id: string, fmt: "pdf" | "ifc") => void;
@@ -235,7 +235,7 @@ function FileRowWithActions({
       isSelected={isSelected}
       onSelect={onSelect}
       onView={() => onView(file)}
-      onRetry={() => onRetry(file.id)}
+      onRetry={() => onRetry(file)}
       actions={
         <div className="flex items-center gap-2">
           <Button
@@ -273,11 +273,7 @@ export function FilesTabContent({
   operations,
   conversions,
 }: FilesTabContentProps) {
-  const {
-    allFiles,
-    filteredFiles,
-    groupedFiles,
-  } = files;
+  const { allFiles, filteredFiles, groupedFiles } = files;
 
   const {
     selectedFiles,
@@ -445,8 +441,7 @@ export function FilesTabContent({
           <div className="w-6">
             <Checkbox
               checked={
-                selectedFiles.length === allFiles.length &&
-                allFiles.length > 0
+                selectedFiles.length === allFiles.length && allFiles.length > 0
               }
               onCheckedChange={toggleSelectAll}
               className="border-white/20 data-[state=checked]:bg-brand data-[state=checked]:border-primary"
@@ -473,9 +468,7 @@ export function FilesTabContent({
                       </span>
                       <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
                     </div>
-                    <div className="space-y-1">
-                      {typeFiles.map(renderFile)}
-                    </div>
+                    <div className="space-y-1">{typeFiles.map(renderFile)}</div>
                   </div>
                 );
               },

@@ -57,7 +57,7 @@ export class APSAuthService {
       clientId!,
       clientSecret!,
       callbackUrl!,
-      ["data:read", "data:write", "user:read", "account:read"],
+      ["data:read", "data:write", "user-profile:read"],
       true,
     );
   }
@@ -111,10 +111,13 @@ export class APSAuthService {
     const url = this.threeLeggedClient.generateAuthUrl();
     // Replace the state=undefined injected by forge-apis SDK with a real CSRF token
     if (state) {
-      return url.replace(/state=undefined/, `state=${encodeURIComponent(state)}`);
+      return url.replace(
+        /state=undefined/,
+        `state=${encodeURIComponent(state)}`,
+      );
     }
     // Remove state=undefined if no state provided
-    return url.replace(/[&?]state=undefined/, '');
+    return url.replace(/[&?]state=undefined/, "");
   }
 
   /**

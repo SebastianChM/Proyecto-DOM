@@ -162,6 +162,7 @@ export const envSchema = z
     CONVERSION_DA_CONCURRENCY: z.coerce.number().min(1).max(10).default(5),
     CONVERSION_MAX_ATTEMPTS: z.coerce.number().default(3),
     CONVERSION_BACKOFF_DELAY: z.coerce.number().default(2000),
+    DEFAULT_LOCALE: z.string().default("es-CL"),
     ALLOW_EMPTY_ADMIN_EMAILS: z
       .enum(["true", "false"])
       .default("false")

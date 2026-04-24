@@ -14,6 +14,14 @@ import { badRequest } from "../../lib/errors";
 
 const router = Router();
 
+const fileRequiresGeometry = (file: { type?: string; name?: string }) => {
+  const type = (file.type || "").toUpperCase();
+  if (type === "PDF") return false;
+
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ext !== "pdf";
+};
+
 /**
  * @swagger
  * /files/sync-status:
@@ -39,7 +47,9 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.post("/sync-status", asyncHandler(async (req, res) => {
+router.post(
+  "/sync-status",
+  asyncHandler(async (req, res) => {
     const { fileIds } = req.body;
 
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
@@ -63,7 +73,8 @@ router.post("/sync-status", asyncHandler(async (req, res) => {
         if (
           file.status === "TRANSLATING" ||
           file.status === "PROCESSING" ||
-          file.status === "PENDING"
+          file.status === "PENDING" ||
+          (file.status === "READY" && fileRequiresGeometry(file))
         ) {
           const elapsed = Date.now() - new Date(file.updatedAt).getTime();
           const isLocal = file.apsUrn && file.apsUrn.startsWith("local-");
@@ -80,10 +91,16 @@ router.post("/sync-status", asyncHandler(async (req, res) => {
                 file.apsUrn,
               );
 
-              if (manifest.status === "success") {
+              const resolvedStatus =
+                modelDerivativeService.resolveFileStatusFromManifest(
+                  manifest,
+                  fileRequiresGeometry(file),
+                );
+
+              if (resolvedStatus === "READY") {
                 newStatus = "READY";
                 progress = 100;
-              } else if (manifest.status === "failed") {
+              } else if (resolvedStatus === "FAILED") {
                 newStatus = "FAILED";
                 progress = 0;
               } else if (manifest.progress) {
@@ -138,6 +155,7 @@ router.post("/sync-status", asyncHandler(async (req, res) => {
       updates,
       files: allFiles,
     });
-}));
+  }),
+);
 
 export default router;

@@ -23,6 +23,14 @@ type RequestWithSession = Express.Request & {
 
 const router = Router();
 
+const fileRequiresGeometry = (file: { type?: string; name?: string }) => {
+  const type = (file.type || "").toUpperCase();
+  if (type === "PDF") return false;
+
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ext !== "pdf";
+};
+
 /**
  * @swagger
  * /files/recent:
@@ -90,7 +98,10 @@ router.get(
     }
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const pageSize = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.pageSize as string) || 20),
+    );
     const search = (req.query.search as string)?.trim() || "";
     const type = (req.query.type as string)?.trim().toUpperCase() || "";
     const status = (req.query.status as string)?.trim() || "";
@@ -166,7 +177,10 @@ router.get(
         const elapsed = Date.now() - new Date(file.updatedAt).getTime();
         const isLocal = file.apsUrn && file.apsUrn.startsWith("local-");
         const duration = isLocal ? 5000 : 60000;
-        progress = Math.max(10, Math.min(99, Math.floor((elapsed / duration) * 100)));
+        progress = Math.max(
+          10,
+          Math.min(99, Math.floor((elapsed / duration) * 100)),
+        );
       } else if (file.status === "READY") {
         progress = 100;
       }
@@ -176,8 +190,12 @@ router.get(
     res.json({
       meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       filters: {
-        types: types.map(t => ({ type: t.type, count: t._count })),
-        projects: projects.map(p => ({ id: p.id, name: p.name, fileCount: p._count.files })),
+        types: types.map((t) => ({ type: t.type, count: t._count })),
+        projects: projects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          fileCount: p._count.files,
+        })),
       },
       data: filesWithProgress,
     });
@@ -191,7 +209,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const projectId = req.params.projectId as string;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const pageSize = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.pageSize as string) || 20),
+    );
     const search = (req.query.search as string)?.trim() || "";
     const type = (req.query.type as string)?.trim().toUpperCase() || "";
     const status = (req.query.status as string)?.trim() || "";
@@ -217,7 +238,9 @@ router.get(
     // Check status for active files (only those in current page)
     for (const file of files) {
       if (
-        (file.status === "TRANSLATING" || file.status === "PROCESSING") &&
+        (file.status === "TRANSLATING" ||
+          file.status === "PROCESSING" ||
+          (file.status === "READY" && fileRequiresGeometry(file))) &&
         file.apsUrn &&
         !file.apsUrn.startsWith("local-")
       ) {
@@ -225,18 +248,31 @@ router.get(
           const manifest = await modelDerivativeService.getManifest(
             file.apsUrn,
           );
-          if (manifest.status === "success") {
+          const nextStatus =
+            modelDerivativeService.resolveFileStatusFromManifest(
+              manifest,
+              fileRequiresGeometry(file),
+            );
+
+          if (nextStatus === "FAILED") {
+            logger.warn(
+              `[FILES_CRUD] Marking file as FAILED due to manifest without usable geometry`,
+              {
+                ...logger.fromReq(req),
+                fileId: file.id,
+                fileName: file.name,
+                previousStatus: file.status,
+                manifestStatus: manifest?.status,
+              },
+            );
+          }
+
+          if (nextStatus !== file.status) {
             await prisma.file.update({
               where: { id: file.id },
-              data: { status: "READY" },
+              data: { status: nextStatus },
             });
-            file.status = "READY";
-          } else if (manifest.status === "failed") {
-            await prisma.file.update({
-              where: { id: file.id },
-              data: { status: "FAILED" },
-            });
-            file.status = "FAILED";
+            file.status = nextStatus;
           }
         } catch (e) {
           logger.error(
@@ -326,24 +362,44 @@ router.get(
     }
 
     if (
-      (file.status === "TRANSLATING" || file.status === "PROCESSING") &&
+      (file.status === "TRANSLATING" ||
+        file.status === "PROCESSING" ||
+        (file.status === "READY" && fileRequiresGeometry(file))) &&
       file.apsUrn &&
       !file.apsUrn.startsWith("local-")
     ) {
       try {
         const manifest = await modelDerivativeService.getManifest(file.apsUrn);
-        if (manifest.status === "success") {
+        const nextStatus = modelDerivativeService.resolveFileStatusFromManifest(
+          manifest,
+          fileRequiresGeometry(file),
+        );
+
+        if (nextStatus === "FAILED") {
+          logger.warn(
+            `[FILES_CRUD] Marking file as FAILED due to manifest without usable geometry`,
+            {
+              ...logger.fromReq(req),
+              fileId: file.id,
+              fileName: file.name,
+              previousStatus: file.status,
+              manifestStatus: manifest?.status,
+            },
+          );
+        }
+
+        if (nextStatus !== file.status) {
           await prisma.file.update({
             where: { id: file.id },
-            data: { status: "READY" },
+            data: { status: nextStatus },
           });
-          file.status = "READY";
-        } else if (manifest.status === "failed") {
-          await prisma.file.update({
-            where: { id: file.id },
-            data: { status: "FAILED" },
-          });
-          file.status = "FAILED";
+          file.status = nextStatus;
+          const fileWithProgress = file as typeof file & { progress?: number };
+          if (nextStatus === "READY") {
+            fileWithProgress.progress = 100;
+          } else if (nextStatus === "FAILED") {
+            fileWithProgress.progress = 0;
+          }
         }
       } catch (e) {
         logger.error("[FILES_CRUD] Failed to check manifest", {

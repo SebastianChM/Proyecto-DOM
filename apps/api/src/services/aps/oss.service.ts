@@ -88,25 +88,9 @@ export class ApsOssService {
    * Simpler than Direct to S3, recommended for files < 100MB
    */
   async uploadObject(buffer: Buffer, filename: string) {
-    await this.ensureBucketExists();
-    const token = await apsAuthService.getInternalToken();
-
-    // Sanitize filename
-    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const objectName = `${Date.now()}-${safeFilename}`;
-
-    const url = `${APP_CONFIG.APS.BASE_URL}/oss/v2/buckets/${this.bucketKey}/objects/${encodeURIComponent(objectName)}`;
-
-    const response = await axios.put(url, buffer, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/octet-stream",
-      },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    });
-
-    return response.data;
+    // OSS legacy direct PUT endpoint is deprecated for modern apps.
+    // Route all uploads through signed S3 flow.
+    return this.uploadBuffer(buffer, filename);
   }
 
   /**
@@ -118,7 +102,6 @@ export class ApsOssService {
     filename: string,
     contentLength: number,
   ) {
-    await this.ensureBucketExists();
     const token = await apsAuthService.getInternalToken();
 
     // Sanitize filename
@@ -170,7 +153,6 @@ export class ApsOssService {
    * Upload a buffer to OSS using Direct to S3 (Signed URLs)
    */
   async uploadBuffer(buffer: Buffer, filename: string) {
-    await this.ensureBucketExists();
     const token = await apsAuthService.getInternalToken();
 
     // Sanitize filename to ensure it's safe for OSS/S3

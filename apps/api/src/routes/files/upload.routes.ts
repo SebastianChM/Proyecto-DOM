@@ -7,6 +7,7 @@
 import { Router } from "express";
 import multer from "multer";
 import fs from "fs";
+import { rateLimiter } from "../../config/rate-limit.config";
 import { fileService } from "../../services/files.service";
 import { cacheService, RedisKeys } from "../../lib/redis";
 import {
@@ -50,6 +51,7 @@ const upload = multer({ dest: "uploads/" });
  */
 router.post(
   "/upload",
+  rateLimiter.uploadLimiter(),
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) {

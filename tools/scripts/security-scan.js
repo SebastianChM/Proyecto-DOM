@@ -72,6 +72,8 @@ const SKIP_PATTERNS = [
   /\.next\//,
   /coverage\//,
   /\.env\.example$/,
+  /[/\\]\.env$/, // Skip .env files (gitignored, should not be scanned)
+  /^\.env$/, // Skip root-level .env
   /security-scan\.js$/, // Skip self
   /\.lock$/,
   /package-lock\.json$/,

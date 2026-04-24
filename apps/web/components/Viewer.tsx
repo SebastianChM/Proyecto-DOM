@@ -2,12 +2,13 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authService } from "@/lib/api/services";
 import { isMockUrn } from "@/lib/utils";
 import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 import { useUser } from "@/context/UserContext";
+import apiClient from "@/lib/axios-config";
 import {
   Card,
   CardContent,
@@ -20,6 +21,8 @@ import { AlertCircle } from "lucide-react";
 interface ViewerProps {
   urn: string;
   token?: string;
+  fileId?: string;
+  fileStatus?: string;
   onViewerInitialized?: (viewer: any) => void;
 }
 
@@ -32,12 +35,51 @@ declare global {
 export default function Viewer({
   urn,
   token: providedToken,
+  fileId,
+  fileStatus,
   onViewerInitialized,
 }: ViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const origWarnRef = useRef<((...args: any[]) => void) | null>(null);
+  const retriedTranslationRef = useRef(false);
   const { user } = useUser();
+  const [viewerError, setViewerError] = useState<string | null>(null);
+
+  const retryTranslation = async () => {
+    if (!fileId || retriedTranslationRef.current) return;
+    retriedTranslationRef.current = true;
+
+    const status = (fileStatus || "").toUpperCase();
+    if (status !== "READY") {
+      setViewerError(
+        "Model has no geometry and is not in READY state. Open file details and retry processing manually.",
+      );
+      return;
+    }
+
+    const retryKey = `viewer-retry:${fileId}`;
+    const lastRetryRaw = window.localStorage.getItem(retryKey);
+    const lastRetry = lastRetryRaw ? Number(lastRetryRaw) : 0;
+    const retryCooldownMs = 5 * 60 * 1000;
+    if (Date.now() - lastRetry < retryCooldownMs) {
+      setViewerError(
+        "Automatic retry was recently requested. Please wait a few minutes before retrying again.",
+      );
+      return;
+    }
+
+    try {
+      await apiClient.post(`/api/translation/${fileId}/translate?force=true`);
+      window.localStorage.setItem(retryKey, String(Date.now()));
+      setViewerError(
+        "Model translation is being retried. Wait a moment and reopen the viewer.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setViewerError(`Failed to retry translation: ${message}`);
+    }
+  };
 
   // Hooks must be called before any early return
   useEffect(() => {
@@ -63,12 +105,43 @@ export default function Viewer({
     };
 
     const loadModel = (viewerInstance: any, modelUrn: string) => {
+      setViewerError(null);
       const documentId = "urn:" + modelUrn;
       window.Autodesk.Viewing.Document.load(
         documentId,
         (doc: any) => {
-          const defaultModel = doc.getRoot().getDefaultGeometry();
-          viewerInstance.loadDocumentNode(doc, defaultModel);
+          const root = doc?.getRoot?.();
+          const defaultModel = root?.getDefaultGeometry?.();
+          const geometryNodes =
+            window.Autodesk?.Viewing?.Document?.getSubItemsWithProperties?.(
+              root,
+              { type: "geometry" },
+              true,
+            ) ?? [];
+          const targetNode = defaultModel ?? geometryNodes[0];
+
+          if (!targetNode) {
+            const message = "No geometry node found in model manifest";
+            setViewerError(message);
+            showError(new Error(message), user?.role, "Model Loading Failed");
+            retryTranslation().catch(() => {
+              // noop
+            });
+            return;
+          }
+
+          const maybePromise = viewerInstance.loadDocumentNode(doc, targetNode);
+          if (maybePromise?.catch) {
+            maybePromise.catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              setViewerError(message);
+              showError(
+                err instanceof Error ? err : new Error(message),
+                user?.role,
+                "Model Loading Failed",
+              );
+            });
+          }
         },
         (errorCode: any, errorMsg: any) => {
           const errorDetails = {
@@ -76,6 +149,9 @@ export default function Viewer({
             message: errorMsg || "Unknown error",
             urn: modelUrn,
           };
+          setViewerError(
+            `Viewer Load Error: ${errorDetails.code} - ${errorDetails.message}`,
+          );
           showError(
             new Error(
               `Viewer Load Error: ${errorDetails.code} - ${errorDetails.message}`,
@@ -119,6 +195,10 @@ export default function Viewer({
         };
 
         window.Autodesk.Viewing.Initializer(options, () => {
+          // Avoid noisy third-party analytics calls in environments with
+          // tracking blockers enabled (does not affect model loading).
+          window.Autodesk?.Viewing?.Private?.analytics?.optOut?.(true);
+
           if (containerRef.current) {
             // Prevent double initialization
             if (viewerRef.current) return;
@@ -190,5 +270,24 @@ export default function Viewer({
     );
   }
 
-  return <div ref={containerRef} className="w-full h-full relative" />;
+  return (
+    <div ref={containerRef} className="w-full h-full relative bg-black">
+      {viewerError && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-6">
+          <Card className="max-w-lg w-full border-white/20 bg-gray-900 text-white">
+            <CardHeader>
+              <CardTitle>Model Loading Failed</CardTitle>
+              <CardDescription className="text-gray-300">
+                {viewerError}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-300">
+              If this file was marked as ready without geometry, translation
+              retry has been requested automatically.
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
 }

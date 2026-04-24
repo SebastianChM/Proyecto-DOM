@@ -45,4 +45,7 @@ export interface ICategoryDictionaryService {
 export interface IUnitConversionService {
   convert(value: number, fromUnit: string, toUnit: string): Promise<number>;
   normalize(value: number, unit: string): Promise<NormalizedValue>;
+  getAll(): Promise<
+    Array<{ fromUnit: string; toUnit: string; factor: number }>
+  >;
 }

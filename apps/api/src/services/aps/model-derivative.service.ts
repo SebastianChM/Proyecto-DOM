@@ -275,6 +275,71 @@ export class APSModelDerivativeService {
   }
 
   /**
+   * True when manifest contains at least one non-failed geometry/viewable node.
+   */
+  hasGeometry(manifest: unknown): boolean {
+    const walk = (node: unknown): boolean => {
+      if (!node || typeof node !== "object") return false;
+      const item = node as {
+        role?: string;
+        type?: string;
+        mime?: string;
+        status?: string;
+        children?: unknown[];
+        derivatives?: unknown[];
+      };
+
+      const role = (item.role || "").toLowerCase();
+      const type = (item.type || "").toLowerCase();
+      const mime = (item.mime || "").toLowerCase();
+      const status = (item.status || "").toLowerCase();
+      const isFailedNode = status === "failed";
+      const isGeometryNode =
+        role === "geometry" ||
+        role === "graphics" ||
+        type === "geometry" ||
+        mime.includes("svf");
+
+      if (isGeometryNode && !isFailedNode) return true;
+
+      const children = Array.isArray(item.children) ? item.children : [];
+      if (children.some(walk)) return true;
+
+      const derivatives = Array.isArray(item.derivatives)
+        ? item.derivatives
+        : [];
+      if (derivatives.some(walk)) return true;
+
+      return false;
+    };
+
+    return walk(manifest);
+  }
+
+  /**
+   * Normalize APS manifest state to internal file state.
+   */
+  resolveFileStatusFromManifest(
+    manifest: unknown,
+    requiresGeometry: boolean,
+  ): "READY" | "FAILED" | "TRANSLATING" {
+    const status = (
+      (manifest as { status?: string } | null)?.status || ""
+    ).toLowerCase();
+
+    if (status === "failed") {
+      return "FAILED";
+    }
+
+    if (status === "success") {
+      if (!requiresGeometry) return "READY";
+      return this.hasGeometry(manifest) ? "READY" : "FAILED";
+    }
+
+    return "TRANSLATING";
+  }
+
+  /**
    * Get metadata (hierarchy)
    */
   async getMetadata(urn: string) {

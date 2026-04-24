@@ -55,7 +55,14 @@ export const authService = {
 
 export const projectsService = {
   /** GET /api/projects — paginated list of projects */
-  list: (params?: { page?: number; pageSize?: number; search?: string; status?: string; sortBy?: string; sortOrder?: string }) => {
+  list: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
@@ -64,7 +71,15 @@ export const projectsService = {
     if (params?.sortBy) qs.set("sortBy", params.sortBy);
     if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
     const q = qs.toString();
-    return api.get<{ meta: { page: number; pageSize: number; total: number; totalPages: number }; data: Project[] }>(`/api/projects${q ? `?${q}` : ""}`);
+    return api.get<{
+      meta: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+      };
+      data: Project[];
+    }>(`/api/projects${q ? `?${q}` : ""}`);
   },
 
   /** GET /api/projects/:id — full project with files */
@@ -77,7 +92,19 @@ export const projectsService = {
   /** PUT /api/projects/:id — update project metadata */
   update: (
     id: string,
-    data: Partial<Pick<Project, "name" | "description" | "clientName" | "location" | "startDate" | "endDate" | "status" | "discipline">>,
+    data: Partial<
+      Pick<
+        Project,
+        | "name"
+        | "description"
+        | "clientName"
+        | "location"
+        | "startDate"
+        | "endDate"
+        | "status"
+        | "discipline"
+      >
+    >,
   ) => api.put<ProjectDetail>(`/api/projects/${id}`, data),
 
   /** DELETE /api/projects/:id */
@@ -147,14 +174,27 @@ export const filesService = {
 
 export const adminService = {
   /** GET /api/users — paginated list of users (admin only) */
-  listUsers: (params?: { page?: number; pageSize?: number; search?: string; role?: string }) => {
+  listUsers: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    role?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
     if (params?.search) qs.set("search", params.search);
     if (params?.role) qs.set("role", params.role);
     const q = qs.toString();
-    return api.get<{ meta: { page: number; pageSize: number; total: number; totalPages: number }; data: UserSummary[] }>(`/api/users${q ? `?${q}` : ""}`);
+    return api.get<{
+      meta: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+      };
+      data: UserSummary[];
+    }>(`/api/users${q ? `?${q}` : ""}`);
   },
 
   /** PUT /api/admin/users/:id/role — change a user's global role */
@@ -210,16 +250,12 @@ export const conversionService = {
     api.post<void>(`/api/conversion/${conversionId}/save-to-project`),
 
   /** POST /api/conversion/batch — start a batch conversion */
-  batch: (data: {
-    fileIds: string[];
-    format: string;
-  }) => api.post<BatchConversionResponse>("/api/conversion/batch", data),
+  batch: (data: { fileIds: string[]; format: string }) =>
+    api.post<BatchConversionResponse>("/api/conversion/batch", data),
 
   /** GET /api/conversion/batch/:id — poll batch conversion status */
   batchStatus: (batchId: string) =>
-    api.get<BatchConversionStatusResponse>(
-      `/api/conversion/batch/${batchId}`,
-    ),
+    api.get<BatchConversionStatusResponse>(`/api/conversion/batch/${batchId}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -228,9 +264,9 @@ export const conversionService = {
 
 export const translationService = {
   /** POST /api/translation/:fileId/translate — trigger SVF2 translation */
-  start: (fileId: string) =>
+  start: (fileId: string, options?: { force?: boolean }) =>
     api.post<TranslationResponse>(
-      `/api/translation/${fileId}/translate`,
+      `/api/translation/${fileId}/translate${options?.force ? "?force=true" : ""}`,
       {},
     ),
 };

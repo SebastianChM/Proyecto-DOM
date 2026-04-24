@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import Link from "next/link";
 
 // Dynamically import Viewer to avoid SSR issues
@@ -22,6 +22,7 @@ interface ViewerModalProps {
     name: string;
     apsUrn: string | null;
     type: string;
+    status?: string;
   } | null;
   token?: string;
 }
@@ -36,7 +37,7 @@ export function ViewerModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[90vw] h-[90vh] p-0 gap-0 bg-gray-900 border-white/10 flex flex-col">
+      <DialogContent className="max-w-[92vw] h-[92vh] p-0 gap-0 bg-gray-900 border-white/10 flex flex-col [&>button]:hidden">
         <DialogDescription className="sr-only">
           Viewer modal for {file.name}
         </DialogDescription>
@@ -45,7 +46,7 @@ export function ViewerModal({
             <span className="font-normal text-gray-400">Viewing:</span>
             {file.name}
           </DialogTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 pr-1">
             <Link href={`/dashboard/viewer/${file.id}`}>
               <Button
                 variant="outline"
@@ -56,6 +57,15 @@ export function ViewerModal({
                 Full Page
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close viewer"
+              className="h-8 w-8 text-white hover:bg-white/10"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         <div className="flex-1 relative bg-black overflow-hidden">
@@ -66,7 +76,12 @@ export function ViewerModal({
               title="PDF Viewer"
             />
           ) : file.apsUrn ? (
-            <Viewer urn={file.apsUrn} token={token} />
+            <Viewer
+              urn={file.apsUrn}
+              token={token}
+              fileId={file.id}
+              fileStatus={file.status}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">
               File is not ready for viewing

@@ -102,6 +102,21 @@ export class UnitConversionService implements IUnitConversionService {
     const converted = await this.convert(value, unit, baseUnit);
     return { value: converted, unit: baseUnit, originalUnit: unit };
   }
+
+  async getAll(): Promise<
+    Array<{ fromUnit: string; toUnit: string; factor: number }>
+  > {
+    const cacheKey = `${CACHE_PREFIX}:all`;
+    const result = await cacheService.getOrSet(
+      cacheKey,
+      () =>
+        prisma.unitConversion.findMany({
+          select: { fromUnit: true, toUnit: true, factor: true },
+        }),
+      CACHE_TTL * 6,
+    );
+    return result ?? [];
+  }
 }
 
 export const unitConversionService = new UnitConversionService();

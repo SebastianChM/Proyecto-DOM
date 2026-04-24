@@ -17,7 +17,9 @@ const router = Router();
  * GET /api/compliance-v2/export/:runId/excel
  * Export compliance run results to Excel format (CSV for simplicity)
  */
-router.get("/:runId/excel", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:runId/excel",
+  asyncHandler(async (req: Request, res: Response) => {
     const runId = req.params.runId as string;
 
     const run = await prisma.complianceRun.findUnique({
@@ -74,18 +76,21 @@ router.get("/:runId/excel", asyncHandler(async (req: Request, res: Response) => 
     const csvContent = csvRows.join("\n");
 
     // Send as downloadable file
-    const filename = `compliance_${run.ruleset.name.replace(/\s+/g, "_")}_${new Date(run.startedAt).toISOString().split("T")[0]}.csv`;
+    const filename = `compliance_${(run.ruleset?.name ?? run.id).replace(/\s+/g, "_")}_${new Date(run.startedAt).toISOString().split("T")[0]}.csv`;
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csvContent);
-}));
+  }),
+);
 
 /**
  * GET /api/compliance-v2/export/:runId/pdf
  * Export compliance run results to PDF format
  */
-router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:runId/pdf",
+  asyncHandler(async (req: Request, res: Response) => {
     const runId = req.params.runId as string;
 
     const run = await prisma.complianceRun.findUnique({
@@ -102,11 +107,13 @@ router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
       throw notFound("Run not found", "RUN_NOT_FOUND");
     }
 
-    const errorIssues = run.issues.filter((i) => i.severity === "ERROR" || i.severity === "CRITICAL");
+    const errorIssues = run.issues.filter(
+      (i) => i.severity === "ERROR" || i.severity === "CRITICAL",
+    );
     const warningIssues = run.issues.filter((i) => i.severity === "WARNING");
     const infoIssues = run.issues.filter((i) => i.severity === "INFO");
 
-    const filename = `compliance_report_${run.ruleset.name.replace(/\s+/g, "_")}_${new Date(run.startedAt).toISOString().split("T")[0]}.pdf`;
+    const filename = `compliance_report_${(run.ruleset?.name ?? run.id).replace(/\s+/g, "_")}_${new Date(run.startedAt).toISOString().split("T")[0]}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -117,13 +124,27 @@ router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
     // ---- Header ----
     doc.rect(0, 0, 595, 120).fill("#2563eb");
     doc.fillColor("#ffffff").fontSize(22).text("Reporte de Compliance", 50, 35);
-    doc.fontSize(11).text(`${run.ruleset.name} • ${new Date(run.startedAt).toLocaleDateString("es-CL")}`, 50, 62);
-    doc.fontSize(28).text(`${run.complianceScore ?? 0}%`, 450, 35, { width: 100, align: "right" });
+    doc
+      .fontSize(11)
+      .text(
+        `${run.ruleset?.name ?? "Compliance Run"} • ${new Date(run.startedAt).toLocaleDateString("es-CL")}`,
+        50,
+        62,
+      );
+    doc
+      .fontSize(28)
+      .text(`${run.complianceScore ?? 0}%`, 450, 35, {
+        width: 100,
+        align: "right",
+      });
     doc.fontSize(9).text("Score", 450, 68, { width: 100, align: "right" });
 
     // Model info
     if (run.modelName) {
-      doc.fillColor("#0369a1").fontSize(10).text(`Modelo: ${run.modelName}`, 50, 90);
+      doc
+        .fillColor("#0369a1")
+        .fontSize(10)
+        .text(`Modelo: ${run.modelName}`, 50, 90);
     }
 
     // ---- Summary stats ----
@@ -131,22 +152,42 @@ router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
     doc.fillColor("#1e293b").fontSize(14).text("Resumen", 50, statsY);
 
     const stats = [
-      { label: "Elementos", value: String(run.totalElements ?? 0), color: "#1e293b" },
+      {
+        label: "Elementos",
+        value: String(run.totalElements ?? 0),
+        color: "#1e293b",
+      },
       { label: "Errores", value: String(errorIssues.length), color: "#dc2626" },
-      { label: "Advertencias", value: String(warningIssues.length), color: "#d97706" },
+      {
+        label: "Advertencias",
+        value: String(warningIssues.length),
+        color: "#d97706",
+      },
       { label: "Info", value: String(infoIssues.length), color: "#2563eb" },
     ];
 
     stats.forEach((stat, i) => {
       const x = 50 + i * 125;
-      doc.rect(x, statsY + 20, 110, 50).fill("#f8fafc").stroke("#e2e8f0");
-      doc.fillColor(stat.color).fontSize(20).text(stat.value, x, statsY + 28, { width: 110, align: "center" });
-      doc.fillColor("#64748b").fontSize(8).text(stat.label, x, statsY + 52, { width: 110, align: "center" });
+      doc
+        .rect(x, statsY + 20, 110, 50)
+        .fill("#f8fafc")
+        .stroke("#e2e8f0");
+      doc
+        .fillColor(stat.color)
+        .fontSize(20)
+        .text(stat.value, x, statsY + 28, { width: 110, align: "center" });
+      doc
+        .fillColor("#64748b")
+        .fontSize(8)
+        .text(stat.label, x, statsY + 52, { width: 110, align: "center" });
     });
 
     // ---- Issues table ----
     let y = statsY + 90;
-    doc.fillColor("#1e293b").fontSize(14).text(`Issues (${run.issues.length})`, 50, y);
+    doc
+      .fillColor("#1e293b")
+      .fontSize(14)
+      .text(`Issues (${run.issues.length})`, 50, y);
     y += 25;
 
     // Table header
@@ -156,7 +197,9 @@ router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
 
     doc.rect(50, y, 495, 18).fill("#f1f5f9");
     doc.fillColor("#475569").fontSize(8);
-    headers.forEach((h, i) => doc.text(h, cols[i] + 4, y + 5, { width: colWidths[i] }));
+    headers.forEach((h, i) =>
+      doc.text(h, cols[i] + 4, y + 5, { width: colWidths[i] }),
+    );
     y += 18;
 
     // Table rows
@@ -167,43 +210,79 @@ router.get("/:runId/pdf", asyncHandler(async (req: Request, res: Response) => {
         y = 50;
         doc.rect(50, y, 495, 18).fill("#f1f5f9");
         doc.fillColor("#475569").fontSize(8);
-        headers.forEach((h, i) => doc.text(h, cols[i] + 4, y + 5, { width: colWidths[i] }));
+        headers.forEach((h, i) =>
+          doc.text(h, cols[i] + 4, y + 5, { width: colWidths[i] }),
+        );
         y += 18;
         doc.fontSize(7);
       }
 
       doc.rect(50, y, 495, 0.5).fill("#e2e8f0");
 
-      const sevColor = issue.severity === "ERROR" || issue.severity === "CRITICAL" ? "#dc2626" : issue.severity === "WARNING" ? "#d97706" : "#2563eb";
-      doc.fillColor(sevColor).text(issue.severity, cols[0] + 4, y + 4, { width: colWidths[0] });
-      doc.fillColor("#334155").text(issue.ruleName, cols[1] + 4, y + 4, { width: colWidths[1] });
-      doc.text(`${issue.elementName}\n${issue.elementCategory}`, cols[2] + 4, y + 2, { width: colWidths[2] });
-      doc.text(issue.expectedValue, cols[3] + 4, y + 4, { width: colWidths[3] });
-      doc.fillColor("#dc2626").text(issue.actualValue, cols[4] + 4, y + 4, { width: colWidths[4] });
+      const sevColor =
+        issue.severity === "ERROR" || issue.severity === "CRITICAL"
+          ? "#dc2626"
+          : issue.severity === "WARNING"
+            ? "#d97706"
+            : "#2563eb";
+      doc
+        .fillColor(sevColor)
+        .text(issue.severity, cols[0] + 4, y + 4, { width: colWidths[0] });
+      doc
+        .fillColor("#334155")
+        .text(issue.ruleName, cols[1] + 4, y + 4, { width: colWidths[1] });
+      doc.text(
+        `${issue.elementName}\n${issue.elementCategory}`,
+        cols[2] + 4,
+        y + 2,
+        { width: colWidths[2] },
+      );
+      doc.text(issue.expectedValue, cols[3] + 4, y + 4, {
+        width: colWidths[3],
+      });
+      doc
+        .fillColor("#dc2626")
+        .text(issue.actualValue, cols[4] + 4, y + 4, { width: colWidths[4] });
 
       y += 22;
     }
 
     if (run.issues.length === 0) {
-      doc.fillColor("#16a34a").fontSize(12).text("✓ Todos los elementos cumplen con las reglas", 50, y + 10, { align: "center", width: 495 });
+      doc
+        .fillColor("#16a34a")
+        .fontSize(12)
+        .text("✓ Todos los elementos cumplen con las reglas", 50, y + 10, {
+          align: "center",
+          width: 495,
+        });
     }
 
     // ---- Footer ----
     const pages = doc.bufferedPageRange();
     for (let i = 0; i < pages.count; i++) {
       doc.switchToPage(i);
-      doc.fillColor("#94a3b8").fontSize(8)
-        .text(`DOM BIM Platform • Generado ${new Date().toLocaleDateString("es-CL")} • Página ${i + 1}/${pages.count}`, 50, 780, { width: 495, align: "center" });
+      doc
+        .fillColor("#94a3b8")
+        .fontSize(8)
+        .text(
+          `DOM BIM Platform • Generado ${new Date().toLocaleDateString("es-CL")} • Página ${i + 1}/${pages.count}`,
+          50,
+          780,
+          { width: 495, align: "center" },
+        );
     }
 
     doc.end();
-}));
+  }),
+);
 
 /**
  * PUT /api/compliance-v2/export/:runId/save
  * Save run with model version and notes for historical tracking
  */
-router.put("/:runId/save", asyncHandler(async (req: Request, res: Response) => {
+router.put(
+  "/:runId/save",
+  asyncHandler(async (req: Request, res: Response) => {
     const runId = req.params.runId as string;
     const { runName, modelVersion, modelName } = req.body;
 
@@ -220,6 +299,7 @@ router.put("/:runId/save", asyncHandler(async (req: Request, res: Response) => {
       message: "Validación guardada en el historial",
       run: updated,
     });
-}));
+  }),
+);
 
 export default router;

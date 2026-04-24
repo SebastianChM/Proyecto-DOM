@@ -1,9 +1,11 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 import { modelDerivativeService } from "../services/aps/model-derivative.service";
+import { apsOssService } from "../services/aps/oss.service";
 import { logger } from "../lib/logger";
 import { asyncHandler } from "../lib/async-handler";
-import { badRequest, notFound } from "../lib/errors";
+import { badRequest, conflict, notFound } from "../lib/errors";
+import fs from "fs";
 
 const router = Router();
 
@@ -29,8 +31,11 @@ const router = Router();
  *         description: Server error
  */
 // Retry translation for a file stuck in UPLOADED state
-router.post("/:fileId/translate", asyncHandler(async (req, res) => {
-    const fileId = req.params.fileId as string;
+router.post(
+  "/:fileId/translate",
+  asyncHandler(async (req, res) => {
+    const fileId = String(req.params.fileId);
+    const force = String(req.query.force || "").toLowerCase() === "true";
 
     const file = await prisma.file.findUnique({
       where: { id: fileId },
@@ -41,10 +46,64 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
     }
 
     if (!file.apsUrn) {
-      throw badRequest("File has no APS URN. Cannot translate.", "MISSING_APS_URN");
+      throw badRequest(
+        "File has no APS URN. Cannot translate.",
+        "MISSING_APS_URN",
+      );
     }
 
-    if (file.status === "READY") {
+    let effectiveUrn = file.apsUrn;
+
+    if (file.status === "UPLOADING" || file.apsUrn === "UPLOADING") {
+      if (!file.localPath || !fs.existsSync(file.localPath)) {
+        throw conflict(
+          "File upload to APS did not complete and local source is missing. Re-upload the file.",
+          "UPLOAD_RECOVERY_SOURCE_MISSING",
+        );
+      }
+
+      logger.info(
+        "[TRANSLATION] Recovering file from local path before translation",
+        {
+          fileId,
+          fileName: file.name,
+        },
+      );
+
+      const buffer = fs.readFileSync(file.localPath);
+      const apsObject = await apsOssService.uploadObject(
+        buffer,
+        file.originalName || file.name,
+      );
+
+      effectiveUrn = Buffer.from(
+        (apsObject as { objectId?: string }).objectId || "",
+      )
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+
+      await prisma.file.update({
+        where: { id: fileId },
+        data: {
+          apsUrn: effectiveUrn,
+          status: "UPLOADED",
+        },
+      });
+    }
+
+    const isLocalMock = effectiveUrn.startsWith("local-");
+    const isUrlSafeBase64Urn = /^[A-Za-z0-9_-]+$/.test(effectiveUrn);
+
+    if (!isLocalMock && !isUrlSafeBase64Urn) {
+      throw badRequest(
+        "File APS URN is invalid. Re-upload the file to recover.",
+        "INVALID_APS_URN",
+      );
+    }
+
+    if (file.status === "READY" && !force) {
       return res.json({
         success: true,
         message: "File is already translated",
@@ -52,7 +111,7 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
       });
     }
 
-    if (file.status === "TRANSLATING") {
+    if (file.status === "TRANSLATING" && !force) {
       return res.json({
         success: true,
         message: "Translation already in progress",
@@ -80,8 +139,6 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
     const fileExt = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
 
     // Check if it's a local mock file (which we allow to "translate" for testing)
-    const isLocalMock = file.apsUrn.startsWith("local-");
-
     if (!supportedExtensions.includes(fileExt) && !isLocalMock) {
       throw badRequest(
         `File type ${fileExt} is not supported for 3D translation.`,
@@ -92,11 +149,12 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
     // Start translation
     logger.info(`[TRANSLATION] Starting translation for file: ${file.name}`);
 
-    if (file.apsUrn.startsWith("local-")) {
+    if (effectiveUrn.startsWith("local-")) {
       logger.debug("[TRANSLATION] Local mode detected, simulating translation");
       // Simulate translation with safe async handling
       setTimeout(() => {
-        prisma.file.update({
+        prisma.file
+          .update({
             where: { id: fileId },
             data: { status: "READY" },
           })
@@ -117,7 +175,7 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
     } else {
       // Ensure URN is URL-safe Base64 (APS requirement)
       // If the URN in DB has +, /, or =, it means it wasn't encoded correctly.
-      let safeUrn = file.apsUrn;
+      let safeUrn = effectiveUrn;
       if (
         safeUrn.includes("+") ||
         safeUrn.includes("/") ||
@@ -153,6 +211,7 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
       fileId,
       status: "TRANSLATING",
     });
-}));
+  }),
+);
 
 export default router;

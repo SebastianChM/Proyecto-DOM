@@ -199,8 +199,9 @@ app.use("/api/users", rateLimiter.apiLimiter(), usersRouter);
 
 // Files: sync-status needs its own permissive limiter (polled frequently by frontend)
 app.use("/api/files", rateLimiter.apiLimiter(), syncRoutes);
-// Files: Upload limiter for remaining file operations
-app.use("/api/files", rateLimiter.uploadLimiter(), filesRouter);
+// Files: generic API limiter on all routes; strict upload limiter is applied
+// at route level only for POST /api/files/upload.
+app.use("/api/files", rateLimiter.apiLimiter(), filesRouter);
 
 app.use("/api/projects", rateLimiter.apiLimiter(), projectsRouter);
 app.use("/api/project-members", rateLimiter.apiLimiter(), projectMembersRouter);
@@ -216,7 +217,7 @@ app.use("/api/reports", rateLimiter.heavyOperationLimiter(), reportsRouter);
 
 // Conversion routes: Specific conversion limiter
 app.use("/api/conversion", rateLimiter.conversionLimiter(), conversionRouter);
-app.use("/api/translation", rateLimiter.conversionLimiter(), translationRouter);
+app.use("/api/translation", rateLimiter.apiLimiter(), translationRouter);
 
 app.use("/api/viewer", rateLimiter.apiLimiter(), viewerRouter);
 app.use("/api/dashboard", rateLimiter.apiLimiter(), dashboardRouter);

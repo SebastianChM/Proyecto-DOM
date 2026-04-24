@@ -237,7 +237,11 @@ export default function ViewerPage() {
             title="PDF Viewer"
           />
         ) : (
-          <Viewer urn={file.apsUrn as string} />
+          <Viewer
+            urn={file.apsUrn as string}
+            fileId={file.id}
+            fileStatus={file.status}
+          />
         )}
       </div>
     </div>

@@ -3,7 +3,11 @@
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-config";
-import { authService, filesService, translationService } from "@/lib/api/services";
+import {
+  authService,
+  filesService,
+  translationService,
+} from "@/lib/api/services";
 import type { ProjectDetail, ProjectFileDetail } from "@/lib/api/types";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
@@ -26,9 +30,17 @@ export interface UseFileOperationsReturn {
   handleApsImport: (fileData: Record<string, unknown>) => Promise<void>;
 
   // --- View ---
-  viewerModal: { isOpen: boolean; file: ProjectFileDetail; token?: string } | null;
+  viewerModal: {
+    isOpen: boolean;
+    file: ProjectFileDetail;
+    token?: string;
+  } | null;
   setViewerModal: React.Dispatch<
-    React.SetStateAction<{ isOpen: boolean; file: ProjectFileDetail; token?: string } | null>
+    React.SetStateAction<{
+      isOpen: boolean;
+      file: ProjectFileDetail;
+      token?: string;
+    } | null>
   >;
   handleViewFile: (file: ProjectFileDetail) => Promise<void>;
 
@@ -42,7 +54,7 @@ export interface UseFileOperationsReturn {
 
   // --- Translation ---
   translatingFiles: Set<string>;
-  handleStartTranslation: (fileId: string) => Promise<void>;
+  handleStartTranslation: (file: ProjectFileDetail) => Promise<void>;
 
   // --- Batch download ---
   handleBatchDownload: () => Promise<void>;
@@ -217,28 +229,25 @@ export function useFileOperations(
   // View file
   // ---------------------------------------------------------------------------
 
-  const handleViewFile = useCallback(
-    async (file: ProjectFileDetail) => {
-      if (file.status !== "READY" || !file.apsUrn) {
-        toast.error("File is not ready for viewing");
-        return;
+  const handleViewFile = useCallback(async (file: ProjectFileDetail) => {
+    if (file.status !== "READY" || !file.apsUrn) {
+      toast.error("File is not ready for viewing");
+      return;
+    }
+
+    let token: string | undefined;
+
+    if (file.apsProjectId) {
+      try {
+        const data = await authService.userToken();
+        token = data.access_token;
+      } catch {
+        logger.info("No user token available for ACC file");
       }
+    }
 
-      let token: string | undefined;
-
-      if (file.apsProjectId) {
-        try {
-          const data = await authService.userToken();
-          token = data.access_token;
-        } catch {
-          logger.info("No user token available for ACC file");
-        }
-      }
-
-      setViewerModal({ isOpen: true, file, token });
-    },
-    [],
-  );
+    setViewerModal({ isOpen: true, file, token });
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Delete file
@@ -271,12 +280,32 @@ export function useFileOperations(
   // ---------------------------------------------------------------------------
 
   const handleStartTranslation = useCallback(
-    async (fileId: string) => {
+    async (file: ProjectFileDetail) => {
+      const normalizedStatus = (file.status || "").toUpperCase();
+
+      if (normalizedStatus === "UPLOADING") {
+        toast.info("Upload still in progress", {
+          description:
+            "Wait until APS upload finishes before starting translation.",
+        });
+        return;
+      }
+
+      if (!file.apsUrn) {
+        toast.error("Cannot start translation", {
+          description:
+            "This file has no APS URN. Re-upload the file to continue.",
+        });
+        return;
+      }
+
       try {
-        setTranslatingFiles((prev) => new Set(prev).add(fileId));
+        setTranslatingFiles((prev) => new Set(prev).add(file.id));
         toast.info("Starting translation...");
 
-        const data = await translationService.start(fileId);
+        const force =
+          normalizedStatus === "FAILED" || normalizedStatus === "READY";
+        const data = await translationService.start(file.id, { force });
 
         if (data.status === "READY") {
           toast.success("File is already translated and ready!");
@@ -296,7 +325,7 @@ export function useFileOperations(
         setTimeout(() => {
           setTranslatingFiles((prev) => {
             const newSet = new Set(prev);
-            newSet.delete(fileId);
+            newSet.delete(file.id);
             return newSet;
           });
         }, 1000);

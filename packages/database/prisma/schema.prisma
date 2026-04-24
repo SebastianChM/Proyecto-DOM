@@ -654,9 +654,9 @@ model ComplianceRun {
   modelUrn    String   // URN of the RVT model
   modelName   String?  // Friendly name of the model
   
-  // Input: Ruleset used for validation
-  rulesetId   String
-  ruleset     Ruleset  @relation(fields: [rulesetId], references: [id])
+  // Input: Ruleset used for validation (optional for V3 runs — use configId instead)
+  rulesetId   String?
+  ruleset     Ruleset? @relation(fields: [rulesetId], references: [id])
   
   // Results summary
   totalElements   Int?    // Total elements scanned
