@@ -13,6 +13,7 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
+COPY packages/z-schema-patched/ packages/z-schema-patched/
 
 # 2. Prisma schema (required by prisma generate)
 COPY packages/database/prisma/ packages/database/prisma/
@@ -45,6 +46,7 @@ COPY --chown=nodejs:nodejs package.json package-lock.json ./
 COPY --chown=nodejs:nodejs apps/api/package.json apps/api/
 COPY --chown=nodejs:nodejs apps/web/package.json apps/web/
 COPY --chown=nodejs:nodejs packages/database/package.json packages/database/
+COPY --chown=nodejs:nodejs packages/z-schema-patched/ packages/z-schema-patched/
 RUN npm ci --omit=dev --ignore-scripts
 
 # 2. Generated Prisma client (prisma CLI is a devDep, so we copy the output)

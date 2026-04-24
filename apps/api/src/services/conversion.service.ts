@@ -318,7 +318,7 @@ export class ConversionService {
         stream: response.data as Readable,
         filename: `${conversion.file.name}.${conversion.targetFormat}`,
         contentType: "application/pdf", // Mostly PDF for DA
-        length: parseInt(response.headers["content-length"] || "0"),
+        length: parseInt(String(response.headers["content-length"] || "0")),
       };
     }
 
@@ -403,7 +403,7 @@ export class ConversionService {
         conversion.targetFormat === "pdf"
           ? "application/pdf"
           : "application/octet-stream",
-      length: parseInt(response.headers["content-length"] || "0"),
+      length: parseInt(String(response.headers["content-length"] || "0")),
     };
   }
 

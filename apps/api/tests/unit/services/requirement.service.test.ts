@@ -180,7 +180,7 @@ describe("RequirementService", () => {
         MOCK_REQUIREMENT as never,
       );
       jest.spyOn(prisma, "$transaction").mockImplementation(
-        async (fn: unknown) => (fn as Function)({
+        async (fn: unknown) => (fn as (tx: unknown) => Promise<unknown>)({
           requirementCondition: { deleteMany: jest.fn().mockResolvedValue({ count: 0 } as never) },
           applicabilityRule: { deleteMany: jest.fn().mockResolvedValue({ count: 0 } as never) },
           requirement: {
@@ -219,7 +219,7 @@ describe("RequirementService", () => {
       } as never);
 
       jest.spyOn(prisma, "$transaction").mockImplementation(
-        async (fn: unknown) => (fn as Function)({
+        async (fn: unknown) => (fn as (tx: unknown) => Promise<unknown>)({
           requirementCondition: { deleteMany: jest.fn().mockResolvedValue({ count: 0 } as never) },
           applicabilityRule: { deleteMany: jest.fn().mockResolvedValue({ count: 0 } as never) },
           requirement: { update: mockUpdate },
@@ -315,7 +315,7 @@ describe("RequirementService", () => {
         MOCK_PACK as never,
       );
       jest.spyOn(prisma, "$transaction").mockImplementation(
-        async (fn: unknown) => (fn as Function)({
+        async (fn: unknown) => (fn as (tx: unknown) => Promise<unknown>)({
           requirement: {
             create: jest.fn().mockResolvedValue(MOCK_REQUIREMENT as never),
           },
