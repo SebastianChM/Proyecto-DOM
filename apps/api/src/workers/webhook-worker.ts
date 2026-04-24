@@ -95,6 +95,7 @@ const worker = new Worker<ApsWebhookJobData>(
   },
   {
     connection: redisConfig,
+    prefix: "dom-bim",
     concurrency: env.WEBHOOK_QUEUE_CONCURRENCY,
   },
 );

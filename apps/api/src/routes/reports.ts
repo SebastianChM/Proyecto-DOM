@@ -9,7 +9,7 @@ const router = Router();
 
 // GET /api/reports/validation/:runId
 router.get("/validation/:runId", asyncHandler(async (req, res) => {
-    const { runId } = req.params;
+    const runId = req.params.runId as string;
 
     // 1. Fetch Data
     const run = await prisma.validationRun.findUnique({

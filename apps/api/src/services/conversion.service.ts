@@ -252,8 +252,8 @@ export class ConversionService {
       data: { status: "PROCESSING" },
     });
 
-    setTimeout(async () => {
-      await prisma.conversion.update({
+    setTimeout(() => {
+      prisma.conversion.update({
         where: { id: conversionId },
         data: {
           status: "COMPLETED",
@@ -261,6 +261,11 @@ export class ConversionService {
           resultUrn: `local-mock-${format}`,
           resultUrl: `/api/conversion/${conversionId}/download`,
         },
+      }).catch((e: unknown) => {
+        logger.error("[CONVERSION] Mock conversion update failed", {
+          conversionId,
+          error: e instanceof Error ? e.message : String(e),
+        });
       });
     }, 1000);
   }
@@ -318,10 +323,74 @@ export class ConversionService {
     }
 
     // 3. Model Derivative
+    // The resultUrn stored is the base model URN. We need to find the actual
+    // derivative URN from the manifest to download the converted output.
+    const baseUrn = conversion.file.apsUrn!;
+    let derivativeUrn = conversion.resultUrn;
+
+    // Query the manifest to find the actual derivative for the requested format
+    try {
+      const manifest = await modelDerivativeService.getManifest(baseUrn);
+      const targetType = conversion.targetFormat.toLowerCase();
+
+      // Recursively search for the derivative matching the target format
+      const findDerivative = (
+        derivatives: Array<Record<string, unknown>>,
+      ): string | null => {
+        for (const d of derivatives) {
+          const outputType = (d.outputType as string || "").toLowerCase();
+          const role = (d.role as string || "").toLowerCase();
+          const mime = (d.mime as string || "").toLowerCase();
+          const urn = d.urn as string | undefined;
+
+          // Match by mime type, role (pdf-page), or outputType
+          if (
+            urn &&
+            (mime === `application/${targetType}` ||
+              role === targetType ||
+              role === `${targetType}-page` ||
+              outputType === targetType)
+          ) {
+            return urn;
+          }
+
+          // Check children recursively
+          if (Array.isArray(d.children)) {
+            const found = findDerivative(
+              d.children as Array<Record<string, unknown>>,
+            );
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      if (manifest?.derivatives) {
+        const found = findDerivative(manifest.derivatives);
+        if (found) {
+          derivativeUrn = found;
+          logger.debug("[CONVERSION] Found derivative URN from manifest", {
+            derivativeUrn: derivativeUrn.substring(0, 60) + "...",
+          });
+        } else {
+          logger.warn("[CONVERSION] No matching derivative in manifest", {
+            targetFormat: targetType,
+          });
+        }
+      }
+    } catch (manifestError) {
+      logger.warn("[CONVERSION] Failed to query manifest, using resultUrn", {
+        error:
+          manifestError instanceof Error
+            ? manifestError.message
+            : String(manifestError),
+      });
+    }
+
     const { url, headers } =
       await modelDerivativeService.getDerivativeDownloadInfo(
-        conversion.file.apsUrn!,
-        conversion.resultUrn,
+        baseUrn,
+        derivativeUrn,
       );
 
     // We fetch as stream to be memory efficient
@@ -330,9 +399,53 @@ export class ConversionService {
     return {
       stream: response.data as Readable,
       filename: `${conversion.file.name}.${conversion.targetFormat}`,
-      contentType: "application/octet-stream",
+      contentType:
+        conversion.targetFormat === "pdf"
+          ? "application/pdf"
+          : "application/octet-stream",
       length: parseInt(response.headers["content-length"] || "0"),
     };
+  }
+
+  /**
+   * Cancel a pending or queued conversion
+   */
+  async cancelConversion(conversionId: string) {
+    const conversion = await prisma.conversion.findUnique({
+      where: { id: conversionId },
+    });
+
+    if (!conversion) throw new Error("CONVERSION_NOT_FOUND");
+
+    const cancellable = ["PENDING", "QUEUED"];
+    if (!cancellable.includes(conversion.status)) {
+      throw new Error("CONVERSION_NOT_CANCELLABLE");
+    }
+
+    // Try to remove from BullMQ queue
+    const queue =
+      conversion.method === "designAutomation"
+        ? Queues.conversionDa
+        : Queues.conversionMd;
+
+    // Find and remove waiting jobs matching this conversion
+    const waiting = await queue.getWaiting();
+    for (const job of waiting) {
+      if (job.data?.conversionId === conversionId) {
+        await job.remove();
+        logger.info("[CONVERSION] Removed job from queue", { conversionId, jobId: job.id });
+      }
+    }
+
+    // Update status to CANCELLED
+    await prisma.conversion.update({
+      where: { id: conversionId },
+      data: { status: "CANCELLED", finishedAt: new Date() },
+    });
+
+    logger.info("[CONVERSION] Cancelled conversion", { conversionId, previousStatus: conversion.status });
+
+    return { conversionId, status: "CANCELLED", previousStatus: conversion.status };
   }
 
   /**

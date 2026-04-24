@@ -229,6 +229,7 @@ const validationWorker = new Worker<ValidationJobPayload>(
   },
   {
     connection: redisConfig,
+    prefix: "dom-bim",
     concurrency: 5, // Default concurrency
   },
 );

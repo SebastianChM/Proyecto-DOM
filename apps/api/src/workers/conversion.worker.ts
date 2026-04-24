@@ -229,6 +229,7 @@ const modelDerivativeWorker = new Worker<ConversionJobData>(
   },
   {
     connection: redisConfig,
+    prefix: "dom-bim",
     concurrency: env.CONVERSION_MD_CONCURRENCY, // Configurable concurrency (default: 8)
   },
 );
@@ -379,6 +380,7 @@ const designAutomationWorker = new Worker<ConversionJobData>(
   },
   {
     connection: redisConfig,
+    prefix: "dom-bim",
     concurrency: env.CONVERSION_DA_CONCURRENCY, // Lower concurrency (default: 5) for callback-dependent work
   },
 );

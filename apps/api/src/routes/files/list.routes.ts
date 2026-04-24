@@ -74,7 +74,7 @@ router.get("/recent", asyncHandler(async (req, res) => {
 
 // List files for a project
 router.get("/project/:projectId", asyncHandler(async (req, res) => {
-    const { projectId } = req.params;
+    const projectId = req.params.projectId as string;
     const files = await prisma.file.findMany({
       where: { projectId },
       orderBy: { createdAt: "desc" },
@@ -161,7 +161,7 @@ router.get("/project/:projectId", asyncHandler(async (req, res) => {
 // Get file details
 router.get("/:id", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         versions: true,
         conversions: true,

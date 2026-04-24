@@ -41,7 +41,7 @@ const updateMemberSchema = z.object({
 });
 
 // Helper to extract id as projectId
-const getProjectIdFromId = (req: Request) => req.params.id;
+const getProjectIdFromId = (req: Request) => req.params.id as string;
 
 /**
  * GET /api/projects/:id/permissions
@@ -51,7 +51,7 @@ const getProjectIdFromId = (req: Request) => req.params.id;
 router.get(
   "/:id/permissions",
   asyncHandler(async (req, res) => {
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
     const userId = req.session?.user?.id;
 
     if (!userId) throw unauthorized("Authentication required");
@@ -114,7 +114,7 @@ router.get(
   "/:id/members",
   requirePermission("project:read", getProjectIdFromId),
   asyncHandler(async (req, res) => {
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
     const userId = req.session?.user?.id;
 
     if (!userId) throw unauthorized("Authentication required");
@@ -168,7 +168,7 @@ router.post(
   "/:id/members",
   requirePermission("member:invite", getProjectIdFromId),
   asyncHandler(async (req, res) => {
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
     const userId = req.session?.user?.id;
 
     if (!userId) throw unauthorized("Authentication required");
@@ -322,8 +322,8 @@ router.put(
   "/:id/members/:userId",
   requirePermission("member:update", getProjectIdFromId),
   asyncHandler(async (req, res) => {
-    const projectId = req.params.id;
-    const targetUserId = req.params.userId;
+    const projectId = req.params.id as string;
+    const targetUserId = req.params.userId as string;
 
     // Validate input
     const validation = updateMemberSchema.safeParse(req.body);
@@ -393,8 +393,8 @@ router.delete(
   "/:id/members/:userId",
   requirePermission("member:remove", getProjectIdFromId),
   asyncHandler(async (req, res) => {
-    const projectId = req.params.id;
-    const targetUserId = req.params.userId;
+    const projectId = req.params.id as string;
+    const targetUserId = req.params.userId as string;
     const requesterId = req.session?.user?.id;
 
     if (!requesterId) throw unauthorized("Authentication required");

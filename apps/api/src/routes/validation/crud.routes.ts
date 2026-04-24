@@ -45,7 +45,9 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
  * GET /api/validation?projectId=xxx&fileId=xxx&userId=xxx&limit=10
  */
 router.get("/", asyncHandler(async (req: Request, res: Response) => {
-    const { projectId, fileId, userId, limit = "50", status } = req.query;
+    const { projectId, fileId, userId, status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
 
     const where: Record<string, string> = {};
     if (projectId) where.projectId = projectId as string;
@@ -55,7 +57,8 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
 
     const validationRuns = await prisma.validationRun.findMany({
       where,
-      take: parseInt(limit as string),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       orderBy: { createdAt: "desc" },
       include: {
         issues: {
@@ -140,7 +143,8 @@ router.get("/stats/summary", asyncHandler(async (req: Request, res: Response) =>
  * GET /api/validation/compare/:id1/:id2
  */
 router.get("/compare/:id1/:id2", asyncHandler(async (req: Request, res: Response) => {
-    const { id1, id2 } = req.params;
+    const id1 = req.params.id1 as string;
+    const id2 = req.params.id2 as string;
 
     const [validation1, validation2] = await Promise.all([
       prisma.validationRun.findUnique({
@@ -213,7 +217,7 @@ router.get("/compare/:id1/:id2", asyncHandler(async (req: Request, res: Response
  * GET /api/validation/:id
  */
 router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const validationRun = await prisma.validationRun.findUnique({
       where: { id },
@@ -237,7 +241,7 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
  * PATCH /api/validation/:id
  */
 router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const {
       status,
       totalElements,
@@ -273,7 +277,7 @@ router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
  * POST /api/validation/:id/issues
  */
 router.post("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { issues } = req.body;
 
     if (!Array.isArray(issues)) {
@@ -331,20 +335,52 @@ router.post("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
  * GET /api/validation/:id/issues?type=MISSING&status=OPEN
  */
 router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { type, status, severity } = req.query;
+    const id = req.params.id as string;
+    const { type, status, severity, search } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
 
-    const where: Record<string, string> = { validationRunId: id };
+    const where: Record<string, unknown> = { validationRunId: id };
     if (type) where.type = type as string;
     if (status) where.status = status as string;
     if (severity) where.severity = severity as string;
+    if (search) {
+      const term = (search as string).trim();
+      where.OR = [
+        { ruleName: { contains: term, mode: "insensitive" } },
+        { elementName: { contains: term, mode: "insensitive" } },
+        { elementCategory: { contains: term, mode: "insensitive" } },
+        { propertyName: { contains: term, mode: "insensitive" } },
+      ];
+    }
 
-    const issues = await prisma.validationIssue.findMany({
-      where,
-      orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
+    const [total, issues, severityCounts] = await Promise.all([
+      prisma.validationIssue.count({ where }),
+      prisma.validationIssue.findMany({
+        where,
+        orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      // Counts by severity (unfiltered by search/status for summary pills)
+      prisma.validationIssue.groupBy({
+        by: ["severity"],
+        where: { validationRunId: id },
+        _count: true,
+      }),
+    ]);
+
+    const counts = severityCounts.reduce((acc, s) => {
+      acc[s.severity] = s._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    res.json({
+      success: true,
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      counts,
+      data: issues,
     });
-
-    res.json({ success: true, data: issues });
 }));
 
 /**
@@ -352,7 +388,7 @@ router.get("/:id/issues", asyncHandler(async (req: Request, res: Response) => {
  * PATCH /api/validation/issues/:issueId
  */
 router.patch("/issues/:issueId", asyncHandler(async (req: Request, res: Response) => {
-    const { issueId } = req.params;
+    const issueId = req.params.issueId as string;
     const { status, resolvedBy, resolutionNotes, severity } = req.body;
 
     const updateData: Record<string, unknown> = {};

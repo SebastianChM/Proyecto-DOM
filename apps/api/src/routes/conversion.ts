@@ -64,7 +64,7 @@ router.post(
 router.get(
   "/batch/:batchId",
   asyncHandler(async (req, res) => {
-    const result = await conversionService.getBatchStatus(req.params.batchId);
+    const result = await conversionService.getBatchStatus(req.params.batchId as string);
     res.json(result);
   }),
 );
@@ -78,7 +78,7 @@ router.get(
   asyncHandler(async (req, res) => {
     try {
       const { archive, filename } = await conversionService.getBatchDownloadArchive(
-        req.params.batchId,
+        req.params.batchId as string,
       );
 
       res.setHeader(
@@ -132,7 +132,7 @@ router.post(
   "/:fileId",
   asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id || "system";
-    const fileId = req.params.fileId;
+    const fileId = req.params.fileId as string;
 
     // Check if fileId is actually "batch" (collision protection if mapped at root)
     if (fileId === "batch") return;
@@ -180,7 +180,7 @@ router.post(
 router.get(
   "/:conversionId",
   asyncHandler(async (req, res) => {
-    const { conversionId } = req.params;
+    const conversionId = req.params.conversionId as string;
     if (conversionId === "batch") return;
 
     const result = await conversionService.getConversionStatus(conversionId);
@@ -200,14 +200,14 @@ router.get(
   "/:conversionId/download",
   asyncHandler(async (req, res) => {
     const conversion = await conversionService.getConversionStatus(
-      req.params.conversionId,
+      req.params.conversionId as string,
     );
     if (!conversion || !conversion.resultUrn) {
       throw notFound("Conversion result not found", "CONVERSION_NOT_FOUND");
     }
 
     const { stream, filename, contentType, length } =
-      await conversionService.getDownloadData(req.params.conversionId);
+      await conversionService.getDownloadData(req.params.conversionId as string);
 
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", contentType);
@@ -240,9 +240,22 @@ router.post(
   "/:conversionId/save-to-project",
   asyncHandler(async (req, res) => {
     const result = await conversionService.saveToProject(
-      req.params.conversionId,
+      req.params.conversionId as string,
     );
     res.json({ success: true, file: result });
+  }),
+);
+
+/**
+ * DELETE /:conversionId
+ * Cancel a pending/queued conversion
+ */
+router.delete(
+  "/:conversionId",
+  asyncHandler(async (req, res) => {
+    const conversionId = req.params.conversionId as string;
+    const result = await conversionService.cancelConversion(conversionId);
+    res.json({ success: true, ...result });
   }),
 );
 

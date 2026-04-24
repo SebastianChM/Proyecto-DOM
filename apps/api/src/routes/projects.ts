@@ -11,44 +11,56 @@ import { APP_CONFIG } from "../config/constants";
 import { apsWebhooksService } from "../services/aps/webhooks.service";
 import { asyncHandler } from "../lib/async-handler";
 import { badRequest, unauthorized, notFound } from "../lib/errors";
+import { auditService } from "../services/audit.service";
 
 const router = Router();
 
 // Validation Schemas
-const createProjectSchema = z
-  .object({
-    name: z
-      .string()
-      .min(
-        APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH,
-        `Name must be at least ${APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH} characters`,
-      )
-      .max(
-        APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH,
-        `Name must be at most ${APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH} characters`,
-      ),
-    description: z.string().optional(),
-    status: z.string().optional(),
-    clientName: z.string().optional(),
-    location: z.string().optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
-    discipline: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.startDate && data.endDate) {
-        return new Date(data.startDate) < new Date(data.endDate);
-      }
-      return true;
-    },
-    {
-      message: "End date must be after start date",
-      path: ["endDate"],
-    },
-  );
+const createProjectSchema = z.object({
+  name: z
+    .string()
+    .min(
+      APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH,
+      `Name must be at least ${APP_CONFIG.LIMITS.PROJECT_NAME_MIN_LENGTH} characters`,
+    )
+    .max(
+      APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH,
+      `Name must be at most ${APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH} characters`,
+    ),
+  description: z.string().optional(),
+  status: z.string().optional(),
+  clientName: z.string().optional(),
+  location: z.string().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  discipline: z.string().optional(),
+});
 
-const updateProjectSchema = createProjectSchema.partial();
+const updateProjectSchema = createProjectSchema.partial().refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.startDate) < new Date(data.endDate);
+    }
+    return true;
+  },
+  {
+    message: "End date must be after start date",
+    path: ["endDate"],
+  },
+);
+
+const createProjectSchemaWithValidation = createProjectSchema.refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.startDate) < new Date(data.endDate);
+    }
+    return true;
+  },
+  {
+    message: "End date must be after start date",
+    path: ["endDate"],
+  },
+);
 
 /**
  * @swagger
@@ -94,7 +106,7 @@ const updateProjectSchema = createProjectSchema.partial();
 // Create project
 router.post("/", asyncHandler(async (req, res) => {
     // Validate input
-    const validation = createProjectSchema.safeParse(req.body);
+    const validation = createProjectSchemaWithValidation.safeParse(req.body);
     logger.debug("POST /projects validation", { valid: validation.success });
 
     if (!validation.success) {
@@ -168,6 +180,14 @@ router.post("/", asyncHandler(async (req, res) => {
       .invalidatePattern("cache:projects:list:*")
       .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
+    auditService.log({
+      ...auditService.fromReq(req),
+      action: "CREATE",
+      entity: "project",
+      entityId: project.id,
+      details: { name: project.name },
+    });
+
     res.status(201).json(project);
 }));
 
@@ -175,78 +195,124 @@ router.post("/", asyncHandler(async (req, res) => {
  * @swagger
  * /projects:
  *   get:
- *     summary: List all projects
+ *     summary: List projects with pagination, search, and filters
  *     tags: [Projects]
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Search in name, description, clientName, location
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ *         description: Filter by project status
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, default: 20, maximum: 100 }
+ *       - in: query
+ *         name: sortBy
+ *         schema: { type: string, enum: [updatedAt, name, createdAt], default: updatedAt }
+ *       - in: query
+ *         name: sortOrder
+ *         schema: { type: string, enum: [asc, desc], default: desc }
  *     responses:
  *       200:
- *         description: List of projects
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   name:
- *                     type: string
- *                   status:
- *                     type: string
- *       500:
- *         description: Server error
+ *         description: Paginated list of projects with metadata
  */
-// List projects (with cache) - Solo proyectos donde el usuario tiene acceso
+// List projects (paginated, cached) - Solo proyectos donde el usuario tiene acceso
 router.get("/", asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) {
       throw unauthorized();
     }
 
-    const cacheKey = RedisKeys.projectsList(userId);
+    // Parse query params with safe defaults
+    const search = (req.query.search as string)?.trim() || "";
+    const status = (req.query.status as string)?.trim() || "";
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const sortBy = (["updatedAt", "name", "createdAt"].includes(req.query.sortBy as string))
+      ? (req.query.sortBy as string) : "updatedAt";
+    const sortOrder = (req.query.sortOrder === "asc") ? "asc" as const : "desc" as const;
 
-    // Cache for 1 minute
-    const projects = await cacheService.getOrSet(
+    const cacheKey = `${RedisKeys.projectsList(userId)}:p=${page}:ps=${pageSize}:s=${search}:st=${status}:sb=${sortBy}:so=${sortOrder}`;
+
+    const result = await cacheService.getOrSet(
       cacheKey,
       async () => {
-        // Obtener proyectos donde el usuario es owner o miembro
-        const userProjects = await prisma.project.findMany({
-          where: {
-            OR: [
-              { ownerId: userId }, // Owner directo
-              {
-                members: {
-                  some: {
-                    userId: userId,
-                    acceptedAt: { not: null }, // Solo miembros que aceptaron
-                  },
+        const baseWhere = {
+          OR: [
+            { ownerId: userId },
+            {
+              members: {
+                some: {
+                  userId: userId,
+                  acceptedAt: { not: null },
                 },
               },
+            },
+          ],
+        };
+
+        // Build additional filters
+        const filters: Record<string, unknown>[] = [];
+        if (search) {
+          filters.push({
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
+              { clientName: { contains: search, mode: "insensitive" } },
+              { location: { contains: search, mode: "insensitive" } },
             ],
-          },
-          orderBy: { updatedAt: "desc" },
-          include: {
-            files: true,
-            _count: {
-              select: {
-                files: true,
-                members: true,
+          });
+        }
+        if (status) {
+          filters.push({ status });
+        }
+
+        const where = filters.length > 0
+          ? { AND: [baseWhere, ...filters] }
+          : baseWhere;
+
+        // Parallel: count + paginated data
+        const [total, projects] = await Promise.all([
+          prisma.project.count({ where: where as any }),
+          prisma.project.findMany({
+            where: where as any,
+            orderBy: { [sortBy]: sortOrder },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            include: {
+              files: {
+                select: { id: true, name: true, type: true, status: true, apsUrn: true, createdAt: true, updatedAt: true },
+                orderBy: { updatedAt: "desc" },
+              },
+              _count: {
+                select: { files: true, members: true },
+              },
+              owner: {
+                select: { id: true, name: true, email: true },
               },
             },
-            owner: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
+          }),
+        ]);
+
+        return {
+          meta: {
+            page,
+            pageSize,
+            total,
+            totalPages: Math.ceil(total / pageSize),
           },
-        });
-        return userProjects;
+          data: projects,
+        };
       },
       60,
     );
-    res.json(projects);
+    res.json(result);
 }));
 
 /**
@@ -272,14 +338,14 @@ router.get("/", asyncHandler(async (req, res) => {
  */
 // Get project by ID - Requiere permiso de lectura
 router.get("/:id", requireProjectAccess, asyncHandler(async (req, res) => {
-    const cacheKey = RedisKeys.projectDetail(req.params.id);
+    const cacheKey = RedisKeys.projectDetail(req.params.id as string);
 
     // Cache for 1 minute
     const project = await cacheService.getOrSet(
       cacheKey,
       async () => {
         return await prisma.project.findUnique({
-          where: { id: req.params.id },
+          where: { id: req.params.id as string },
           include: {
             files: {
               orderBy: { createdAt: "desc" },
@@ -381,7 +447,7 @@ router.put("/:id", requirePermission("project:update"), asyncHandler(async (req,
       discipline,
     } = validation.data;
     const project = await prisma.project.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: {
         name,
         description,
@@ -396,7 +462,7 @@ router.put("/:id", requirePermission("project:update"), asyncHandler(async (req,
 
     // Invalidate caches
     await Promise.all([
-      cacheService.del(RedisKeys.projectDetail(req.params.id)),
+      cacheService.del(RedisKeys.projectDetail(req.params.id as string)),
       cacheService.invalidatePattern("cache:projects:list:*"),
       cacheService.invalidatePattern("cache:dashboard:stats:*"),
     ]);
@@ -426,12 +492,12 @@ router.put("/:id", requirePermission("project:update"), asyncHandler(async (req,
 // Delete project - Requiere permiso de eliminación
 router.delete("/:id", requirePermission("project:delete"), asyncHandler(async (req, res) => {
     await prisma.project.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     // Invalidate caches
     await Promise.all([
-      cacheService.del(RedisKeys.projectDetail(req.params.id)),
+      cacheService.del(RedisKeys.projectDetail(req.params.id as string)),
       cacheService.invalidatePattern("cache:projects:list:*"),
       cacheService.invalidatePattern("cache:dashboard:stats:*"),
     ]);
@@ -532,6 +598,57 @@ router.post("/import-aps", asyncHandler(async (req, res) => {
       .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
+}));
+
+/**
+ * GET /:id/export
+ * Export all project data as JSON
+ */
+router.get("/:id/export", requireProjectAccess, asyncHandler(async (req, res) => {
+    const projectId = req.params.id as string;
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        members: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        files: {
+          select: {
+            id: true, name: true, type: true, size: true, status: true,
+            createdAt: true, updatedAt: true,
+          },
+        },
+        _count: { select: { files: true, members: true } },
+      },
+    });
+
+    if (!project) {
+      throw notFound("Project not found", "PROJECT_NOT_FOUND");
+    }
+
+    // Get compliance runs for this project
+    const complianceRuns = await prisma.complianceRun.findMany({
+      where: { projectId },
+      select: {
+        id: true, status: true, complianceScore: true, totalElements: true,
+        passedCount: true, failedCount: true, startedAt: true, completedAt: true,
+      },
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    });
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      project,
+      complianceRuns,
+    };
+
+    const safeName = (project.name || "project").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="export_${safeName}.json"`);
+    res.json(exportData);
 }));
 
 export default router;

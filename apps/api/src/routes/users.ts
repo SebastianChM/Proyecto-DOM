@@ -8,25 +8,50 @@ const router = Router();
 
 /**
  * GET /api/users
- * Listar todos los usuarios (solo ADMIN)
+ * List users with pagination, search, and role filter (ADMIN only)
+ * Query: ?page=1&pageSize=20&search=&role=
  */
 router.get("/", requireAdmin, asyncHandler(async (req, res) => {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        apsUserId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const search = (req.query.search as string)?.trim() || "";
+    const role = (req.query.role as string)?.trim() || "";
 
-    res.json(users);
+    const where: Record<string, unknown> = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (role) {
+      where.role = role;
+    }
+
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          apsUserId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    res.json({
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      data: users,
+    });
 }));
 
 import { z } from "zod";
@@ -40,7 +65,7 @@ const updateUserRoleSchema = z.object({
  * Cambiar rol de un usuario (solo ADMIN)
  */
 router.put("/admin/users/:id/role", requireAdmin, asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Validate input
     const validation = updateUserRoleSchema.safeParse(req.body);

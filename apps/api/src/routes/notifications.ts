@@ -12,7 +12,9 @@ const router = Router();
  * GET /api/notifications?userId=xxx&read=false&limit=50
  */
 router.get("/", asyncHandler(async (req, res) => {
-    const { userId, read, type, limit = "100" } = req.query;
+    const { userId, read, type } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 50));
 
     if (!userId) {
       throw badRequest("userId is required", "MISSING_USER_ID");
@@ -24,7 +26,8 @@ router.get("/", asyncHandler(async (req, res) => {
 
     const notifications = await prisma.notification.findMany({
       where,
-      take: parseInt(limit as string),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       orderBy: [
         { read: "asc" }, // Unread first
         { createdAt: "desc" },
@@ -106,7 +109,7 @@ router.post("/", asyncHandler(async (req, res) => {
  * PATCH /api/notifications/:id/read
  */
 router.patch("/:id/read", asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const notification = await prisma.notification.update({
       where: { id },
@@ -157,7 +160,7 @@ router.patch("/mark-read/bulk", asyncHandler(async (req, res) => {
  * DELETE /api/notifications/:id
  */
 router.delete("/:id", asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.notification.delete({
       where: { id },
@@ -171,7 +174,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
  * DELETE /api/notifications/user/:userId
  */
 router.delete("/user/:userId", asyncHandler(async (req, res) => {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
     const { read } = req.query;
 
     const where: Record<string, unknown> = { userId };
@@ -189,7 +192,7 @@ router.delete("/user/:userId", asyncHandler(async (req, res) => {
  * GET /api/notifications/stats/:userId
  */
 router.get("/stats/:userId", asyncHandler(async (req, res) => {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
 
     const [total, unread, byType, byPriority] = await Promise.all([
       prisma.notification.count({ where: { userId } }),

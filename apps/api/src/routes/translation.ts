@@ -30,7 +30,7 @@ const router = Router();
  */
 // Retry translation for a file stuck in UPLOADED state
 router.post("/:fileId/translate", asyncHandler(async (req, res) => {
-    const { fileId } = req.params;
+    const fileId = req.params.fileId as string;
 
     const file = await prisma.file.findUnique({
       where: { id: fileId },
@@ -94,24 +94,25 @@ router.post("/:fileId/translate", asyncHandler(async (req, res) => {
 
     if (file.apsUrn.startsWith("local-")) {
       logger.debug("[TRANSLATION] Local mode detected, simulating translation");
-      // Simulate translation
-      setTimeout(async () => {
-        try {
-          await prisma.file.update({
+      // Simulate translation with safe async handling
+      setTimeout(() => {
+        prisma.file.update({
             where: { id: fileId },
             data: { status: "READY" },
+          })
+          .then(() => {
+            logger.info(
+              `[TRANSLATION] Mock translation complete for ${file.name} - status: READY`,
+            );
+          })
+          .catch((e: unknown) => {
+            logger.error(
+              "[TRANSLATION] Failed to update mock translation status",
+              {
+                error: e instanceof Error ? e.message : String(e),
+              },
+            );
           });
-          logger.info(
-            `[TRANSLATION] Mock translation complete for ${file.name} - status: READY`,
-          );
-        } catch (e) {
-          logger.error(
-            "[TRANSLATION] Failed to update mock translation status",
-            {
-              error: e instanceof Error ? e.message : String(e),
-            },
-          );
-        }
       }, 5000);
     } else {
       // Ensure URN is URL-safe Base64 (APS requirement)

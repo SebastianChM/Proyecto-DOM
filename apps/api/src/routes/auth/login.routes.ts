@@ -1,10 +1,12 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { apsAuthService } from "../../services/aps/auth.service";
 import prisma from "../../lib/prisma";
 import { env } from "../../config/env";
 import { CONSTANTS } from "../../config/constants";
 import { getFrontendUrl, getDashboardUrl } from "../../lib/utils";
 import { logger } from "../../lib/logger";
+import { auditService } from "../../services/audit.service";
 
 const router = Router();
 
@@ -21,7 +23,11 @@ const router = Router();
  */
 router.get("/login", (req, res) => {
   try {
-    let url = apsAuthService.getAuthorizationUrl();
+    // Generate CSRF state token
+    const oauthState = crypto.randomBytes(24).toString("hex");
+    req.session.oauthState = oauthState;
+
+    let url = apsAuthService.getAuthorizationUrl(oauthState);
 
     // Check if force login is requested (to switch accounts)
     if (req.query.prompt === "login" || req.query.force === "true") {
@@ -68,6 +74,23 @@ router.get("/callback", async (req, res) => {
   try {
     const error = req.query.error;
     const code = req.query.code as string;
+    const returnedState = req.query.state as string | undefined;
+
+    // Validate CSRF state token
+    const expectedState = req.session?.oauthState;
+    if (expectedState && returnedState !== expectedState) {
+      logger.warn("[AUTH] OAuth state mismatch (possible CSRF)", {
+        ...logger.fromReq(req),
+        expected: expectedState?.substring(0, 8) + "...",
+        received: returnedState?.substring(0, 8) + "...",
+      });
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}?error=state_mismatch`);
+    }
+    // Clear used state
+    if (req.session) {
+      delete req.session.oauthState;
+    }
 
     // Handle errors or user cancellation
     if (error) {
@@ -243,6 +266,16 @@ router.get("/callback", async (req, res) => {
 
     const redirectUrl = getDashboardUrl();
 
+    // Audit log: successful login
+    auditService.log({
+      ...auditService.fromReq(req),
+      userId: user.id,
+      action: "LOGIN",
+      entity: "user",
+      entityId: user.id,
+      details: { email: user.email, method: "oauth-autodesk" },
+    });
+
     logger.debug("[AUTH] Saving session before redirect...");
     req.session.save((err) => {
       if (err) {
@@ -282,6 +315,13 @@ router.get("/callback", async (req, res) => {
  *         description: Logout successful
  */
 router.post("/logout", (req, res) => {
+  const logoutUserId = req.session?.user?.id;
+  auditService.log({
+    ...auditService.fromReq(req),
+    action: "LOGOUT",
+    entity: "user",
+    entityId: logoutUserId,
+  });
   req.session.destroy((err) => {
     if (err) {
       logger.error("[AUTH] Logout error", { error: String(err) });

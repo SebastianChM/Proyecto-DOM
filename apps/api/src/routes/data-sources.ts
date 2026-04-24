@@ -122,7 +122,7 @@ router.post(
 router.post(
   "/extract-from-file/:fileId",
   asyncHandler(async (req: Request, res: Response) => {
-      const { fileId } = req.params;
+      const fileId = req.params.fileId as string;
       const { projectId } = req.body;
 
       // Get file from database
@@ -215,7 +215,7 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
  * Get a data source with full extracted data
  */
 router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const dataSource = await dataExtractorService.getDataSource(id);
 
@@ -231,7 +231,8 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
  * Get a specific table from a data source
  */
 router.get("/:id/tables/:tableIndex", asyncHandler(async (req: Request, res: Response) => {
-    const { id, tableIndex } = req.params;
+    const id = req.params.id as string;
+    const tableIndex = req.params.tableIndex as string;
     const index = parseInt(tableIndex);
 
     const dataSource = await dataExtractorService.getDataSource(id);
@@ -257,7 +258,7 @@ router.get("/:id/tables/:tableIndex", asyncHandler(async (req: Request, res: Res
  * Update data source status (e.g., mark as reviewed)
  */
 router.put("/:id/status", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status } = req.body;
 
     if (!["PENDING", "EXTRACTED", "REVIEWED", "FAILED"].includes(status)) {
@@ -280,7 +281,7 @@ router.put("/:id/status", asyncHandler(async (req: Request, res: Response) => {
  * Delete a data source
  */
 router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.dataSource.delete({
       where: { id },

@@ -107,8 +107,14 @@ export class APSAuthService {
   /**
    * Get authorization URL for 3-legged OAuth
    */
-  getAuthorizationUrl(): string {
-    return this.threeLeggedClient.generateAuthUrl();
+  getAuthorizationUrl(state?: string): string {
+    const url = this.threeLeggedClient.generateAuthUrl();
+    // Replace the state=undefined injected by forge-apis SDK with a real CSRF token
+    if (state) {
+      return url.replace(/state=undefined/, `state=${encodeURIComponent(state)}`);
+    }
+    // Remove state=undefined if no state provided
+    return url.replace(/[&?]state=undefined/, '');
   }
 
   /**

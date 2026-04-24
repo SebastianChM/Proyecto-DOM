@@ -156,7 +156,7 @@ router.get("/templates", asyncHandler(async (req: Request, res: Response) => {
  * Get a specific template with states and transitions
  */
 router.get("/templates/:templateId", asyncHandler(async (req: Request, res: Response) => {
-    const { templateId } = req.params;
+    const templateId = req.params.templateId as string;
 
     const template = await workflowService.getTemplateById(templateId);
 
@@ -179,7 +179,8 @@ router.get(
   "/:entityType/:entityId",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const user = getUserContext(req);
 
       if (!user) {
@@ -235,7 +236,8 @@ router.get(
   "/:entityType/:entityId/transitions",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const user = getUserContext(req);
 
       if (!user) {
@@ -275,7 +277,8 @@ router.post(
   "/:entityType/:entityId/transition",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const { transitionName, comment, metadata } = req.body;
       const user = getUserContext(req);
 
@@ -343,7 +346,8 @@ router.get(
   "/:entityType/:entityId/history",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const user = getUserContext(req);
 
@@ -386,7 +390,8 @@ router.post(
   "/:entityType/:entityId/cancel",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const { reason } = req.body;
       const user = getUserContext(req);
 
@@ -433,7 +438,8 @@ router.post(
   "/:entityType/:entityId/reset",
   validateEntityType,
   asyncHandler(async (req: Request, res: Response) => {
-      const { entityType, entityId } = req.params;
+      const entityType = req.params.entityType as string;
+      const entityId = req.params.entityId as string;
       const { reason } = req.body;
       const user = getUserContext(req);
 

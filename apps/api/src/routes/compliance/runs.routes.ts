@@ -261,7 +261,7 @@ router.get(
 router.get(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const run = await prisma.complianceRun.findUnique({
       where: { id },
@@ -283,30 +283,61 @@ router.get(
 
 /**
  * GET /api/compliance-v2/runs/:id/issues
- * Get issues for a specific run
+ * Get issues for a specific run with server-side pagination, search, and filters
  */
 router.get(
   "/:id/issues",
   asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { severity, category } = req.query;
+    const id = req.params.id as string;
+    const { severity, category, status, search } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
 
-    const whereClause: {
-      runId: string;
-      severity?: string;
-      elementCategory?: { contains: string };
-    } = { runId: id };
-    if (severity && typeof severity === "string")
+    const whereClause: Record<string, unknown> = { runId: id };
+    if (severity && typeof severity === "string" && severity !== "all")
       whereClause.severity = severity;
+    if (status && typeof status === "string" && status !== "all")
+      whereClause.status = status;
     if (category && typeof category === "string")
       whereClause.elementCategory = { contains: category };
+    if (search && typeof search === "string") {
+      const term = search.trim();
+      if (term) {
+        whereClause.OR = [
+          { ruleName: { contains: term, mode: "insensitive" } },
+          { elementName: { contains: term, mode: "insensitive" } },
+          { elementCategory: { contains: term, mode: "insensitive" } },
+          { propertyName: { contains: term, mode: "insensitive" } },
+        ];
+      }
+    }
 
-    const issues = await prisma.complianceIssue.findMany({
-      where: whereClause,
-      orderBy: [{ severity: "asc" }, { elementCategory: "asc" }],
+    const [total, issues, severityCounts] = await Promise.all([
+      prisma.complianceIssue.count({ where: whereClause }),
+      prisma.complianceIssue.findMany({
+        where: whereClause,
+        orderBy: [{ severity: "asc" }, { elementCategory: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      // Unfiltered severity counts for summary pills
+      prisma.complianceIssue.groupBy({
+        by: ["severity"],
+        where: { runId: id },
+        _count: true,
+      }),
+    ]);
+
+    const counts = severityCounts.reduce((acc, s) => {
+      acc[s.severity] = s._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    res.json({
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      counts,
+      data: issues,
     });
-
-    res.json(issues);
   }),
 );
 
@@ -317,7 +348,7 @@ router.get(
 router.put(
   "/issues/:issueId/status",
   asyncHandler(async (req: Request, res: Response) => {
-    const { issueId } = req.params;
+    const issueId = req.params.issueId as string;
     const { status, resolutionNote } = req.body;
 
     if (!["OPEN", "RESOLVED", "IGNORED", "FALSE_POSITIVE"].includes(status)) {

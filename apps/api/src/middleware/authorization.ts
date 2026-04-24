@@ -46,7 +46,7 @@ export const requirePermission = (
       if (getProjectId) {
         projectId = getProjectId(req);
       } else if (req.params.projectId) {
-        projectId = req.params.projectId;
+        projectId = req.params.projectId as string;
       } else if (req.body.projectId) {
         projectId = req.body.projectId;
       } else if (req.query.projectId) {
@@ -160,7 +160,7 @@ export const requireProjectAccess = async (
   next: NextFunction,
 ) => {
   const getProjectId = (req: Request) => {
-    return req.params.id || req.params.projectId;
+    return (req.params.id || req.params.projectId) as string;
   };
 
   return requirePermission("project:read", getProjectId)(req, res, next);

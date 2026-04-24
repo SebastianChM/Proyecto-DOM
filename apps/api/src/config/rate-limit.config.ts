@@ -463,13 +463,14 @@ export class RateLimiterService {
 
   /**
    * HEAVY OPERATIONS: Validations, Compliance, Reports
-   * Estricto: 10 operations / hora por usuario
-   * Fallback permitido
+   * Production: 10 operations / hora por usuario
+   * Development: 100 operations / hora (más permisivo para testing)
    */
   heavyOperationLimiter() {
+    const isDev = env.NODE_ENV !== "production";
     return this.createMiddleware({
       endpoint: "heavy_operation",
-      maxRequests: 10,
+      maxRequests: isDev ? 100 : 10,
       windowSeconds: 60 * 60,
       strictMode: false,
       perUser: true,

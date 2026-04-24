@@ -25,7 +25,7 @@ router.get("/hubs", asyncHandler(async (req, res) => {
  * List projects in a hub
  */
 router.get("/hubs/:hubId/projects", asyncHandler(async (req, res) => {
-    const { hubId } = req.params;
+    const hubId = req.params.hubId as string;
     const projects = await apsIntegrationService.getProjectsForHub(req, hubId);
     res.json(projects);
 }));
@@ -35,7 +35,8 @@ router.get("/hubs/:hubId/projects", asyncHandler(async (req, res) => {
  * Get folder contents
  */
 router.get("/projects/:projectId/folders/:folderId", asyncHandler(async (req, res) => {
-    const { projectId, folderId } = req.params;
+    const projectId = req.params.projectId as string;
+    const folderId = req.params.folderId as string;
     const contents = await apsIntegrationService.getFolderContents(
       req,
       projectId,

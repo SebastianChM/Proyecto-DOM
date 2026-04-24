@@ -168,7 +168,7 @@ export class APSModelDerivativeService {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            "x-ads-force": "true",
+            // Do NOT use x-ads-force here — it wipes existing SVF2 derivatives
           },
         },
       );
@@ -213,7 +213,6 @@ export class APSModelDerivativeService {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
-              "x-ads-force": "true",
             },
           },
         );

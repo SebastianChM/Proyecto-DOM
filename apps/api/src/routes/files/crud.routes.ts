@@ -79,20 +79,142 @@ router.get(
   }),
 );
 
-// List files for a project
+// List ALL files across projects (paginated) - for the "All Files" page
+// GET /files/all?page=1&pageSize=20&search=&type=&status=&projectId=
+router.get(
+  "/all",
+  asyncHandler(async (req, res) => {
+    const userId = (req as unknown as RequestWithSession).session?.user?.id;
+    if (!userId) {
+      throw unauthorized("Authentication required");
+    }
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const search = (req.query.search as string)?.trim() || "";
+    const type = (req.query.type as string)?.trim().toUpperCase() || "";
+    const status = (req.query.status as string)?.trim() || "";
+    const projectId = (req.query.projectId as string)?.trim() || "";
+
+    // Only files from projects the user has access to
+    const where: Record<string, unknown> = {
+      project: {
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId, acceptedAt: { not: null } } } },
+        ],
+      },
+    };
+
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+    if (type) where.type = type;
+    if (status) where.status = status;
+    if (projectId) where.projectId = projectId;
+
+    const [total, files, types, projects] = await Promise.all([
+      prisma.file.count({ where }),
+      prisma.file.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          size: true,
+          status: true,
+          apsUrn: true,
+          createdAt: true,
+          updatedAt: true,
+          projectId: true,
+          project: { select: { id: true, name: true } },
+        },
+      }),
+      // Available types for filter dropdown
+      prisma.file.groupBy({
+        by: ["type"],
+        where: {
+          project: {
+            OR: [
+              { ownerId: userId },
+              { members: { some: { userId, acceptedAt: { not: null } } } },
+            ],
+          },
+        },
+        _count: true,
+      }),
+      // Available projects for filter dropdown
+      prisma.project.findMany({
+        where: {
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId, acceptedAt: { not: null } } } },
+          ],
+        },
+        select: { id: true, name: true, _count: { select: { files: true } } },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    // Add progress to each file
+    const filesWithProgress = files.map((file) => {
+      let progress = 0;
+      if (file.status === "TRANSLATING" || file.status === "PROCESSING") {
+        const elapsed = Date.now() - new Date(file.updatedAt).getTime();
+        const isLocal = file.apsUrn && file.apsUrn.startsWith("local-");
+        const duration = isLocal ? 5000 : 60000;
+        progress = Math.max(10, Math.min(99, Math.floor((elapsed / duration) * 100)));
+      } else if (file.status === "READY") {
+        progress = 100;
+      }
+      return { ...file, progress };
+    });
+
+    res.json({
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      filters: {
+        types: types.map(t => ({ type: t.type, count: t._count })),
+        projects: projects.map(p => ({ id: p.id, name: p.name, fileCount: p._count.files })),
+      },
+      data: filesWithProgress,
+    });
+  }),
+);
+
+// List files for a project (paginated)
+// GET /files/project/:projectId?page=1&pageSize=20&search=&type=&status=
 router.get(
   "/project/:projectId",
   asyncHandler(async (req, res) => {
-    const { projectId } = req.params;
-    const files = await prisma.file.findMany({
-      where: { projectId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        versions: true,
-      },
-    });
+    const projectId = req.params.projectId as string;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const search = (req.query.search as string)?.trim() || "";
+    const type = (req.query.type as string)?.trim().toUpperCase() || "";
+    const status = (req.query.status as string)?.trim() || "";
 
-    // Check status for active files
+    const where: Record<string, unknown> = { projectId };
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+    if (type) where.type = type;
+    if (status) where.status = status;
+
+    const [total, files] = await Promise.all([
+      prisma.file.count({ where }),
+      prisma.file.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { versions: true },
+      }),
+    ]);
+
+    // Check status for active files (only those in current page)
     for (const file of files) {
       if (
         (file.status === "TRANSLATING" || file.status === "PROCESSING") &&
@@ -134,8 +256,7 @@ router.get(
       if (file.status === "TRANSLATING" || file.status === "PROCESSING") {
         const elapsed = Date.now() - new Date(file.updatedAt).getTime();
         const isLocal = file.apsUrn && file.apsUrn.startsWith("local-");
-        const duration = isLocal ? 5000 : 60000; // 5s for local, 60s for real
-        // Force minimum 10% to ensure visibility immediately
+        const duration = isLocal ? 5000 : 60000;
         progress = Math.max(
           10,
           Math.min(99, Math.floor((elapsed / duration) * 100)),
@@ -146,7 +267,10 @@ router.get(
       return { ...file, progress };
     });
 
-    res.json(filesWithProgress);
+    res.json({
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      data: filesWithProgress,
+    });
   }),
 );
 
@@ -176,7 +300,7 @@ router.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         versions: true,
         conversions: true,
@@ -259,7 +383,7 @@ router.get(
   "/:id/versions",
   asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         versions: {
           orderBy: { version: "desc" },
@@ -388,7 +512,7 @@ router.get(
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id as string as string;
 
     // Check if file exists
     const file = await prisma.file.findUnique({

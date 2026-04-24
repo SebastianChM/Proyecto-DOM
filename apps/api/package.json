@@ -7,18 +7,20 @@
     "schema": "../../packages/database/prisma/schema.prisma"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/src/index.js",
     "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "dev:worker": "cross-env RUN_WORKERS=true ts-node-dev --respawn --transpile-only src/worker.ts",
+    "dev:worker": "cross-env RUN_WORKERS=true tsx watch src/worker.ts",
     "start:worker": "node dist/src/worker.js",
-    "deploy:plugin": "ts-node-dev scripts/deploy-da-bundle.ts"
+    "deploy:plugin": "tsx scripts/deploy-da-bundle.ts"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
     "@prisma/client": "^5.7.0",
     "@types/express-session": "^1.18.2",
     "archiver": "^7.0.1",
@@ -42,6 +44,7 @@
     "nodemailer": "^7.0.11",
     "pdf-parse": "^1.1.1",
     "pdf.js-extract": "^0.2.1",
+    "pdfkit": "^0.18.0",
     "puppeteer": "^24.32.0",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
@@ -57,17 +60,15 @@
     "@types/node": "^20.10.5",
     "@types/nodemailer": "^7.0.4",
     "@types/pdf-parse": "^1.1.5",
-    "@types/pdfkit": "^0.17.4",
     "@types/supertest": "^6.0.3",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.8",
     "jest": "^30.2.0",
-    "pdfkit": "^0.17.2",
     "prisma": "^5.7.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.6",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.3.3"
   },
   "optionalDependencies": {

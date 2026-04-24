@@ -66,6 +66,7 @@ const worker = new Worker<DesignAutomationCallbackJobData>(
   },
   {
     connection: redisConfig,
+    prefix: "dom-bim",
     concurrency: Math.max(1, Math.min(env.CONVERSION_DA_CONCURRENCY, 10)),
   },
 );

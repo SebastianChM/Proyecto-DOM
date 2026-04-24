@@ -78,10 +78,10 @@ export class FileService {
         });
         const startTime = Date.now();
 
-        // OPTIMIZATION: Use uploadObject (Classic) instead of uploadStream (S3 Direct)
-        // This avoids potential firewall/negotiation latency with S3 Signed URLs.
+        // Use uploadBuffer (Direct to S3 Signed URLs)
+        // The legacy PUT /oss/v2/.../objects endpoint is deprecated (403)
         const buffer = fs.readFileSync(filePath);
-        const apsObject = await apsOssService.uploadObject(
+        const apsObject = await apsOssService.uploadBuffer(
           buffer,
           file.originalname,
         );

@@ -18,7 +18,7 @@ const router = Router();
  * Get manifest for a URN (public endpoint for debugging)
  */
 router.get("/manifest/:urn", asyncHandler(async (req, res) => {
-    const { urn } = req.params;
+    const urn = req.params.urn as string;
     logger.debug(`[APS_DERIVATIVES] Getting manifest for URN: ${urn}`);
     const manifest = await modelDerivativeService.getManifest(urn);
     res.json(manifest);
@@ -29,7 +29,8 @@ router.get("/manifest/:urn", asyncHandler(async (req, res) => {
  * Download a specific derivative
  */
 router.get("/derivative/:urn/:derivativeUrn", asyncHandler(async (req, res) => {
-    const { urn, derivativeUrn } = req.params;
+    const urn = req.params.urn as string;
+    const derivativeUrn = req.params.derivativeUrn as string;
     const decodedDerivativeUrn = decodeURIComponent(derivativeUrn);
 
     logger.debug(

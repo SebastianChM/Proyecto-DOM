@@ -80,6 +80,8 @@ function buildComplianceRun(overrides: Partial<ComplianceRun> = {}): ComplianceR
     errorMessage: null,
     projectId: "project-1",
     createdBy: null,
+    configId: null,
+    metadata: null,
     ...overrides,
   };
 }
@@ -104,6 +106,7 @@ function buildComplianceIssue(
     resolvedAt: null,
     resolvedBy: null,
     resolutionNote: null,
+    legalReference: null,
     createdAt: new Date("2026-03-11T11:02:00.000Z"),
     ...overrides,
   };

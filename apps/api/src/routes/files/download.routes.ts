@@ -41,7 +41,7 @@ const router = Router();
  */
 router.get("/:id/download", asyncHandler(async (req, res) => {
     const file = await prisma.file.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     if (!file) {

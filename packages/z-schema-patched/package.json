@@ -1,0 +1,10 @@
+{
+  "name": "z-schema",
+  "version": "5.0.5",
+  "description": "JSON Schema validator for browsers and Node.js (patched: removed deprecated lodash deps)",
+  "main": "src/ZSchema.js",
+  "license": "MIT",
+  "dependencies": {
+    "validator": "^13.7.0"
+  }
+}

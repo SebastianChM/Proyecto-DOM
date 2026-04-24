@@ -25,7 +25,7 @@ describe("FileService predictive conversion queue dispatch", () => {
     } as never);
     jest.spyOn(prisma.file, "update").mockResolvedValue({} as never);
 
-    jest.spyOn(apsOssService, "uploadObject").mockResolvedValue({
+    jest.spyOn(apsOssService, "uploadBuffer").mockResolvedValue({
       objectId: "urn:adsk.objects:os.object:bucket/sample.dwg",
     } as never);
 

@@ -5,6 +5,7 @@ declare module "express-session" {
     token?: string;
     refreshToken?: string;
     expiresAt?: number;
+    oauthState?: string;
     user?: {
       id: string;
       name: string;

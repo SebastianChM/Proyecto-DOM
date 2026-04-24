@@ -63,7 +63,7 @@ router.get("/rulesets", asyncHandler(async (req: Request, res: Response) => {
  * Get a single ruleset with all its rules
  */
 router.get("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const ruleset = await prisma.ruleset.findUnique({
       where: { id },
@@ -110,7 +110,7 @@ router.post("/rulesets", asyncHandler(async (req: Request, res: Response) => {
  * Update a ruleset
  */
 router.put("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { name, description, discipline, isDefault } = req.body;
 
     const ruleset = await prisma.ruleset.update({
@@ -131,7 +131,7 @@ router.put("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => 
  * Delete a ruleset and all its rules
  */
 router.delete("/rulesets/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.ruleset.delete({
       where: { id },
@@ -177,7 +177,7 @@ router.get("/rules", asyncHandler(async (req: Request, res: Response) => {
  * Get a single rule
  */
 router.get("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const rule = await prisma.rule.findUnique({
       where: { id },
@@ -265,7 +265,7 @@ router.post("/rules", asyncHandler(async (req: Request, res: Response) => {
  * Update a rule
  */
 router.put("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const {
       name,
       description,
@@ -309,7 +309,7 @@ router.put("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
  * Delete a rule
  */
 router.delete("/rules/:id", asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.rule.delete({
       where: { id },
