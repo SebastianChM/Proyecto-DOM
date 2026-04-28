@@ -89,7 +89,12 @@ describe("Error Contract — Projects & Members", () => {
     const res = await request(app)
       .post("/api/projects/import-aps")
       .set("Content-Type", "application/json")
-      .send({ name: "T", apsProjectId: "b.1", apsFolderId: "f:1", hubId: "h:1" });
+      .send({
+        name: "T",
+        apsProjectId: "b.1",
+        apsFolderId: "f:1",
+        hubId: "h:1",
+      });
 
     expect(res.status).toBe(401);
     expect(res.body).toMatchObject({
@@ -114,8 +119,13 @@ describe("Error Contract — Projects & Members", () => {
     // Gather multiple error responses
     const endpoints = [
       request(app).get("/api/projects"),
-      request(app).get("/api/project-members/00000000-0000-0000-0000-000000000000/permissions"),
-      request(app).post("/api/projects").set("Content-Type", "application/json").send({ name: "T" }),
+      request(app).get(
+        "/api/project-members/00000000-0000-0000-0000-000000000000/permissions",
+      ),
+      request(app)
+        .post("/api/projects")
+        .set("Content-Type", "application/json")
+        .send({ name: "T" }),
     ];
 
     const responses = await Promise.all(endpoints);
@@ -197,7 +207,10 @@ describe("Error Contract — Files", () => {
   it("contract shape — files error responses always include error + type + requestId", async () => {
     const responses = await Promise.all([
       request(app).get("/api/files/recent"),
-      request(app).post("/api/files/sync-status").set("Content-Type", "application/json").send({}),
+      request(app)
+        .post("/api/files/sync-status")
+        .set("Content-Type", "application/json")
+        .send({}),
       request(app).post("/api/files/upload").field("projectId", "p"),
     ]);
 
@@ -233,7 +246,10 @@ describe("Error Contract — Compliance", () => {
     });
     expect(res.body).toHaveProperty("requestId");
 
-    console.log("=== COMPLIANCE 400 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+    console.log(
+      "=== COMPLIANCE 400 EXAMPLE ===",
+      JSON.stringify(res.body, null, 2),
+    );
   });
 
   it("400 — POST /api/compliance-v2/rulesets missing name/discipline", async () => {
@@ -253,7 +269,7 @@ describe("Error Contract — Compliance", () => {
 
   it("404/500 — GET /api/compliance-v2/rulesets/:id not found (sanitized)", async () => {
     const res = await request(app).get(
-      "/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000"
+      "/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000",
     );
 
     // Without DB: 500 (Prisma can't connect). With DB: 404.
@@ -264,12 +280,15 @@ describe("Error Contract — Compliance", () => {
     expect(res.body).toHaveProperty("requestId");
     expect(typeof res.body.error).toBe("string");
 
-    console.log("=== COMPLIANCE 404/500 EXAMPLE ===", JSON.stringify({ status: res.status, type: res.body.type }, null, 2));
+    console.log(
+      "=== COMPLIANCE 404/500 EXAMPLE ===",
+      JSON.stringify({ status: res.status, type: res.body.type }, null, 2),
+    );
   });
 
   it("404/500 — GET /api/compliance-v2/runs/:id not found (sanitized)", async () => {
     const res = await request(app).get(
-      "/api/compliance-v2/runs/00000000-0000-0000-0000-000000000000"
+      "/api/compliance-v2/runs/00000000-0000-0000-0000-000000000000",
     );
 
     expect([404, 500]).toContain(res.status);
@@ -279,22 +298,30 @@ describe("Error Contract — Compliance", () => {
     expect(typeof res.body.error).toBe("string");
   });
 
-  it("400 — POST /api/compliance/verify without file or URN", async () => {
+  it("404 — POST /api/compliance/verify after legacy route removal", async () => {
     const res = await request(app)
       .post("/api/compliance/verify")
       .field("urn", "");
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(res.body).toHaveProperty("error");
-    expect(res.body).toHaveProperty("type", "BadRequest");
+    expect(res.body).toHaveProperty("type", "NotFound");
     expect(res.body).toHaveProperty("requestId");
   });
 
   it("contract shape — compliance errors include error + type + requestId", async () => {
     const responses = await Promise.all([
-      request(app).post("/api/compliance-v2/runs").set("Content-Type", "application/json").send({}),
-      request(app).get("/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000"),
-      request(app).post("/api/compliance-v2/rulesets").set("Content-Type", "application/json").send({}),
+      request(app)
+        .post("/api/compliance-v2/runs")
+        .set("Content-Type", "application/json")
+        .send({}),
+      request(app).get(
+        "/api/compliance-v2/rulesets/00000000-0000-0000-0000-000000000000",
+      ),
+      request(app)
+        .post("/api/compliance-v2/rulesets")
+        .set("Content-Type", "application/json")
+        .send({}),
     ]);
 
     for (const res of responses) {
@@ -330,14 +357,20 @@ describe("Error Contract — Validation", () => {
     });
     expect(res.body).toHaveProperty("requestId");
 
-    console.log("=== VALIDATION 400 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+    console.log(
+      "=== VALIDATION 400 EXAMPLE ===",
+      JSON.stringify(res.body, null, 2),
+    );
   });
 
   it("404/500 — POST /api/validation/validate with non-existent project", async () => {
     const res = await request(app)
       .post("/api/validation/validate")
       .set("Content-Type", "application/json")
-      .send({ projectId: "00000000-0000-0000-0000-000000000000", etDocumentId: "00000000-0000-0000-0000-000000000001" });
+      .send({
+        projectId: "00000000-0000-0000-0000-000000000000",
+        etDocumentId: "00000000-0000-0000-0000-000000000001",
+      });
 
     if (res.status === 429) return;
 
@@ -351,7 +384,10 @@ describe("Error Contract — Validation", () => {
 
   it("contract shape — validation errors include error + type + requestId", async () => {
     const responses = await Promise.all([
-      request(app).post("/api/validation/validate").set("Content-Type", "application/json").send({}),
+      request(app)
+        .post("/api/validation/validate")
+        .set("Content-Type", "application/json")
+        .send({}),
       request(app).get("/api/validation/00000000-0000-0000-0000-000000000000"),
     ]);
 
@@ -384,7 +420,10 @@ describe("Error Contract — Workflows", () => {
     });
     expect(res.body).toHaveProperty("requestId");
 
-    console.log("=== WORKFLOWS 401 EXAMPLE ===", JSON.stringify(res.body, null, 2));
+    console.log(
+      "=== WORKFLOWS 401 EXAMPLE ===",
+      JSON.stringify(res.body, null, 2),
+    );
   });
 
   it("400 — GET /api/workflows/INVALID_TYPE/:id invalid entity type", async () => {
@@ -402,7 +441,9 @@ describe("Error Contract — Workflows", () => {
 
   it("401 — POST /api/workflows/PROJECT/:id/transition without session", async () => {
     const res = await request(app)
-      .post("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition")
+      .post(
+        "/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition",
+      )
       .set("Content-Type", "application/json")
       .send({ transitionName: "approve" });
 
@@ -416,10 +457,16 @@ describe("Error Contract — Workflows", () => {
 
   it("contract shape — workflow errors include error + type", async () => {
     const responses = await Promise.all([
-      request(app).get("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000"),
+      request(app).get(
+        "/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000",
+      ),
       request(app).get("/api/workflows/INVALID_TYPE/fake-id"),
-      request(app).post("/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition")
-        .set("Content-Type", "application/json").send({}),
+      request(app)
+        .post(
+          "/api/workflows/PROJECT/00000000-0000-0000-0000-000000000000/transition",
+        )
+        .set("Content-Type", "application/json")
+        .send({}),
     ]);
 
     for (const res of responses) {
@@ -454,7 +501,10 @@ describe("Error Contract — Conversion", () => {
     expect(res.body).toHaveProperty("details");
     expect(res.body).toHaveProperty("requestId");
 
-    console.log("=== CONVERSION 400 (ZOD) EXAMPLE ===", JSON.stringify(res.body, null, 2));
+    console.log(
+      "=== CONVERSION 400 (ZOD) EXAMPLE ===",
+      JSON.stringify(res.body, null, 2),
+    );
   });
 
   it("400 — POST /api/conversion/:fileId with unsupported format", async () => {
@@ -476,8 +526,14 @@ describe("Error Contract — Conversion", () => {
 
   it("contract shape — conversion errors include error + type + requestId", async () => {
     const responses = await Promise.all([
-      request(app).post("/api/conversion/batch").set("Content-Type", "application/json").send({}),
-      request(app).post("/api/conversion/fake-id").set("Content-Type", "application/json").send({ format: "xyz" }),
+      request(app)
+        .post("/api/conversion/batch")
+        .set("Content-Type", "application/json")
+        .send({}),
+      request(app)
+        .post("/api/conversion/fake-id")
+        .set("Content-Type", "application/json")
+        .send({ format: "xyz" }),
     ]);
 
     for (const res of responses) {

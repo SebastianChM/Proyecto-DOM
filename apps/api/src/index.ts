@@ -9,6 +9,7 @@ import { rateLimiter } from "./config/rate-limit.config";
 // Load and validate environment variables (Fail fast)
 import { env } from "./config/env";
 import { logger } from "./lib/logger";
+import { notFound } from "./lib/errors";
 import { initTransport } from "./config/transport";
 import path from "path";
 
@@ -277,6 +278,10 @@ createBullBoard({
   serverAdapter: bullBoardAdapter,
 });
 app.use("/admin/queues", basicAuth, bullBoardAdapter.getRouter());
+
+app.use((_req, _res, next) => {
+  next(notFound("Route not found", "ROUTE_NOT_FOUND"));
+});
 
 // Error handling
 import { errorHandler } from "./middleware/error-handler";
