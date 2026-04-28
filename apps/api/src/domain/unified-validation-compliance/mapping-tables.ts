@@ -146,7 +146,9 @@ export const UNIFIED_ISSUE_STATUS_TO_COMPLIANCE: Readonly<
 };
 
 export const UNIFIED_ISSUE_SEVERITY_TO_VALIDATION: Readonly<
-  Partial<Record<Exclude<UnifiedIssueSeverity, "UNKNOWN">, ValidationIssueSeverity>>
+  Partial<
+    Record<Exclude<UnifiedIssueSeverity, "UNKNOWN">, ValidationIssueSeverity>
+  >
 > = {
   CRITICAL: "CRITICAL",
   HIGH: "HIGH",
@@ -156,7 +158,9 @@ export const UNIFIED_ISSUE_SEVERITY_TO_VALIDATION: Readonly<
 };
 
 export const UNIFIED_ISSUE_SEVERITY_TO_COMPLIANCE: Readonly<
-  Partial<Record<Exclude<UnifiedIssueSeverity, "UNKNOWN">, ComplianceIssueSeverity>>
+  Partial<
+    Record<Exclude<UnifiedIssueSeverity, "UNKNOWN">, ComplianceIssueSeverity>
+  >
 > = {
   CRITICAL: "CRITICAL",
   HIGH: "WARNING",
@@ -166,7 +170,9 @@ export const UNIFIED_ISSUE_SEVERITY_TO_COMPLIANCE: Readonly<
 };
 
 export const UNIFIED_ISSUE_CATEGORY_TO_VALIDATION: Readonly<
-  Partial<Record<Exclude<UnifiedIssueCategory, "OTHER">, ValidationIssueCategory>>
+  Partial<
+    Record<Exclude<UnifiedIssueCategory, "OTHER">, ValidationIssueCategory>
+  >
 > = {
   MISSING: "MISSING",
   MISMATCH: "MISMATCH",
@@ -179,4 +185,21 @@ export const UNIFIED_ISSUE_CATEGORY_TO_COMPLIANCE: Readonly<
   Partial<Record<Exclude<UnifiedIssueCategory, "OTHER">, "RULE_VIOLATION">>
 > = {
   RULE_VIOLATION: "RULE_VIOLATION",
+};
+
+export type ComplianceV3RunStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "ERROR"
+  | "TIMEOUT";
+
+export const COMPLIANCE_V3_RUN_STATUS_TO_UNIFIED: Readonly<
+  Record<ComplianceV3RunStatus, UnifiedRunStatus>
+> = {
+  PENDING: "PENDING",
+  RUNNING: "RUNNING",
+  COMPLETED: "COMPLETED",
+  ERROR: "FAILED",
+  TIMEOUT: "FAILED",
 };

@@ -16,6 +16,7 @@ import {
   COMPLIANCE_ISSUE_SEVERITY_TO_UNIFIED,
   COMPLIANCE_ISSUE_STATUS_TO_UNIFIED,
   COMPLIANCE_RUN_STATUS_TO_UNIFIED,
+  COMPLIANCE_V3_RUN_STATUS_TO_UNIFIED,
   ComplianceIssueSeverity,
   ComplianceIssueStatus,
   ComplianceRunStatus,
@@ -174,6 +175,7 @@ export function toUnifiedIssueFromValidation(
     resolutionNote: issue.resolutionNotes,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
+    legalReference: null,
   };
 }
 
@@ -222,10 +224,13 @@ export function toUnifiedIssueFromCompliance(
     resolutionNote: issue.resolutionNote,
     createdAt: issue.createdAt,
     updatedAt: null,
+    legalReference: issue.legalReference ?? null,
   };
 }
 
-export function mapValidationRunsToUnified(runs: ValidationRun[]): UnifiedRun[] {
+export function mapValidationRunsToUnified(
+  runs: ValidationRun[],
+): UnifiedRun[] {
   return runs.map(toUnifiedRunFromValidation);
 }
 
@@ -245,6 +250,141 @@ export function mapComplianceIssuesToUnified(
   issues: ComplianceIssue[],
 ): UnifiedIssue[] {
   return issues.map(toUnifiedIssueFromCompliance);
+}
+
+function extractV3Metrics(metadata: unknown): {
+  totalElements: number | null;
+  totalRequirements: number | null;
+  complianceScore: number | null;
+  issueCounts: { total: number; mandatory: number; recommended: number } | null;
+} {
+  if (!metadata || typeof metadata !== "object") {
+    return {
+      totalElements: null,
+      totalRequirements: null,
+      complianceScore: null,
+      issueCounts: null,
+    };
+  }
+  const m = metadata as Record<string, unknown>;
+  return {
+    totalElements: typeof m.totalElements === "number" ? m.totalElements : null,
+    totalRequirements:
+      typeof m.totalRequirements === "number" ? m.totalRequirements : null,
+    complianceScore:
+      typeof m.complianceScore === "number" ? m.complianceScore : null,
+    issueCounts:
+      m.issueCounts && typeof m.issueCounts === "object"
+        ? (m.issueCounts as {
+            total: number;
+            mandatory: number;
+            recommended: number;
+          })
+        : null,
+  };
+}
+
+export function toUnifiedRunFromComplianceV3(run: ComplianceRun): UnifiedRun {
+  const status = mapValue(
+    run.status,
+    COMPLIANCE_V3_RUN_STATUS_TO_UNIFIED,
+    "UNKNOWN" as UnifiedRunStatus,
+  );
+
+  const v3Metrics = extractV3Metrics(run.metadata);
+
+  return {
+    id: run.id,
+    source: "COMPLIANCE_V3",
+    sourceStatus: run.status,
+    status,
+    projectId: run.projectId,
+    createdBy: run.createdBy,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    metrics: {
+      totalElements: v3Metrics.totalElements,
+      totalRules: v3Metrics.totalRequirements,
+      passedCount: null,
+      failedCount: v3Metrics.issueCounts?.total ?? null,
+      warningCount: v3Metrics.issueCounts?.recommended ?? null,
+      missingCount: null,
+      mismatchCount: null,
+      undocumentedCount: null,
+      complianceScore: v3Metrics.complianceScore,
+    },
+    identifiers: {
+      fileId: null,
+      fileName: null,
+      fileUrn: null,
+      modelUrn: run.modelUrn,
+      modelName: run.modelName,
+      rulesetId: run.configId,
+      rulesetName: null,
+      validationType: null,
+    },
+  };
+}
+
+export function toUnifiedIssueFromComplianceV3(
+  issue: ComplianceIssue,
+): UnifiedIssue {
+  const severity = mapValue(
+    issue.severity,
+    COMPLIANCE_ISSUE_SEVERITY_TO_UNIFIED,
+    "UNKNOWN" as UnifiedIssueSeverity,
+  );
+
+  const status = mapValue(
+    issue.status,
+    COMPLIANCE_ISSUE_STATUS_TO_UNIFIED,
+    "UNKNOWN" as UnifiedIssueStatus,
+  );
+
+  return {
+    id: issue.id,
+    runId: issue.runId,
+    source: "COMPLIANCE_V3",
+    sourceType: "RULE_VIOLATION",
+    category: "RULE_VIOLATION",
+    severity,
+    status,
+    message: `${issue.ruleName}: ${issue.propertyName}`,
+    description: null,
+    expectedValue: issue.expectedValue,
+    actualValue: issue.actualValue,
+    deviation: issue.deviation,
+    element: {
+      id: issue.elementId,
+      tag: null,
+      name: issue.elementName,
+      type: null,
+      category: issue.elementCategory,
+    },
+    rule: {
+      id: issue.ruleId,
+      name: issue.ruleName,
+      propertyName: issue.propertyName,
+    },
+    resolvedAt: issue.resolvedAt,
+    resolvedBy: issue.resolvedBy,
+    resolutionNote: issue.resolutionNote,
+    createdAt: issue.createdAt,
+    updatedAt: null,
+    legalReference: issue.legalReference ?? null,
+  };
+}
+
+export function mapComplianceV3RunsToUnified(
+  runs: ComplianceRun[],
+): UnifiedRun[] {
+  return runs.map(toUnifiedRunFromComplianceV3);
+}
+
+export function mapComplianceV3IssuesToUnified(
+  issues: ComplianceIssue[],
+): UnifiedIssue[] {
+  return issues.map(toUnifiedIssueFromComplianceV3);
 }
 
 export function mapValidationRunStatusToUnified(

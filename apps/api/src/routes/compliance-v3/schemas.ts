@@ -91,6 +91,7 @@ export const listPacksFilterSchema = paginationSchema.extend({
   country: z.string().optional(),
   status: z.enum(PACK_STATUSES).optional(),
   scope: z.string().optional(), // single discipline to filter by
+  search: z.string().optional(),
 });
 
 export type ListPacksFilter = z.infer<typeof listPacksFilterSchema>;
@@ -254,3 +255,41 @@ export const runIssuesQuerySchema = z.object({
 });
 
 export type RunIssuesQuery = z.infer<typeof runIssuesQuerySchema>;
+
+// ─── FASE 7 — LLM-Assisted Requirement Extraction ────────────────────────────
+
+export const packIdParamSchema = z.object({
+  packId: z.string().uuid("packId must be a valid UUID"),
+});
+
+export type PackIdParam = z.infer<typeof packIdParamSchema>;
+
+export const analysisIdParamSchema = z.object({
+  analysisId: z.string().min(1, "analysisId is required"),
+});
+
+export type AnalysisIdParam = z.infer<typeof analysisIdParamSchema>;
+
+export const analyzeSchema = z.object({
+  text: z.string().min(10, "Text must be at least 10 characters"),
+  discipline: z.string().optional(),
+});
+
+export type AnalyzeInput = z.infer<typeof analyzeSchema>;
+
+export const approveSchema = z.object({
+  index: z.coerce.number().int().min(0).default(0),
+});
+
+export type ApproveInput = z.infer<typeof approveSchema>;
+
+export const idsImportBodySchema = z.object({
+  discipline: z.string().min(1),
+  xmlContent: z.string().min(1),
+});
+
+export type IdsImportBody = z.infer<typeof idsImportBodySchema>;
+
+export const idsPackParamSchema = z.object({
+  packId: z.string().uuid(),
+});

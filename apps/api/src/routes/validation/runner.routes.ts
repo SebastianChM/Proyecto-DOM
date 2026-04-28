@@ -22,7 +22,9 @@ const router = Router();
  * POST /api/validation/run
  * Perform a full validation (Async via Worker)
  */
-router.post("/run", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/run",
+  asyncHandler(async (req: Request, res: Response) => {
     const {
       fileId,
       fileName,
@@ -68,18 +70,24 @@ router.post("/run", asyncHandler(async (req: Request, res: Response) => {
         status: "PENDING",
       },
     });
-}));
+  }),
+);
 
 /**
  * POST /api/validation/validate
  * Run validation comparing ET document with models (Legacy Synchronous Mode)
  * REFACTORED: Logic moved to ValidationService
  */
-router.post("/validate", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/validate",
+  asyncHandler(async (req: Request, res: Response) => {
     const { projectId, etDocumentId } = req.body;
 
     if (!projectId || !etDocumentId) {
-      throw badRequest("projectId and etDocumentId are required", "MISSING_FIELDS");
+      throw badRequest(
+        "projectId and etDocumentId are required",
+        "MISSING_FIELDS",
+      );
     }
 
     const project = await prisma.project.findUnique({
@@ -151,30 +159,25 @@ router.post("/validate", asyncHandler(async (req: Request, res: Response) => {
     const modelFiles = project.files.filter((f) => f.apsUrn);
 
     // 3. Process Validation
-    if (modelFiles.length === 0) {
-      logger.info("[VALIDATION] No models found, generating DEMO results");
-      allResults = validationService.generateDemoResults(specs);
-    } else {
-      for (const file of modelFiles) {
-        if (!file.apsUrn) continue;
-        try {
-          logger.debug(`[VALIDATION] Fetching properties: ${file.name}`);
-          const modelProps = await modelDerivativeService.getAllModelProperties(
-            file.apsUrn,
-          );
+    for (const file of modelFiles) {
+      if (!file.apsUrn) continue;
+      try {
+        logger.debug(`[VALIDATION] Fetching properties: ${file.name}`);
+        const modelProps = await modelDerivativeService.getAllModelProperties(
+          file.apsUrn,
+        );
 
-          const results = validationService.validateModel(
-            specs,
-            modelProps.data.collection,
-            { name: file.name, id: file.id, urn: file.apsUrn },
-          );
+        const results = validationService.validateModel(
+          specs,
+          modelProps.data.collection,
+          { name: file.name, id: file.id, urn: file.apsUrn },
+        );
 
-          allResults = [...allResults, ...results];
-        } catch (err) {
-          logger.error(`[VALIDATION] Failed to process model ${file.name}`, {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        allResults = [...allResults, ...results];
+      } catch (err) {
+        logger.error(`[VALIDATION] Failed to process model ${file.name}`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
@@ -223,6 +226,7 @@ router.post("/validate", asyncHandler(async (req: Request, res: Response) => {
       summary,
       results: allResults,
     });
-}));
+  }),
+);
 
 export default router;

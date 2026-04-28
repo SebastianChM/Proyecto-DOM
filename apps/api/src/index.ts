@@ -28,7 +28,6 @@ import notificationsRouter from "./routes/notifications";
 import reportsRouter from "./routes/reports";
 import webhooksRouter from "./routes/webhooks";
 import {
-  v1Router as complianceRouter,
   v2RulesRouter as complianceV2Router,
   v2RunsRouter as complianceRunsRouter,
   v2ExportRouter as complianceExportRouter,
@@ -235,11 +234,6 @@ app.use(
   "/api/callbacks",
   rateLimiter.apiLimiter(),
   designAutomationCallbackRouter,
-);
-app.use(
-  "/api/compliance",
-  rateLimiter.heavyOperationLimiter(),
-  complianceRouter,
 );
 app.use("/api/compliance-v2", rateLimiter.apiLimiter(), complianceV2Router);
 app.use(

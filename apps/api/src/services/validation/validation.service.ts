@@ -1,5 +1,4 @@
 import { PropertyNormalizer } from "../aps/property-normalizer";
-// Import from new Parser Service
 import { SpecificationItem } from "./parser.service";
 
 export interface ValidationResult {
@@ -15,67 +14,6 @@ export interface ValidationResult {
 }
 
 export class ValidationService {
-  /**
-   * Run validation for Demo purposes (No real models)
-   */
-  generateDemoResults(specs: SpecificationItem[]): ValidationResult[] {
-    if (specs.length > 0) {
-      return specs.map((spec, index) => {
-        const rand = Math.random();
-        let status: "PASS" | "FAIL" | "WARNING";
-        let actualValue: string;
-        const { value, property } = spec;
-
-        if (rand < 0.5) {
-          status = "PASS";
-          actualValue = value;
-        } else if (rand < 0.8) {
-          status = "FAIL";
-          actualValue = value.includes("mm")
-            ? value.replace(/\d+/, (m) => String(parseInt(m) - 20))
-            : "Different Value";
-        } else {
-          status = "WARNING";
-          actualValue = "Not found in model";
-        }
-
-        return {
-          property,
-          expectedValue: value,
-          actualValue,
-          status,
-          elementId: String(1000 + index),
-          elementName: `Demo Element ${index + 1}`,
-          modelName: "Demo Model",
-          modelId: "demo",
-          modelUrn: undefined,
-        };
-      });
-    }
-
-    // Fallback hardcoded demo
-    return [
-      {
-        property: "Material",
-        expectedValue: "Concrete C30",
-        actualValue: "Concrete C30",
-        status: "PASS",
-        elementId: "1001",
-        elementName: "Wall-001",
-        modelName: "Demo",
-      },
-      {
-        property: "Thickness",
-        expectedValue: "200mm",
-        actualValue: "180mm",
-        status: "FAIL",
-        elementId: "1002",
-        elementName: "Wall-002",
-        modelName: "Demo",
-      },
-    ];
-  }
-
   /**
    * Validates model properties against structured document specifications.
    */

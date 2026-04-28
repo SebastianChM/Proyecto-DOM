@@ -34,8 +34,14 @@ const router = Router();
 router.post(
   "/:fileId/translate",
   asyncHandler(async (req, res) => {
-    const fileId = String(req.params.fileId);
+    const fileId = Array.isArray(req.params.fileId)
+      ? req.params.fileId[0]
+      : req.params.fileId;
     const force = String(req.query.force || "").toLowerCase() === "true";
+
+    if (!fileId) {
+      throw badRequest("File ID is required", "FILE_ID_REQUIRED");
+    }
 
     const file = await prisma.file.findUnique({
       where: { id: fileId },

@@ -4,8 +4,11 @@ import {
   ComplianceRunWithRuleset,
   mapComplianceIssuesToUnified,
   mapComplianceRunsToUnified,
+  mapComplianceV3IssuesToUnified,
+  mapComplianceV3RunsToUnified,
   mapValidationIssuesToUnified,
   mapValidationRunsToUnified,
+  toUnifiedRunFromComplianceV3,
 } from "./mappers";
 import { UnifiedIssue, UnifiedRun } from "./contract";
 
@@ -38,13 +41,35 @@ export interface ComplianceIssueReadFilters {
   elementCategoryContains?: string;
 }
 
+export interface ComplianceV3RunReadFilters {
+  projectId?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface ComplianceV3IssueReadFilters {
+  runId: string;
+  severity?: string;
+}
+
 export interface UnifiedReadAdapters {
   getValidationRunById(runId: string): Promise<UnifiedRun | null>;
   listValidationRuns(filters?: ValidationRunReadFilters): Promise<UnifiedRun[]>;
-  listValidationIssues(filters: ValidationIssueReadFilters): Promise<UnifiedIssue[]>;
+  listValidationIssues(
+    filters: ValidationIssueReadFilters,
+  ): Promise<UnifiedIssue[]>;
   getComplianceRunById(runId: string): Promise<UnifiedRun | null>;
   listComplianceRuns(filters?: ComplianceRunReadFilters): Promise<UnifiedRun[]>;
-  listComplianceIssues(filters: ComplianceIssueReadFilters): Promise<UnifiedIssue[]>;
+  listComplianceIssues(
+    filters: ComplianceIssueReadFilters,
+  ): Promise<UnifiedIssue[]>;
+  getComplianceV3RunById(runId: string): Promise<UnifiedRun | null>;
+  listComplianceV3Runs(
+    filters?: ComplianceV3RunReadFilters,
+  ): Promise<UnifiedRun[]>;
+  listComplianceV3Issues(
+    filters: ComplianceV3IssueReadFilters,
+  ): Promise<UnifiedIssue[]>;
 }
 
 type UnifiedReadDataSource = Pick<
@@ -119,7 +144,9 @@ class PrismaUnifiedReadAdapters implements UnifiedReadAdapters {
   constructor(private readonly db: UnifiedReadDataSource) {}
 
   async getValidationRunById(runId: string): Promise<UnifiedRun | null> {
-    const run = await this.db.validationRun.findUnique({ where: { id: runId } });
+    const run = await this.db.validationRun.findUnique({
+      where: { id: runId },
+    });
     if (!run) return null;
     return mapValidationRunsToUnified([run])[0];
   }
@@ -187,6 +214,48 @@ class PrismaUnifiedReadAdapters implements UnifiedReadAdapters {
     });
 
     return mapComplianceIssuesToUnified(issues);
+  }
+
+  async getComplianceV3RunById(runId: string): Promise<UnifiedRun | null> {
+    const run = await this.db.complianceRun.findUnique({
+      where: { id: runId },
+    });
+    if (!run || !run.configId) return null;
+    return toUnifiedRunFromComplianceV3(run);
+  }
+
+  async listComplianceV3Runs(
+    filters: ComplianceV3RunReadFilters = {},
+  ): Promise<UnifiedRun[]> {
+    const where: Prisma.ComplianceRunWhereInput = {
+      configId: { not: null },
+    };
+    if (filters.projectId) where.projectId = filters.projectId;
+    if (filters.status) where.status = filters.status;
+
+    const runs = await this.db.complianceRun.findMany({
+      where,
+      orderBy: { startedAt: "desc" },
+      take: normalizeLimit(filters.limit, DEFAULT_COMPLIANCE_LIMIT),
+    });
+
+    return mapComplianceV3RunsToUnified(runs);
+  }
+
+  async listComplianceV3Issues(
+    filters: ComplianceV3IssueReadFilters,
+  ): Promise<UnifiedIssue[]> {
+    const where: Prisma.ComplianceIssueWhereInput = {
+      runId: filters.runId,
+    };
+    if (filters.severity) where.severity = filters.severity;
+
+    const issues = await this.db.complianceIssue.findMany({
+      where,
+      orderBy: [{ severity: "asc" }, { elementCategory: "asc" }],
+    });
+
+    return mapComplianceV3IssuesToUnified(issues);
   }
 }
 

@@ -1,4 +1,4 @@
-﻿export type UnifiedRunSource = "VALIDATION" | "COMPLIANCE";
+﻿export type UnifiedRunSource = "VALIDATION" | "COMPLIANCE" | "COMPLIANCE_V3";
 
 export type UnifiedRunStatus =
   | "PENDING"
@@ -102,4 +102,5 @@ export interface UnifiedIssue {
   resolutionNote: string | null;
   createdAt: Date;
   updatedAt: Date | null;
+  legalReference: string | null;
 }
