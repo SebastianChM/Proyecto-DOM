@@ -14,7 +14,6 @@ import {
   FileCheck,
   Shield,
   ClipboardCheck,
-  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -46,7 +45,11 @@ const navGroups: NavGroup[] = [
   {
     title: "Analysis",
     items: [
-      { icon: TableProperties, label: "BOM & Quantities", href: "/dashboard/bom" },
+      {
+        icon: TableProperties,
+        label: "BOM & Quantities",
+        href: "/dashboard/bom",
+      },
       { icon: Box, label: "3D Viewer", href: "/dashboard/viewer" },
     ],
   },
@@ -54,15 +57,16 @@ const navGroups: NavGroup[] = [
     title: "Compliance",
     items: [
       { icon: FileCheck, label: "Validation", href: "/dashboard/validation" },
-      { icon: ClipboardCheck, label: "Rules", href: "/dashboard/compliance/rules" },
-      { icon: ListChecks, label: "Results", href: "/dashboard/compliance/results" },
+      {
+        icon: ClipboardCheck,
+        label: "Regulation Packs",
+        href: "/dashboard/packs",
+      },
     ],
   },
   {
     title: "System",
-    items: [
-      { icon: Settings, label: "Settings", href: "/dashboard/settings" },
-    ],
+    items: [{ icon: Settings, label: "Settings", href: "/dashboard/settings" }],
   },
 ];
 
@@ -71,13 +75,24 @@ export function Sidebar() {
   const { user, loading } = useUser();
 
   // Inject admin item into System group
-  const groups = user?.role === "ADMIN"
-    ? navGroups.map((g) =>
-        g.title === "System"
-          ? { ...g, items: [...g.items, { icon: Shield, label: "Admin Panel", href: "/dashboard/sys/acl" }] }
-          : g,
-      )
-    : navGroups;
+  const groups =
+    user?.role === "ADMIN"
+      ? navGroups.map((g) =>
+          g.title === "System"
+            ? {
+                ...g,
+                items: [
+                  ...g.items,
+                  {
+                    icon: Shield,
+                    label: "Admin Panel",
+                    href: "/dashboard/sys/acl",
+                  },
+                ],
+              }
+            : g,
+        )
+      : navGroups;
 
   const handleLogout = async () => {
     if (!user) {
@@ -112,8 +127,12 @@ export function Sidebar() {
             <Building2 className="w-4 h-4" />
           </div>
           <div className="leading-none">
-            <span className="text-sm font-bold text-sidebar-foreground tracking-tight">DOM</span>
-            <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] ml-1.5">BIM</span>
+            <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
+              DOM
+            </span>
+            <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] ml-1.5">
+              BIM
+            </span>
           </div>
         </Link>
       </div>
