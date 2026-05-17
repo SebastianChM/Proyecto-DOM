@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/EmptyState";
 import { FileRow } from "@/components/FileRow";
+import { Progress } from "@/components/ui/progress";
 import type { ProjectFileDetail } from "@/lib/api/types";
 import type { GroupedFiles } from "@/hooks/useFileSelection";
 
@@ -78,6 +79,8 @@ interface SelectionProps {
 interface OperationsProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   uploading: boolean;
+  /** Upload progress 0–100. Shown as a progress bar while `uploading` is true. */
+  uploadProgress: number;
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onView: (file: ProjectFileDetail) => void;
   onDelete: (fileId: string) => void;
@@ -290,6 +293,7 @@ export function FilesTabContent({
   const {
     fileInputRef,
     uploading,
+    uploadProgress,
     onUpload,
     onView,
     onDelete,
@@ -509,24 +513,29 @@ export function FilesTabContent({
                 className={`h-8 w-8 ${uploading ? "text-primary animate-bounce" : "text-gray-400 group-hover:text-primary"}`}
               />
             </div>
-            <div>
+            <div className="w-full max-w-xs space-y-2">
               <h3 className="text-lg font-semibold text-white mb-1">
                 {uploading
-                  ? "Uploading..."
+                  ? `Uploading... ${uploadProgress}%`
                   : "Drop files here or click to upload"}
               </h3>
-              <p className="text-sm text-gray-400">
-                Support for RVT, DWG, PDF, IFC, NWC
-              </p>
+              {uploading ? (
+                <Progress value={uploadProgress} className="h-2" />
+              ) : (
+                <p className="text-sm text-gray-400">
+                  Support for RVT, DWG, PDF, IFC, NWC
+                </p>
+              )}
             </div>
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="mt-2 border-white/10 hover:bg-white/10"
-            >
-              Select Files
-            </Button>
+            {!uploading && (
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 border-white/10 hover:bg-white/10"
+              >
+                Select Files
+              </Button>
+            )}
           </div>
         </div>
       </div>

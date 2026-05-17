@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { projectsService } from "@/lib/api/services";
 import { ApiError } from "@/lib/api/types";
 import {
@@ -47,6 +48,8 @@ interface Project {
 
 export default function ProjectsPage() {
   const { user } = useUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -113,20 +116,18 @@ export default function ProjectsPage() {
   useEffect(() => {
     setIsMounted(true);
     void fetchProjects(1);
-
-    // Auto-open 'New Project' dialog when navigating from the dashboard
-    // with the ?new=true query parameter.
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("new") === "true") {
-        setIsDialogOpen(true);
-        // Remove the query param from the URL without re-rendering
-        window.history.replaceState({}, "", "/dashboard/projects");
-      }
-    }
     // initial load only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Open the new-project dialog when the dashboard navigates here with ?new=true
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setIsDialogOpen(true);
+      // Remove the query param without triggering a full navigation
+      router.replace("/dashboard/projects");
+    }
+  }, [searchParams, router]);
 
   // Debounced search — always passes current values to avoid stale closure
   useEffect(() => {

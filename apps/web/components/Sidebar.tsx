@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   LayoutDashboard,
   Settings,
@@ -74,12 +74,18 @@ const navGroups: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, loading, refreshUser } = useUser();
+  // Throttle: re-validate at most once per 60 seconds on tab focus
+  const lastRefreshRef = useRef<number>(0);
 
   // Re-validate role from server when user returns to the tab
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        refreshUser();
+        const now = Date.now();
+        if (now - lastRefreshRef.current > 60_000) {
+          lastRefreshRef.current = now;
+          refreshUser();
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);

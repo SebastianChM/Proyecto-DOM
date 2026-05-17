@@ -14,27 +14,11 @@ import { toast } from "sonner";
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { user, refreshUser } = useUser();
-  const [projectUpdates, setProjectUpdates] = useState(() => {
-    try {
-      return localStorage.getItem("dom_pref_projectUpdates") !== "false";
-    } catch {
-      return true;
-    }
-  });
-  const [fileProcessing, setFileProcessing] = useState(() => {
-    try {
-      return localStorage.getItem("dom_pref_fileProcessing") !== "false";
-    } catch {
-      return true;
-    }
-  });
-  const [glassmorphism, setGlassmorphism] = useState(() => {
-    try {
-      return localStorage.getItem("dom_pref_glassmorphism") !== "false";
-    } catch {
-      return true;
-    }
-  });
+  // Initialise with safe defaults; real values are loaded from localStorage
+  // after mount to avoid SSR crashes and hydration mismatches.
+  const [projectUpdates, setProjectUpdates] = useState(true);
+  const [fileProcessing, setFileProcessing] = useState(true);
+  const [glassmorphism, setGlassmorphism] = useState(true);
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -43,6 +27,24 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load localStorage preferences only after the component has mounted on the client
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      setProjectUpdates(
+        localStorage.getItem("dom_pref_projectUpdates") !== "false",
+      );
+      setFileProcessing(
+        localStorage.getItem("dom_pref_fileProcessing") !== "false",
+      );
+      setGlassmorphism(
+        localStorage.getItem("dom_pref_glassmorphism") !== "false",
+      );
+    } catch {
+      // localStorage unavailable (e.g. private browsing storage quota)
+    }
+  }, [mounted]);
 
   // Initialise displayName from user once available
   useEffect(() => {

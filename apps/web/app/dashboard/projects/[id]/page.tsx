@@ -118,6 +118,7 @@ export default function ProjectDetailPage() {
   // File operations (upload, delete, translate, import, view, download)
   const {
     uploading,
+    uploadProgress,
     fileInputRef,
     handleFileUpload,
     isApsBrowserOpen,
@@ -400,6 +401,7 @@ export default function ProjectDetailPage() {
             operations={{
               fileInputRef,
               uploading,
+              uploadProgress,
               onUpload: handleFileUpload,
               onView: handleViewFile,
               onDelete: confirmDeleteFile,

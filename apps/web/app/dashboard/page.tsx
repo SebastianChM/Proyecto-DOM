@@ -11,22 +11,83 @@ import {
   Activity,
   Clock,
   ArrowUpRight,
+  ArrowDownRight,
   CheckCircle,
   Plus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: React.ComponentType<{ className?: string }>;
   /** Pass `null` when there is insufficient history to compute a trend. */
   trend: string | null;
   color: string;
+}
+
+// ---------------------------------------------------------------------------
+// Utilities — defined at module level to avoid re-creation on every render
+// ---------------------------------------------------------------------------
+
+function formatBytes(bytes: number, decimals = 2): string {
+  if (!+bytes) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+// ---------------------------------------------------------------------------
+// StatCard — top-level component to prevent unmount/remount on parent re-renders
+// ---------------------------------------------------------------------------
+
+function StatCard({ title, value, icon: Icon, trend, color }: StatCardProps) {
+  const isNegative = typeof trend === "string" && trend.startsWith("-");
+  return (
+    <Card className="border border-border shadow-xs relative overflow-hidden group">
+      <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${color}`} />
+          <CardTitle className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {title}
+          </CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        <div className="text-[22px] font-bold text-foreground tracking-tight">
+          {value}
+        </div>
+        <div className="mt-1 flex items-center text-[11px]">
+          {trend !== null ? (
+            <>
+              {isNegative ? (
+                <span className="text-destructive bg-destructive/10 border border-destructive/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
+                  <ArrowDownRight className="w-3 h-3" /> {trend}
+                </span>
+              ) : (
+                <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
+                  <ArrowUpRight className="w-3 h-3" /> {trend}
+                </span>
+              )}
+              <span className="text-muted-foreground ml-1.5">
+                vs last month
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function DashboardPage() {
@@ -41,15 +102,6 @@ export default function DashboardPage() {
     trends: { projects: null, files: null, activeModels: null },
   });
   const [statsLoading, setStatsLoading] = useState(true);
-
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (!+bytes) return "0 Bytes";
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-  };
 
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
@@ -105,44 +157,6 @@ export default function DashboardPage() {
     );
   }
 
-  const StatCard = ({
-    title,
-    value,
-    icon: Icon,
-    trend,
-    color,
-  }: StatCardProps) => (
-    <Card className="border border-border shadow-xs relative overflow-hidden group">
-      <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
-        <div className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${color}`} />
-          <CardTitle className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            {title}
-          </CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="px-4 pb-4">
-        <div className="text-[22px] font-bold text-foreground tracking-tight">
-          {value}
-        </div>
-        <div className="mt-1 flex items-center text-[11px]">
-          {trend !== null ? (
-            <>
-              <span className="text-success-fg bg-success-bg border border-success/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
-                <ArrowUpRight className="w-3 h-3" /> {trend}
-              </span>
-              <span className="text-muted-foreground ml-1.5">
-                vs last month
-              </span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
   return (
     <div className="space-y-5">
       {/* Welcome Section */}
@@ -179,21 +193,35 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
         <StatCard
           title="Total Projects"
-          value={statsLoading ? "..." : stats.totalProjects}
+          value={
+            statsLoading ? (
+              <Skeleton className="h-7 w-16" />
+            ) : (
+              stats.totalProjects
+            )
+          }
           icon={FolderKanban}
           trend={stats.trends?.projects ?? null}
           color="text-blue-500"
         />
         <StatCard
           title="Total Files"
-          value={statsLoading ? "..." : stats.totalFiles}
+          value={
+            statsLoading ? <Skeleton className="h-7 w-16" /> : stats.totalFiles
+          }
           icon={FileText}
           trend={stats.trends?.files ?? null}
           color="text-purple-500"
         />
         <StatCard
           title="Active Models"
-          value={statsLoading ? "..." : stats.activeModels}
+          value={
+            statsLoading ? (
+              <Skeleton className="h-7 w-16" />
+            ) : (
+              stats.activeModels
+            )
+          }
           icon={Box}
           trend={stats.trends?.activeModels ?? null}
           color="text-orange-500"
@@ -201,11 +229,13 @@ export default function DashboardPage() {
         <StatCard
           title="System Status"
           value={
-            statsLoading
-              ? "..."
-              : stats.isProcessing
-                ? "Processing"
-                : "Operational"
+            statsLoading ? (
+              <Skeleton className="h-7 w-24" />
+            ) : stats.isProcessing ? (
+              "Processing"
+            ) : (
+              "Operational"
+            )
           }
           icon={Activity}
           trend={null}
@@ -232,10 +262,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {statsLoading ? (
               [1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="bg-card border border-border h-16 animate-pulse rounded-lg"
-                ></div>
+                <Skeleton key={i} className="h-16 w-full rounded-lg" />
               ))
             ) : stats.recentActivity.length === 0 ? (
               <div className="bg-card border border-border border-dashed p-8 text-center text-muted-foreground rounded-lg">
@@ -322,12 +349,14 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="pt-4 border-t border-border">
-                <progress
-                  value={stats.totalSize}
-                  max={100 * 1024 * 1024 * 1024}
-                  className="w-full h-1.5 rounded-full overflow-hidden appearance-none border-none bg-secondary [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:bg-primary [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-primary [&::-moz-progress-bar]:rounded-full"
+                <Progress
+                  value={Math.min(
+                    (stats.totalSize / (100 * 1024 * 1024 * 1024)) * 100,
+                    100,
+                  )}
+                  className="h-1.5"
                 />
-                <div className="flex justify-between text-xs text-muted-foreground">
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
                   <span>{formatBytes(stats.totalSize)} Used</span>
                   <span>100 GB Total</span>
                 </div>
