@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/axios-config";
@@ -18,17 +18,15 @@ import {
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
 
-interface BOMItem {
-  id: string;
-  name: string;
+interface AggregatedBomItem {
   category: string;
   family: string;
   type: string;
   material: string;
-  volume: number;
-  area: number;
-  length: number;
   count: number;
+  totalVolume: number;
+  totalArea: number;
+  totalLength: number;
 }
 
 interface FileData {
@@ -43,7 +41,7 @@ export default function BOMPage() {
   const fileId = params.id as string;
 
   const [file, setFile] = useState<FileData | null>(null);
-  const [bomData, setBomData] = useState<BOMItem[]>([]);
+  const [bomData, setBomData] = useState<AggregatedBomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -54,9 +52,11 @@ export default function BOMPage() {
         const fileResponse = await apiClient.get(`/api/files/${fileId}`);
         setFile(fileResponse.data);
 
-        // Fetch BOM data
-        const bomResponse = await apiClient.get(`/api/files/${fileId}/bom`);
-        setBomData(bomResponse.data.items || bomResponse.data || []);
+        // Fetch BOM data — aggregated view, server-paginated to 100 rows max
+        const bomResponse = await apiClient.get(
+          `/api/files/${fileId}/bom?mode=aggregated&pageSize=100`,
+        );
+        setBomData(bomResponse.data.data ?? []);
       } catch (error) {
         showError(error, user?.role, "Failed to load BOM data");
       } finally {
@@ -69,18 +69,51 @@ export default function BOMPage() {
     }
   }, [fileId, user?.role]);
 
-  const filteredData = bomData.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.family.toLowerCase().includes(searchTerm.toLowerCase()),
+  const handleExportCSV = useCallback(async () => {
+    if (!fileId) return;
+    try {
+      const response = await apiClient.get(
+        `/api/files/${fileId}/bom/export?mode=aggregated`,
+        { responseType: "blob" },
+      );
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `BOM_${file?.name ?? fileId}_aggregated.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showError(error, user?.role, "Failed to export CSV");
+    }
+  }, [fileId, file?.name, user?.role]);
+
+  const filteredData = useMemo(
+    () =>
+      bomData.filter(
+        (item) =>
+          item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.family.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.material.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [bomData, searchTerm],
   );
 
-  const totalVolume = bomData.reduce(
-    (acc, item) => acc + (item.volume || 0),
-    0,
+  const totalVolume = useMemo(
+    () =>
+      Math.round(
+        bomData.reduce((acc, item) => acc + item.totalVolume, 0) * 1e6,
+      ) / 1e6,
+    [bomData],
   );
-  const totalArea = bomData.reduce((acc, item) => acc + (item.area || 0), 0);
+  const totalArea = useMemo(
+    () =>
+      Math.round(bomData.reduce((acc, item) => acc + item.totalArea, 0) * 1e6) /
+      1e6,
+    [bomData],
+  );
 
   if (loading) {
     return (
@@ -124,7 +157,10 @@ export default function BOMPage() {
               </p>
             </div>
           </div>
-          <Button className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20 transition-all hover:scale-105 w-full md:w-auto">
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20 transition-all hover:scale-105 w-full md:w-auto"
+            onClick={handleExportCSV}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -190,7 +226,7 @@ export default function BOMPage() {
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, category, or family..."
+            placeholder="Search by category, family, type, or material..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white/5 border-white/10 text-foreground focus:ring-primary/50 focus:border-primary/50 transition-all"
@@ -221,9 +257,6 @@ export default function BOMPage() {
             <TableHeader>
               <TableRow className="border-b border-white/10 bg-white/5 hover:bg-white/5">
                 <TableHead className="text-foreground font-bold py-4">
-                  Name
-                </TableHead>
-                <TableHead className="text-foreground font-bold py-4">
                   Category
                 </TableHead>
                 <TableHead className="text-foreground font-bold py-4">
@@ -236,13 +269,13 @@ export default function BOMPage() {
                   Material
                 </TableHead>
                 <TableHead className="text-foreground font-bold text-right py-4">
-                  Volume (m³)
-                </TableHead>
-                <TableHead className="text-foreground font-bold text-right py-4">
-                  Area (m²)
-                </TableHead>
-                <TableHead className="text-foreground font-bold text-right py-4">
                   Count
+                </TableHead>
+                <TableHead className="text-foreground font-bold text-right py-4">
+                  Total Volume (m³)
+                </TableHead>
+                <TableHead className="text-foreground font-bold text-right py-4">
+                  Total Area (m²)
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -250,7 +283,7 @@ export default function BOMPage() {
               {filteredData.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={7}
                     className="text-center py-16 text-muted-foreground"
                   >
                     <div className="flex flex-col items-center gap-2">
@@ -264,16 +297,12 @@ export default function BOMPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredData.map((item, index) => (
+                filteredData.map((item, idx) => (
                   <TableRow
-                    key={item.id}
+                    key={idx}
                     className="border-b border-white/5 hover:bg-white/5 transition-colors group"
-                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <TableCell className="font-medium text-foreground group-hover:text-primary transition-colors">
-                      {item.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
                       {item.category}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -286,13 +315,13 @@ export default function BOMPage() {
                       {item.material}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-right font-mono">
-                      {item.volume?.toFixed(2) || "0.00"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-right font-mono">
-                      {item.area?.toFixed(2) || "0.00"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-right font-mono">
                       {item.count}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-right font-mono">
+                      {item.totalVolume > 0 ? item.totalVolume.toFixed(3) : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-right font-mono">
+                      {item.totalArea > 0 ? item.totalArea.toFixed(3) : "—"}
                     </TableCell>
                   </TableRow>
                 ))

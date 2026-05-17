@@ -4,9 +4,13 @@ import { BimQueryService } from "../../services/bim-query.service";
 import { logger } from "../../lib/logger";
 import { asyncHandler } from "../../lib/async-handler";
 import { badRequest, notFound, conflict } from "../../lib/errors";
+import { z } from "zod";
 
 const router = Router();
 const bimQueryService = new BimQueryService();
+
+/** Round to 6 decimal places to prevent IEEE-754 float drift in accumulations. */
+const r6 = (n: number): number => Math.round(n * 1e6) / 1e6;
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -52,9 +56,9 @@ function aggregateBom(items: RawBomItem[]): AggregatedBomItem[] {
     const existing = map.get(key);
     if (existing) {
       existing.count += 1;
-      existing.totalVolume += item.volume || 0;
-      existing.totalArea += item.area || 0;
-      existing.totalLength += item.length || 0;
+      existing.totalVolume = r6(existing.totalVolume + (item.volume || 0));
+      existing.totalArea = r6(existing.totalArea + (item.area || 0));
+      existing.totalLength = r6(existing.totalLength + (item.length || 0));
       existing.elementIds.push(item.id);
     } else {
       map.set(key, {
@@ -85,9 +89,9 @@ function buildSummary(aggregated: AggregatedBomItem[]): BomSummaryCategory[] {
     if (existing) {
       existing.count += item.count;
       existing.uniqueTypes += 1;
-      existing.totalVolume += item.totalVolume;
-      existing.totalArea += item.totalArea;
-      existing.totalLength += item.totalLength;
+      existing.totalVolume = r6(existing.totalVolume + item.totalVolume);
+      existing.totalArea = r6(existing.totalArea + item.totalArea);
+      existing.totalLength = r6(existing.totalLength + item.totalLength);
     } else {
       map.set(item.category, {
         category: item.category,
@@ -225,7 +229,10 @@ async function getRawBom(file: {
 router.get(
   "/:id/bom",
   asyncHandler(async (req: Request, res: Response) => {
-    const file = await getReadyFile(req.params.id as string);
+    const parsedId = z.string().uuid().safeParse(req.params.id);
+    if (!parsedId.success)
+      throw badRequest("Invalid file ID format", "INVALID_ID");
+    const file = await getReadyFile(parsedId.data);
 
     const mode = (req.query.mode as string) || "aggregated";
     const categoryFilter = req.query.category as string | undefined;
@@ -296,7 +303,10 @@ router.get(
 router.get(
   "/:id/bom/export",
   asyncHandler(async (req: Request, res: Response) => {
-    const file = await getReadyFile(req.params.id as string);
+    const parsedExportId = z.string().uuid().safeParse(req.params.id);
+    if (!parsedExportId.success)
+      throw badRequest("Invalid file ID format", "INVALID_ID");
+    const file = await getReadyFile(parsedExportId.data);
     const mode = (req.query.mode as string) || "aggregated";
 
     const rawBom = await getRawBom(file);
@@ -374,10 +384,18 @@ router.get(
 router.post(
   "/bom/compare",
   asyncHandler(async (req: Request, res: Response) => {
-    const { fileIdA, fileIdB } = req.body;
-    if (!fileIdA || !fileIdB) {
-      throw badRequest("fileIdA and fileIdB are required", "MISSING_PARAMS");
+    const compareSchema = z.object({
+      fileIdA: z.string().uuid(),
+      fileIdB: z.string().uuid(),
+    });
+    const parsedBody = compareSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      throw badRequest(
+        "fileIdA and fileIdB must be valid UUIDs",
+        "INVALID_PARAMS",
+      );
     }
+    const { fileIdA, fileIdB } = parsedBody.data;
 
     const [fileA, fileB] = await Promise.all([
       prisma.file.findUnique({ where: { id: fileIdA } }),
@@ -425,6 +443,7 @@ router.post(
       countA: number;
       countB: number;
       volumeDiff: number;
+      areaDiff: number;
     }[] = [];
     const unchanged: { key: string; count: number }[] = [];
 
@@ -440,7 +459,8 @@ router.post(
           key: k,
           countA: inA.count,
           countB: inB.count,
-          volumeDiff: inB.totalVolume - inA.totalVolume,
+          volumeDiff: r6(inB.totalVolume - inA.totalVolume),
+          areaDiff: r6(inB.totalArea - inA.totalArea),
         });
       } else {
         unchanged.push({ key: k, count: inA.count });
