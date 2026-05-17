@@ -253,20 +253,22 @@ export class ConversionService {
     });
 
     setTimeout(() => {
-      prisma.conversion.update({
-        where: { id: conversionId },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          resultUrn: `local-mock-${format}`,
-          resultUrl: `/api/conversion/${conversionId}/download`,
-        },
-      }).catch((e: unknown) => {
-        logger.error("[CONVERSION] Mock conversion update failed", {
-          conversionId,
-          error: e instanceof Error ? e.message : String(e),
+      prisma.conversion
+        .update({
+          where: { id: conversionId },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            resultUrn: `local-mock-${format}`,
+            resultUrl: `/api/conversion/${conversionId}/download`,
+          },
+        })
+        .catch((e: unknown) => {
+          logger.error("[CONVERSION] Mock conversion update failed", {
+            conversionId,
+            error: e instanceof Error ? e.message : String(e),
+          });
         });
-      });
     }, 1000);
   }
 
@@ -338,9 +340,9 @@ export class ConversionService {
         derivatives: Array<Record<string, unknown>>,
       ): string | null => {
         for (const d of derivatives) {
-          const outputType = (d.outputType as string || "").toLowerCase();
-          const role = (d.role as string || "").toLowerCase();
-          const mime = (d.mime as string || "").toLowerCase();
+          const outputType = ((d.outputType as string) || "").toLowerCase();
+          const role = ((d.role as string) || "").toLowerCase();
+          const mime = ((d.mime as string) || "").toLowerCase();
           const urn = d.urn as string | undefined;
 
           // Match by mime type, role (pdf-page), or outputType
@@ -433,7 +435,10 @@ export class ConversionService {
     for (const job of waiting) {
       if (job.data?.conversionId === conversionId) {
         await job.remove();
-        logger.info("[CONVERSION] Removed job from queue", { conversionId, jobId: job.id });
+        logger.info("[CONVERSION] Removed job from queue", {
+          conversionId,
+          jobId: job.id,
+        });
       }
     }
 
@@ -443,9 +448,16 @@ export class ConversionService {
       data: { status: "CANCELLED", finishedAt: new Date() },
     });
 
-    logger.info("[CONVERSION] Cancelled conversion", { conversionId, previousStatus: conversion.status });
+    logger.info("[CONVERSION] Cancelled conversion", {
+      conversionId,
+      previousStatus: conversion.status,
+    });
 
-    return { conversionId, status: "CANCELLED", previousStatus: conversion.status };
+    return {
+      conversionId,
+      status: "CANCELLED",
+      previousStatus: conversion.status,
+    };
   }
 
   /**
@@ -468,15 +480,12 @@ export class ConversionService {
     // Get data using our own helper (stream)
     const download = await this.getDownloadData(conversionId);
 
-    // Convert stream to buffer for upload (OSS service expects buffer currently)
-    // TODO: Refactor OSS Service to accept Streams for better performance
-    const chunks: Buffer[] = [];
-    for await (const chunk of download.stream) {
-      chunks.push(chunk);
-    }
-    const buffer = Buffer.concat(chunks);
-
-    const uploaded = await apsOssService.uploadBuffer(buffer, newFilename);
+    // Stream the converted output directly to OSS without buffering in memory.
+    const uploaded = await apsOssService.uploadStream(
+      download.stream,
+      newFilename,
+      download.length,
+    );
 
     if (!uploaded) throw new Error("Upload failed");
 
@@ -488,7 +497,7 @@ export class ConversionService {
       data: {
         name: newFilename,
         originalName: newFilename,
-        size: buffer.length,
+        size: download.length,
         type: conversion.targetFormat === "pdf" ? "PDF" : "OTHER",
         apsUrn: urn,
         s3Key: uploaded.objectKey || newFilename,
@@ -568,11 +577,14 @@ export class ConversionService {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
-        logger.warn("[CONVERSION] Failed to include conversion in batch archive", {
-          batchId,
-          conversionId: conversion.id,
-          error: message,
-        });
+        logger.warn(
+          "[CONVERSION] Failed to include conversion in batch archive",
+          {
+            batchId,
+            conversionId: conversion.id,
+            error: message,
+          },
+        );
 
         archive.append(
           `Conversion ${conversion.id} could not be downloaded: ${message}\n`,

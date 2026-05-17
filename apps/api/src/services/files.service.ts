@@ -3,7 +3,6 @@ import { apsOssService } from "./aps/oss.service";
 import { modelDerivativeService } from "./aps/model-derivative.service";
 import { APP_CONFIG } from "../config/constants";
 import { getFileType } from "../lib/utils";
-import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
 import { ConversionJobData, Queues } from "../lib/queue";
@@ -62,7 +61,6 @@ export class FileService {
 
     // STEP 2: Start BACKGROUND upload to APS (non-blocking)
     // The file path is still valid at this point since multer hasn't cleaned it up yet
-    const filePath = file.path;
     const fileId = dbFile.id;
 
     // Use setImmediate to not block the response
@@ -78,13 +76,9 @@ export class FileService {
         });
         const startTime = Date.now();
 
-        // Use uploadBuffer (Direct to S3 Signed URLs)
-        // The legacy PUT /oss/v2/.../objects endpoint is deprecated (403)
-        const buffer = fs.readFileSync(filePath);
-        const apsObject = await apsOssService.uploadBuffer(
-          buffer,
-          file.originalname,
-        );
+        // Stream the file directly from disk to APS — avoids loading the full
+        // BIM file into the Node.js heap (critical for .rvt / .ifc / .dwg files).
+        const apsObject = await apsOssService.uploadFile(file);
 
         const apsUrn = Buffer.from(
           (apsObject as { objectId?: string }).objectId || "",

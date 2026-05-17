@@ -1,6 +1,7 @@
 import { ObjectsApi, BucketsApi } from "forge-apis";
 import { apsAuthService } from "./auth.service";
 import fs from "fs";
+import { Readable } from "stream";
 import axios from "axios";
 import { APP_CONFIG } from "../../config/constants";
 import { logger } from "../../lib/logger";
@@ -38,16 +39,21 @@ export class ApsOssService {
       if (err.statusCode === 404) {
         try {
           await this.bucketsApi.createBucket(
-            { bucketKey: this.bucketKey, policyKey: "transient" },
+            { bucketKey: this.bucketKey, policyKey: "persistent" },
             {},
             { access_token: token },
             { access_token: token },
           );
         } catch (createError: unknown) {
           const createErr = createError as {
+            statusCode?: number;
             response?: { body?: { reason?: string } };
             message?: string;
           };
+          // 409 = bucket already exists (concurrent creation race) — treat as success.
+          if (createErr.statusCode === 409) {
+            return;
+          }
           throw new Error(
             "Failed to create APS bucket: " +
               (createErr.response?.body?.reason ||
@@ -98,10 +104,11 @@ export class ApsOssService {
    * Optimized for large files to avoid memory issues
    */
   async uploadStream(
-    stream: fs.ReadStream,
+    stream: Readable,
     filename: string,
     contentLength: number,
   ) {
+    await this.ensureBucketExists();
     const token = await apsAuthService.getInternalToken();
 
     // Sanitize filename
@@ -153,6 +160,7 @@ export class ApsOssService {
    * Upload a buffer to OSS using Direct to S3 (Signed URLs)
    */
   async uploadBuffer(buffer: Buffer, filename: string) {
+    await this.ensureBucketExists();
     const token = await apsAuthService.getInternalToken();
 
     // Sanitize filename to ensure it's safe for OSS/S3

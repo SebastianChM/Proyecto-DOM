@@ -26,6 +26,8 @@ export class APSAuthService {
 
   /** In-memory cache for the 2-legged (internal) token */
   private cachedInternalToken: CachedToken | null = null;
+  /** Serializes concurrent 2-legged fetches into a single APS call (stampede guard). */
+  private pendingInternalToken: Promise<string> | null = null;
 
   constructor() {
     const clientId = env.APS_CLIENT_ID;
@@ -70,7 +72,7 @@ export class APSAuthService {
    * Autodesk 2-legged tokens typically last 3600s (1 hour).
    */
   async getInternalToken(): Promise<string> {
-    // Return cached token if still valid
+    // Fast path: cached token is still valid.
     if (
       this.cachedInternalToken &&
       Date.now() < this.cachedInternalToken.expiresAt
@@ -78,23 +80,62 @@ export class APSAuthService {
       return this.cachedInternalToken.accessToken;
     }
 
-    logger.debug("[APS_AUTH] Fetching new 2-legged token (cache miss/expired)");
-    const credentials = await this.twoLeggedClient.authenticate();
+    // Stampede guard: if a fetch is already in-flight, all concurrent callers
+    // wait on the same Promise instead of firing parallel APS authenticate() calls.
+    if (this.pendingInternalToken) {
+      return this.pendingInternalToken;
+    }
 
-    // Cache the token with a safety margin
-    const expiresInMs = (credentials.expires_in || 3600) * 1000;
-    this.cachedInternalToken = {
-      accessToken: credentials.access_token,
-      expiresAt: Date.now() + expiresInMs - TOKEN_CACHE_MARGIN_MS,
-    };
-
-    logger.info("[APS_AUTH] 2-legged token cached", {
-      expiresInMinutes: Math.round(
-        (expiresInMs - TOKEN_CACHE_MARGIN_MS) / 60000,
-      ),
+    this.pendingInternalToken = this.fetchInternalToken().finally(() => {
+      this.pendingInternalToken = null;
     });
 
-    return credentials.access_token;
+    return this.pendingInternalToken;
+  }
+
+  /** Fetches a fresh 2-legged token and populates the in-memory cache. */
+  private async fetchInternalToken(): Promise<string> {
+    logger.debug("[APS_AUTH] Fetching new 2-legged token (cache miss/expired)");
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const credentials = await (this.twoLeggedClient as any).authenticate();
+
+      // Cache the token with a safety margin.
+      const expiresInMs = (credentials.expires_in || 3600) * 1000;
+      this.cachedInternalToken = {
+        accessToken: credentials.access_token,
+        expiresAt: Date.now() + expiresInMs - TOKEN_CACHE_MARGIN_MS,
+      };
+
+      logger.info("[APS_AUTH] 2-legged token cached", {
+        expiresInMinutes: Math.round(
+          (expiresInMs - TOKEN_CACHE_MARGIN_MS) / 60000,
+        ),
+      });
+
+      return credentials.access_token;
+    } catch (rawError: unknown) {
+      // forge-apis uses axios internally. On auth failure the AxiosError's
+      // .config.data carries "client_id=...&client_secret=..." as form body.
+      // Scrub both data and headers before the error propagates to any logger.
+      if (
+        rawError !== null &&
+        typeof rawError === "object" &&
+        "config" in rawError
+      ) {
+        const axErr = rawError as {
+          config?: { data?: unknown; headers?: unknown };
+        };
+        if (axErr.config) {
+          axErr.config.data = "[REDACTED]";
+          axErr.config.headers = "[REDACTED]";
+        }
+      }
+      logger.error("[APS_AUTH] 2-legged token fetch failed", {
+        error: rawError instanceof Error ? rawError.message : String(rawError),
+      });
+      throw rawError;
+    }
   }
 
   /**
