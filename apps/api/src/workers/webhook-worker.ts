@@ -73,15 +73,24 @@ const worker = new Worker<ApsWebhookJobData>(
       const msg = error instanceof Error ? error.message : String(error);
       const shortError = msg.substring(0, 500);
 
-      // Update delivery with error
-      await prisma.webhookDelivery.update({
-        where: { id: deliveryId },
-        data: {
-          attempts: { increment: 1 },
-          lastError: shortError,
-          status: "FAILED",
-        },
-      });
+      // Persist failure status in a nested try/catch so that a secondary DB error
+      // never swallows the original error — BullMQ must always see the real cause.
+      try {
+        await prisma.webhookDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            attempts: { increment: 1 },
+            lastError: shortError,
+            status: "FAILED",
+          },
+        });
+      } catch (dbErr: unknown) {
+        logger.error(`[${WORKER_NAME}] Failed to persist job failure status`, {
+          jobId: job.id,
+          deliveryId,
+          dbError: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        });
+      }
 
       logger.error(`[${WORKER_NAME}] Job failed`, {
         jobId: job.id,
@@ -90,7 +99,7 @@ const worker = new Worker<ApsWebhookJobData>(
         error: shortError,
       });
 
-      throw error; // Will trigger retry
+      throw error; // Always rethrow original error — triggers BullMQ retry
     }
   },
   {
@@ -138,6 +147,16 @@ async function handleDesignAutomationCallback(
       conversionId: conversion.id,
       requestId,
     });
+
+    // Idempotency guard: a previous BullMQ attempt already completed this
+    // conversion — skip all writes including notification to prevent duplicates.
+    if (conversion.status === "COMPLETED") {
+      logger.debug(`[${WORKER_NAME}] DA callback already processed, skipping`, {
+        conversionId: conversion.id,
+        requestId,
+      });
+      return;
+    }
 
     const parts = conversion.resultUrn?.split(":");
     const outputObjectKey = parts && parts.length >= 3 ? parts[2] : null;
@@ -227,10 +246,42 @@ async function handleVersionAdded(
   });
 
   if (existingFile) {
-    logger.debug(`[${WORKER_NAME}] File version already exists`, {
-      fileId: existingFile.id,
-      urn: urn.substring(0, 30) + "...",
-    });
+    // If status is still UPLOADED the previous attempt created the file record
+    // but crashed before enqueueing SVF2 translation.  Re-enqueue now so the
+    // file is never permanently frozen in UPLOADED.
+    if (existingFile.status === "UPLOADED") {
+      logger.info(
+        `[${WORKER_NAME}] File exists but not yet translated, re-enqueueing`,
+        {
+          fileId: existingFile.id,
+          requestId,
+        },
+      );
+      try {
+        await modelDerivativeService.translateToSVF2(urn);
+        await prisma.file.update({
+          where: { id: existingFile.id },
+          data: { status: "TRANSLATING" },
+        });
+        logger.info(`[${WORKER_NAME}] Rescued SVF2 translation`, {
+          fileId: existingFile.id,
+        });
+      } catch (error) {
+        logger.error(`[${WORKER_NAME}] Failed to rescue translation`, {
+          fileId: existingFile.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } else {
+      logger.debug(
+        `[${WORKER_NAME}] File version already exists and is being processed`,
+        {
+          fileId: existingFile.id,
+          status: existingFile.status,
+          urn: urn.substring(0, 30) + "...",
+        },
+      );
+    }
     return;
   }
 

@@ -6,8 +6,8 @@ import { logger } from "../lib/logger";
 /**
  * Validate APS webhook HMAC signature
  *
- * APS sends webhooks with x-adsk-signature header in format: "sha1hash=<hex>"
- * We validate using HMAC-SHA256 with the raw request body
+ * APS sends webhooks with x-adsk-signature header in format: "sha1=<hex>"
+ * We validate using HMAC-SHA1 with the raw request body
  *
  * Security rules:
  * - NO logging of signature values
@@ -23,7 +23,7 @@ export const validateApsWebhookSignature = (
   const requestId =
     (req.headers["x-request-id"] as string) || crypto.randomUUID();
 
-  // Extract signature header (format: "sha1hash=<signature>")
+  // Extract signature header (format: "sha1=<signature>")
   const signatureHeader = req.headers["x-adsk-signature"] as string;
 
   if (!signatureHeader) {
@@ -53,8 +53,8 @@ export const validateApsWebhookSignature = (
     });
   }
 
-  // Extract signature value (remove "sha1hash=" prefix if present)
-  const receivedSignature = signatureHeader.replace(/^sha1hash=/, "");
+  // Extract signature value (remove "sha1=" prefix — APS standard format)
+  const receivedSignature = signatureHeader.replace(/^sha1=/, "");
 
   // Get raw body (must be captured by captureRawBody middleware)
   const rawBody = req.rawBody;
@@ -69,8 +69,8 @@ export const validateApsWebhookSignature = (
     });
   }
 
-  // Calculate expected signature using HMAC-SHA256
-  const hmac = crypto.createHmac("sha256", env.APS_WEBHOOK_SIGNING_SECRET);
+  // Calculate expected signature using HMAC-SHA1 (APS standard)
+  const hmac = crypto.createHmac("sha1", env.APS_WEBHOOK_SIGNING_SECRET);
   hmac.update(rawBody);
   const expectedSignature = hmac.digest("hex");
 
