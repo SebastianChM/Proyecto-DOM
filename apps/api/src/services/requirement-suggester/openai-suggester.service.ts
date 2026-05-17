@@ -10,6 +10,21 @@ const MODEL = "gpt-4o-mini";
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 4000;
 const MIN_CONFIDENCE = 0.5;
+const OPENAI_TIMEOUT_MS = 30_000; // AbortController fires after 30 s to prevent hung sockets
+const MAX_RETRIES = 3; // 1 initial attempt + 2 retries
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Returns true for transient errors worth retrying (rate limits, 5xx, timeouts). */
+function isRetryableOpenAIError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  // HTTP 429 (rate limit) or 5xx (server-side transient errors)
+  if (/OpenAI API error (429|5\d{2})/.test(error.message)) return true;
+  // AbortError comes from our own AbortController when the 30 s timeout fires
+  if (error.name === "AbortError") return true;
+  return false;
+}
 
 // Safety caps — prevents prompt bloat if the dictionary grows to hundreds of entries.
 // The LLM doesn't extract better requirements from a list of 500 vs 150 canonical names.
@@ -26,7 +41,7 @@ const suggestedConditionSchema = z.object({
 const suggestedRequirementSchema = z.object({
   description: z.string().min(1),
   legalReference: z.string().min(1),
-  discipline: z.string().min(1),
+  discipline: z.enum(DISCIPLINES),
   severity: z.enum(SEVERITIES),
   conditions: z.array(suggestedConditionSchema).min(1),
   applicability: z.object({
@@ -108,6 +123,7 @@ Rules:
 async function callOpenAI(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
+  signal: AbortSignal,
 ): Promise<string> {
   const response = await fetch(OPENAI_URL, {
     method: "POST",
@@ -115,6 +131,7 @@ async function callOpenAI(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
+    signal,
     body: JSON.stringify({
       model: MODEL,
       temperature: TEMPERATURE,
@@ -157,7 +174,11 @@ function parseLlmContent(content: string): SuggestedRequirement[] | null {
 }
 
 export class OpenAISuggester implements IRequirementSuggester {
-  constructor(private readonly apiKey: string) {}
+  constructor(
+    private readonly apiKey: string,
+    /** Base retry delay in ms. Pass 0 in tests to skip artificial slowness. */
+    private readonly retryDelayMs = 1_000,
+  ) {}
 
   async suggest(
     text: string,
@@ -166,29 +187,78 @@ export class OpenAISuggester implements IRequirementSuggester {
     discipline?: string,
   ): Promise<SuggestedRequirement[]> {
     const systemPrompt = buildSystemPrompt(properties, categories, discipline);
+    const messages: Array<{ role: string; content: string }> = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: text },
+    ];
 
-    try {
-      const content = await callOpenAI(this.apiKey, [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
-      ]);
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      // Fresh controller per attempt — a signal can only be aborted once.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
-      const result = parseLlmContent(content);
+      try {
+        const content = await callOpenAI(
+          this.apiKey,
+          messages,
+          controller.signal,
+        );
 
-      if (result !== null) {
-        return result.filter((s) => s.confidence >= MIN_CONFIDENCE);
+        const result = parseLlmContent(content);
+        if (result !== null) {
+          return result.filter((s) => s.confidence >= MIN_CONFIDENCE);
+        }
+
+        // JSON parse failure — add a corrective user turn and retry if attempts remain.
+        if (attempt < MAX_RETRIES) {
+          logger.warn(
+            "[OpenAISuggester] Parse failure, retrying with corrective prompt",
+            { attempt },
+          );
+          messages.push(
+            { role: "assistant", content },
+            {
+              role: "user",
+              content:
+                'Your previous response was not valid JSON. Return ONLY a JSON object {"requirements": [...]} with no markdown, code fences, or extra text.',
+            },
+          );
+          await sleep(this.retryDelayMs * attempt);
+          continue;
+        }
+
+        throw new Error("LLM returned malformed JSON output after all retries");
+      } catch (error) {
+        if (isRetryableOpenAIError(error) && attempt < MAX_RETRIES) {
+          const waitMs = this.retryDelayMs * Math.pow(2, attempt - 1);
+          logger.warn(
+            "[OpenAISuggester] Transient API error, backing off before retry",
+            {
+              attempt,
+              maxRetries: MAX_RETRIES,
+              waitMs,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+          await sleep(waitMs);
+          continue;
+        }
+
+        logger.error(
+          "[OpenAISuggester] Request failed — all retries exhausted",
+          {
+            attempt,
+            maxRetries: MAX_RETRIES,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
+        throw error instanceof Error ? error : new Error(String(error));
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      // JSON mode should prevent reaching here, but handle defensively
-      logger.warn(
-        "[OpenAISuggester] Failed to parse LLM response despite JSON mode",
-      );
-      return [];
-    } catch (error) {
-      logger.warn("[OpenAISuggester] Network or API error, returning []", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return [];
     }
+
+    // TypeScript safety net — the loop always returns or throws before this.
+    throw new Error("OpenAI request failed after all retries");
   }
 }

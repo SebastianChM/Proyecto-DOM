@@ -10,6 +10,7 @@ import {
   approveSchema,
   analysisIdParamSchema,
   packIdParamSchema,
+  DISCIPLINES,
 } from "./schemas";
 
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".txt"];
@@ -149,9 +150,16 @@ router.post(
     }
 
     const { packId } = packIdParamSchema.parse(req.params);
-    const discipline =
+    // Validate discipline against the known enum before it can reach the LLM system prompt.
+    // Any unknown or crafted string is silently treated as "no filter" to prevent injection.
+    const rawDiscipline =
       typeof req.body.discipline === "string" && req.body.discipline !== "any"
-        ? req.body.discipline
+        ? req.body.discipline.trim()
+        : undefined;
+    const discipline =
+      rawDiscipline !== undefined &&
+      (DISCIPLINES as readonly string[]).includes(rawDiscipline)
+        ? rawDiscipline
         : undefined;
     const userId = (req as { user?: { id?: string } }).user?.id;
 

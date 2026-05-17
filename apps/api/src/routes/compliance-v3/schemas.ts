@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Known disciplines (reference only — validation is done via z.string, not z.enum)
+// Known disciplines — enforced via z.enum in analyzeSchema and suggestedRequirementSchema
 export const DISCIPLINES = [
   "STRUCTURAL",
   "ARCHITECTURAL",
@@ -281,7 +281,8 @@ export const analyzeSchema = z.object({
       MAX_ANALYZE_TEXT_CHARS,
       `Text must not exceed ${MAX_ANALYZE_TEXT_CHARS} characters`,
     ),
-  discipline: z.string().optional(),
+  // Locked to the known enum — any other string is rejected before reaching the LLM prompt.
+  discipline: z.enum(DISCIPLINES).optional(),
 });
 
 export type AnalyzeInput = z.infer<typeof analyzeSchema>;

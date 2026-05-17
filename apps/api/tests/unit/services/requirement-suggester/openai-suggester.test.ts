@@ -74,7 +74,7 @@ describe("OpenAISuggester", () => {
   let suggester: OpenAISuggester;
 
   beforeEach(() => {
-    suggester = new OpenAISuggester("test-api-key");
+    suggester = new OpenAISuggester("test-api-key", 0); // 0 ms delay — no artificial sleep in tests
     jest.clearAllMocks();
   });
 
@@ -113,22 +113,25 @@ describe("OpenAISuggester", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("should return [] when all retries fail to parse", async () => {
+  it("should throw when all retries fail to parse", async () => {
+    // MAX_RETRIES = 3: all three attempts return malformed JSON
     mockOpenAIResponse("invalid json");
     mockOpenAIResponse("still invalid json");
+    mockOpenAIResponse("still invalid json");
 
-    const result = await suggester.suggest("Some text", properties, categories);
-
-    expect(result).toEqual([]);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    await expect(
+      suggester.suggest("Some text", properties, categories),
+    ).rejects.toThrow("LLM returned malformed JSON output after all retries");
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
-  it("should return [] when a network error occurs", async () => {
+  it("should throw when a non-retryable network error occurs", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    const result = await suggester.suggest("Some text", properties, categories);
-
-    expect(result).toEqual([]);
+    await expect(
+      suggester.suggest("Some text", properties, categories),
+    ).rejects.toThrow("Network error");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("should pass discipline to system prompt when provided", async () => {
