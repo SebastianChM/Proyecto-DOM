@@ -73,6 +73,8 @@ interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  /** True while Socket.IO is reconnecting after a network interruption. */
+  isReconnecting: boolean;
   fetchNotifications: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -112,7 +114,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
-  // Socket state removed as it was unused
+  /** Tracks which project rooms this socket has joined so they can be re-joined on reconnect. */
+  const activeProjectsRef = useRef<Set<string>>(new Set());
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Socket Connection Effect
   useEffect(() => {
@@ -128,9 +132,14 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     socketInstance.on("connect", () => {
       logger.debug("Socket connected", { id: socketInstance.id });
+      setIsReconnecting(false);
       if (user.id) {
         socketInstance.emit("join_user_room", user.id);
       }
+      // Re-join all tracked project rooms after initial connect or reconnect.
+      activeProjectsRef.current.forEach((projectId) => {
+        socketInstance.emit("join_project_room", projectId);
+      });
     });
 
     socketInstance.on("notification", (payload: { data: Notification }) => {
@@ -154,19 +163,27 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       });
     });
 
-    socketInstance.on("disconnect", () => {
-      logger.debug("Socket disconnected");
+    socketInstance.on("disconnect", (reason: string) => {
+      logger.debug("Socket disconnected", { reason });
+      // Only flag reconnecting for unintentional disconnects (network drop, server close).
+      if (reason !== "io client disconnect") {
+        setIsReconnecting(true);
+      }
     });
 
     socketInstance.on("connect_error", (error: Error) => {
       logger.error("Socket connection error", { error: error.message });
+      setIsReconnecting(true);
     });
 
     socketRef.current = socketInstance;
 
     return () => {
-      socketRef.current = null;
+      // Disconnect first so the socket emits "io client disconnect" reason,
+      // preventing a spurious isReconnecting flash on unmount.
       socketInstance.disconnect();
+      socketRef.current = null;
+      activeProjectsRef.current.clear();
     };
   }, [user]);
 
@@ -318,7 +335,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
   // Subscribe to project-specific socket room for real-time project events
   const subscribeToProject = useCallback((projectId: string) => {
-    if (socketRef.current?.connected && projectId) {
+    if (!projectId) return;
+    activeProjectsRef.current.add(projectId);
+    if (socketRef.current?.connected) {
       socketRef.current.emit("join_project_room", projectId);
     }
   }, []);
@@ -345,6 +364,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     notifications,
     unreadCount,
     isLoading,
+    isReconnecting,
     fetchNotifications,
     markAsRead,
     markAllAsRead,

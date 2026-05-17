@@ -113,24 +113,24 @@ import RedisStore from "connect-redis";
 
 // ===== SESSION =====
 // Using Redis Store for unlimited session size (fixes auth loop)
-app.use(
-  session({
-    store: new RedisStore({
-      client: redisClient,
-      prefix: "dom:sess:",
-    }),
-    name: "dom-session",
-    secret: env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      httpOnly: true,
-      secure: env.COOKIE_SECURE, // Controlled by env
-      sameSite: env.COOKIE_SAMESITE as "strict" | "lax" | "none",
-    },
+// Extracted as a named variable so it can be shared with Socket.IO for WS auth.
+const sessionMiddleware = session({
+  store: new RedisStore({
+    client: redisClient,
+    prefix: "dom:sess:",
   }),
-);
+  name: "dom-session",
+  secret: env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    httpOnly: true,
+    secure: env.COOKIE_SECURE, // Controlled by env
+    sameSite: env.COOKIE_SAMESITE as "strict" | "lax" | "none",
+  },
+});
+app.use(sessionMiddleware);
 
 // ===== PUBLIC ROUTES =====
 app.get("/", (req, res) => {
@@ -340,8 +340,8 @@ if (require.main === module) {
         hsts: env.HSTS_ENABLED,
       });
 
-      // Initialize Socket.IO
-      socketService.initialize(httpServer);
+      // Initialize Socket.IO (share session middleware for WebSocket authentication)
+      socketService.initialize(httpServer, sessionMiddleware);
       logger.info("[SOCKET] Initialized");
 
       // Warm up formats cache on startup (Optional)
@@ -371,6 +371,7 @@ if (require.main === module) {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("[SERVER] SIGTERM received, shutting down gracefully...");
+  await socketService.shutdown();
   try {
     await redisClient.quit();
     logger.info("[REDIS] Connection closed");
@@ -384,6 +385,7 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   logger.info("[SERVER] SIGINT received, shutting down gracefully...");
+  await socketService.shutdown();
   try {
     await redisClient.quit();
     logger.info("[REDIS] Connection closed");
