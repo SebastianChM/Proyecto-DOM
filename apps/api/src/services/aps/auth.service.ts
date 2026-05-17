@@ -131,7 +131,9 @@ export class APSAuthService {
    * Refresh 3-legged access token
    */
   async refreshPublicToken(refreshToken: string) {
-    const credentials = this.threeLeggedClient.refreshToken({ refreshToken });
+    const credentials = await this.threeLeggedClient.refreshToken({
+      refreshToken,
+    });
     return credentials;
   }
 

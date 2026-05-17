@@ -84,8 +84,7 @@ export class TokenRefreshService {
       );
     }
 
-    const refreshToken = req.session?.refreshToken;
-    if (!refreshToken) {
+    if (!req.session?.refreshToken) {
       throw new ApsError(
         ApsErrorCode.APS_REFRESH_REQUIRED,
         401,
@@ -97,7 +96,8 @@ export class TokenRefreshService {
     const lockAcquired = await this.acquireRefreshLock(userId);
 
     if (!lockAcquired) {
-      // Another request is refreshing, wait and retry reading session
+      // Another request is refreshing — wait and re-read session from the store
+      // on each iteration so we correctly detect when the lock holder finishes.
       logger.debug(
         "[TOKEN_REFRESH] Refresh lock held, waiting for completion",
         {
@@ -108,10 +108,24 @@ export class TokenRefreshService {
       for (let i = 0; i < MAX_LOCK_RETRIES; i++) {
         await this.sleep(LOCK_RETRY_MS);
 
-        // Check if session was updated by the other request
-        const currentExpiry = req.session?.expiresAt || 0;
-        const timeUntilExpiry = currentExpiry - Date.now();
+        // Reload session from Redis so we see the lock holder's updated tokens,
+        // not the stale in-memory snapshot loaded at request start.
+        await new Promise<void>((resolve) => {
+          req.session!.reload((err: Error | null) => {
+            if (err) {
+              logger.warn(
+                "[TOKEN_REFRESH] Session reload failed in wait loop",
+                {
+                  userId: userId.substring(0, 8),
+                  error: err instanceof Error ? err.message : String(err),
+                },
+              );
+            }
+            resolve(); // always continue — stale session is safer than crashing
+          });
+        });
 
+        const timeUntilExpiry = (req.session?.expiresAt || 0) - Date.now();
         if (timeUntilExpiry > REFRESH_THRESHOLD_SECONDS * 1000) {
           logger.debug(
             "[TOKEN_REFRESH] Token refreshed by concurrent request",
@@ -120,11 +134,11 @@ export class TokenRefreshService {
               retries: i + 1,
             },
           );
-          return; // Token was refreshed successfully
+          return; // Concurrent request already refreshed the token
         }
       }
 
-      // Lock released but token not refreshed, fall through to refresh ourselves
+      // Lock released but token not refreshed — proceed to refresh ourselves
       logger.warn(
         "[TOKEN_REFRESH] Lock released but token not refreshed, proceeding",
         {
@@ -133,13 +147,24 @@ export class TokenRefreshService {
       );
     }
 
-    // Perform refresh
+    // Perform refresh — read refreshToken from session now (not at function entry)
+    // so we always use the latest value after any session.reload() calls above.
+    const currentRefreshToken = req.session?.refreshToken;
+    if (!currentRefreshToken) {
+      throw new ApsError(
+        ApsErrorCode.APS_REFRESH_REQUIRED,
+        401,
+        "Refresh token not found after waiting. Please re-authenticate.",
+      );
+    }
+
     try {
       logger.info("[TOKEN_REFRESH] Starting token refresh", {
         userId: userId.substring(0, 8),
       });
 
-      const credentials = await apsAuthService.refreshPublicToken(refreshToken);
+      const credentials =
+        await apsAuthService.refreshPublicToken(currentRefreshToken);
 
       //  Update session (safe after null checks above)
       req.session!.token = credentials.access_token;
