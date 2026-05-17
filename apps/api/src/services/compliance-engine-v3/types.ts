@@ -27,6 +27,8 @@ export interface NormalizedElement {
   name: string;
   category: string;
   properties: Map<string, NormalizedValue>;
+  /** Lowercase key → original key index for O(1) case-insensitive property lookup */
+  lcIndex: Map<string, string>;
 }
 
 export interface ElementEvaluation {

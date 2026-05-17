@@ -81,6 +81,7 @@ const MOCK_ELEMENT: NormalizedElement = {
   properties: new Map([
     ["Width", { raw: "200", numeric: 200, unit: null, text: "200" }],
   ]),
+  lcIndex: new Map([["width", "Width"]]),
 };
 
 const MOCK_MEMBER = { userId: "user-001" };

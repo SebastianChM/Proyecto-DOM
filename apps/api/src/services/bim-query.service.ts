@@ -82,7 +82,9 @@ export class BimQueryService implements IBimQueryService {
     // Build category map from object tree for proper Revit category resolution
     const categoryMap = await this.buildCategoryMap(urn);
     if (Object.keys(categoryMap).length > 0) {
-      logger.info(`[BIM_QUERY] Object tree category map: ${Object.keys(categoryMap).length} entries`);
+      logger.info(
+        `[BIM_QUERY] Object tree category map: ${Object.keys(categoryMap).length} entries`,
+      );
     }
 
     // Pre-load dictionary categories for name-based resolution (both locales)
@@ -95,88 +97,99 @@ export class BimQueryService implements IBimQueryService {
     // Track category distribution for debugging
     const categoryStats: Record<string, number> = {};
 
-    const normalized: BimProperty[] = rawProps.data.collection.map(
-      (obj: unknown) => {
-        const element = obj as {
-          objectid?: number;
-          name?: string;
-          type?: string;
-          properties?: Record<string, unknown>;
-        };
-        const name = element.name || `Element ${element.objectid}`;
-        const flatProps: Record<string, unknown> = {};
+    /** Map a single raw APS object to a BimProperty (pure sync) */
+    const mapElement = (obj: unknown): BimProperty => {
+      const element = obj as {
+        objectid?: number;
+        name?: string;
+        type?: string;
+        properties?: Record<string, unknown>;
+      };
+      const name = element.name || `Element ${element.objectid}`;
+      const flatProps: Record<string, unknown> = {};
 
-        // Start with category from object tree (most reliable for Revit)
-        let category = categoryMap[element.objectid || 0] || "Uncategorized";
+      // Start with category from object tree (most reliable for Revit)
+      let category = categoryMap[element.objectid || 0] || "Uncategorized";
 
-        // Flatten properties and search for category
-        if (element.properties) {
-          for (const groupKey in element.properties) {
-            const group = element.properties[groupKey];
+      // Flatten properties and search for category
+      if (element.properties) {
+        for (const groupKey in element.properties) {
+          const group = element.properties[groupKey];
 
-            if (typeof group === "object" && group !== null) {
-              const groupObj = group as Record<string, unknown>;
-              for (const propKey in groupObj) {
-                const value = groupObj[propKey];
-                flatProps[`${groupKey}/${propKey}`] = value;
-                flatProps[propKey] = value;
+          if (typeof group === "object" && group !== null) {
+            const groupObj = group as Record<string, unknown>;
+            for (const propKey in groupObj) {
+              const value = groupObj[propKey];
+              flatProps[`${groupKey}/${propKey}`] = value;
+              flatProps[propKey] = value;
 
-                // Check if this is a category field
-                if (
-                  propKey.toLowerCase() === "category" &&
-                  typeof value === "string"
-                ) {
-                  category = value;
-                }
+              // Check if this is a category field
+              if (
+                propKey.toLowerCase() === "category" &&
+                typeof value === "string"
+              ) {
+                category = value;
               }
-            } else if (typeof group === "string") {
-              flatProps[groupKey] = group;
-              // Check direct category property
-              if (groupKey.toLowerCase() === "category") {
-                category = group;
-              }
+            }
+          } else if (typeof group === "string") {
+            flatProps[groupKey] = group;
+            // Check direct category property
+            if (groupKey.toLowerCase() === "category") {
+              category = group;
             }
           }
         }
+      }
 
-        // Fallback 1: Check known paths explicitly (configurable)
-        if (category === "Uncategorized") {
-          for (const [group, prop] of this.categoryPaths) {
-            const propGroup = element.properties?.[group] as
-              | Record<string, unknown>
-              | undefined;
-            const value = propGroup?.[prop];
-            if (value && typeof value === "string") {
-              category = value;
-              break;
-            }
+      // Fallback 1: Check known paths explicitly (configurable)
+      if (category === "Uncategorized") {
+        for (const [group, prop] of this.categoryPaths) {
+          const propGroup = element.properties?.[group] as
+            | Record<string, unknown>
+            | undefined;
+          const value = propGroup?.[prop];
+          if (value && typeof value === "string") {
+            category = value;
+            break;
           }
         }
+      }
 
-        // Fallback 2: Resolve from element name using CategoryDictionary
-        if (category === "Uncategorized") {
-          const resolved = this.resolveCategoryFromName(name, allCategories);
-          if (resolved) {
-            category = resolved;
-          }
+      // Fallback 2: Resolve from element name using CategoryDictionary
+      if (category === "Uncategorized") {
+        const resolved = this.resolveCategoryFromName(name, allCategories);
+        if (resolved) {
+          category = resolved;
         }
+      }
 
-        // Fallback 3: Use the object 'type' if available
-        if (category === "Uncategorized" && element.type) {
-          category = element.type;
-        }
+      // Fallback 3: Use the object 'type' if available
+      if (category === "Uncategorized" && element.type) {
+        category = element.type;
+      }
 
-        // Track stats
-        categoryStats[category] = (categoryStats[category] || 0) + 1;
+      // Track stats
+      categoryStats[category] = (categoryStats[category] || 0) + 1;
 
-        return {
-          elementId: element.objectid || 0,
-          name: name,
-          category: category,
-          properties: flatProps,
-        };
-      },
-    );
+      return {
+        elementId: element.objectid || 0,
+        name,
+        category,
+        properties: flatProps,
+      };
+    };
+
+    // Process in chunks of 500 to yield to the event loop between batches
+    const CHUNK_SIZE = 500;
+    const collection = rawProps.data.collection;
+    const normalized: BimProperty[] = [];
+    for (let i = 0; i < collection.length; i += CHUNK_SIZE) {
+      const chunk = collection.slice(i, i + CHUNK_SIZE);
+      normalized.push(...chunk.map(mapElement));
+      if (i + CHUNK_SIZE < collection.length) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+    }
 
     // Log category distribution
     logger.info("[BIM_QUERY] Category Distribution:");
@@ -198,11 +211,24 @@ export class BimQueryService implements IBimQueryService {
     const elements = await this.queryModel(urn);
 
     // Resolve property aliases from the dictionary for canonical BOM properties
-    const canonicalNames = ["Family", "Type", "Material", "Volume", "Area", "Length"];
+    const canonicalNames = [
+      "Family",
+      "Type",
+      "Material",
+      "Volume",
+      "Area",
+      "Length",
+    ];
     const aliasMap = new Map<string, string[]>();
 
-    for (const canonical of canonicalNames) {
-      const entry = await propertyDictionaryService.resolve(canonical, this.locale);
+    const resolvedEntries = await Promise.all(
+      canonicalNames.map((name) =>
+        propertyDictionaryService.resolve(name, this.locale),
+      ),
+    );
+    for (let i = 0; i < canonicalNames.length; i++) {
+      const canonical = canonicalNames[i];
+      const entry = resolvedEntries[i];
       const keys = [canonical];
       if (entry) {
         keys.push(entry.displayName, ...entry.aliases);
@@ -319,9 +345,7 @@ export class BimQueryService implements IBimQueryService {
           (m: { role?: string; isMasterView?: boolean }) =>
             m.role === "3d" && m.isMasterView,
         ) ||
-        metadata.data.metadata.find(
-          (m: { role?: string }) => m.role === "3d",
-        );
+        metadata.data.metadata.find((m: { role?: string }) => m.role === "3d");
 
       if (!view3d) return map;
 
@@ -352,10 +376,14 @@ export class BimQueryService implements IBimQueryService {
         }
       }
 
-      logger.debug(`[BIM_QUERY] Category map built: ${Object.keys(map).length} elements mapped`);
+      logger.debug(
+        `[BIM_QUERY] Category map built: ${Object.keys(map).length} elements mapped`,
+      );
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.warn(`[BIM_QUERY] Could not build category map from object tree: ${msg}`);
+      logger.warn(
+        `[BIM_QUERY] Could not build category map from object tree: ${msg}`,
+      );
     }
     return map;
   }

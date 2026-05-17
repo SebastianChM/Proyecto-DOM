@@ -128,6 +128,7 @@ type SerializedElement = {
   name: string;
   category: string;
   properties: Array<[string, NormalizedValue]>;
+  lcIndex: Array<[string, string]>;
 };
 
 // APS Model Properties API shapes
@@ -165,10 +166,8 @@ function makePropertyResolver(
     }
 
     for (const alias of allAliases) {
-      const key = [...element.properties.keys()].find(
-        (k) => k.toLowerCase() === alias.toLowerCase(),
-      );
-      if (key) return element.properties.get(key)!;
+      const originalKey = element.lcIndex.get(alias.toLowerCase());
+      if (originalKey) return element.properties.get(originalKey)!;
     }
 
     return null;
@@ -242,6 +241,15 @@ class ApsElementExtractor implements IElementExtractor {
     const apsResponse = response as unknown as ApsModelPropertiesResponse;
     const collection = apsResponse?.data?.collection ?? [];
 
+    // Pre-load the full category dictionary into a Map to avoid N sequential awaits
+    const allCategoryEntries = await categoryDictionaryService.getAll(locale);
+    const categoryIndex = new Map<string, string>(
+      allCategoryEntries.map((e) => [
+        e.revitCategory.toLowerCase(),
+        e.canonicalName,
+      ]),
+    );
+
     const elements: NormalizedElement[] = [];
 
     for (const apsEl of collection) {
@@ -276,13 +284,12 @@ class ApsElementExtractor implements IElementExtractor {
         }
       }
 
-      const categoryEntry = await categoryDictionaryService.resolve(
-        rawCategory,
-        locale,
-      );
-      const category = categoryEntry?.canonicalName ?? rawCategory;
+      // Sync O(1) lookup using the pre-loaded index
+      const category =
+        categoryIndex.get(rawCategory.toLowerCase()) ?? rawCategory;
 
       const properties = new Map<string, NormalizedValue>();
+      const lcIndex = new Map<string, string>();
       for (const group of Object.values(apsEl.properties)) {
         for (const [propName, propValue] of Object.entries(group)) {
           if (propValue === null || propValue === undefined) continue;
@@ -291,6 +298,7 @@ class ApsElementExtractor implements IElementExtractor {
           const unit = unitMatch ? unitMatch[2] : null;
           const normalized = normalizeValue(rawStr, unit, conversionMap);
           properties.set(propName, normalized);
+          lcIndex.set(propName.toLowerCase(), propName);
         }
       }
 
@@ -299,6 +307,7 @@ class ApsElementExtractor implements IElementExtractor {
         name: apsEl.name,
         category,
         properties,
+        lcIndex,
       });
     }
 
@@ -468,6 +477,7 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       elements = cached.map((s) => ({
         ...s,
         properties: new Map(s.properties),
+        lcIndex: new Map(s.lcIndex),
       }));
       logger.debug("[ComplianceRunnerV3] Elements from cache", {
         modelUrn,
@@ -479,6 +489,7 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
         const serialized: SerializedElement[] = elements.map((el) => ({
           ...el,
           properties: [...el.properties.entries()],
+          lcIndex: [...el.lcIndex.entries()],
         }));
         await cacheService.set(cacheKey, serialized, MODEL_ELEMENTS_TTL);
         logger.info("[ComplianceRunnerV3] Elements extracted and cached", {

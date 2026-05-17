@@ -22,7 +22,16 @@ function makeElement(
       });
     }
   }
-  return { elementId: id, name: `Element ${id}`, category, properties };
+  const lcIndex = new Map<string, string>(
+    Array.from(properties.keys()).map((k) => [k.toLowerCase(), k]),
+  );
+  return {
+    elementId: id,
+    name: `Element ${id}`,
+    category,
+    properties,
+    lcIndex,
+  };
 }
 
 function makeRequirement(applicability: unknown): ResolvedRequirement {

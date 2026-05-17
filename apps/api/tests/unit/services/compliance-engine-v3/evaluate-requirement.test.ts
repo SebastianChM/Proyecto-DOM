@@ -8,11 +8,14 @@ import type {
 import type { ResolvedRequirement } from "../../../../src/services/compliance-v3/project-config.service";
 
 function makeElement(id = "el-001", category = "Wall"): NormalizedElement {
+  const properties = new Map<string, NormalizedValue>();
+  const lcIndex = new Map<string, string>();
   return {
     elementId: id,
     name: "Wall Element",
     category,
-    properties: new Map(),
+    properties,
+    lcIndex,
   };
 }
 
