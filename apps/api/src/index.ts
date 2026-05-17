@@ -28,11 +28,6 @@ import validationRouter from "./routes/validation";
 import notificationsRouter from "./routes/notifications";
 import reportsRouter from "./routes/reports";
 import webhooksRouter from "./routes/webhooks";
-import {
-  v2RulesRouter as complianceV2Router,
-  v2RunsRouter as complianceRunsRouter,
-  v2ExportRouter as complianceExportRouter,
-} from "./routes/compliance";
 import dataSourcesRouter from "./routes/data-sources";
 import workflowsRouter from "./routes/workflows";
 import designAutomationCallbackRouter from "./routes/design-automation-callback";
@@ -240,24 +235,6 @@ app.use(
   "/api/callbacks",
   rateLimiter.apiLimiter(),
   designAutomationCallbackRouter,
-);
-app.use(
-  "/api/compliance-v2",
-  rateLimiter.apiLimiter(),
-  basicAuth,
-  complianceV2Router,
-);
-app.use(
-  "/api/compliance-v2/runs",
-  rateLimiter.heavyOperationLimiter(),
-  basicAuth,
-  complianceRunsRouter,
-);
-app.use(
-  "/api/compliance-v2/export",
-  rateLimiter.apiLimiter(),
-  basicAuth,
-  complianceExportRouter,
 );
 app.use("/api/compliance-v3", rateLimiter.apiLimiter(), complianceV3Router);
 app.use(
