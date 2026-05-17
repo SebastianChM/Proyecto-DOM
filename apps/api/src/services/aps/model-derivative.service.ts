@@ -404,6 +404,24 @@ export class APSModelDerivativeService {
   }
 
   /**
+   * Get default 3D view guid
+   */
+  async getDefaultViewGuid(urn: string): Promise<string> {
+    const metadata = await this.getMetadata(urn);
+    const view =
+      metadata.data.metadata.find(
+        (m: unknown) =>
+          (m as { role?: string; isMasterView?: boolean }).role === "3d" &&
+          (m as { isMasterView?: boolean }).isMasterView,
+      ) ||
+      metadata.data.metadata.find(
+        (m: unknown) => (m as { role?: string }).role === "3d",
+      );
+    if (!view) throw new Error("No 3D view found in model metadata");
+    return (view as { guid: string }).guid;
+  }
+
+  /**
    * Get download URL and cookies for a derivative using signed cookies
    */
   async getDerivativeDownloadInfo(

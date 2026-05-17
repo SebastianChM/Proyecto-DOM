@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -75,8 +74,7 @@ interface Ruleset {
   };
 }
 
-import { API_CONFIG } from "@/lib/config";
-const API_BASE = API_CONFIG.BASE_URL;
+import { apiClient } from "@/lib/axios-config";
 
 const disciplineIcons: Record<string, React.ReactNode> = {
   ELECTRICAL: <Zap className="h-5 w-5 text-yellow-500" />,
@@ -114,16 +112,15 @@ export function RulesetManager() {
   const [showRuleBuilder, setShowRuleBuilder] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | undefined>(undefined);
 
-  // Load rulesets
+  // Load rulesets on mount; use functional setState to avoid stale-closure on selectedRuleset
   useEffect(() => {
     const fetchRulesets = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/compliance-v2/rulesets`);
-        const data = await res.json();
+        const { data } = await apiClient.get("/api/compliance-v2/rulesets");
         setRulesets(data);
-        if (data.length > 0 && !selectedRuleset) {
-          setSelectedRuleset(data[0]);
-        }
+        setSelectedRuleset((prev) =>
+          prev === null && data.length > 0 ? data[0] : prev,
+        );
       } catch (error) {
         logger.error("Failed to load rulesets", {
           error: (error as Error)?.message,
@@ -141,10 +138,9 @@ export function RulesetManager() {
 
     const fetchRules = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/compliance-v2/rules?rulesetId=${selectedRuleset.id}`,
+        const { data } = await apiClient.get(
+          `/api/compliance-v2/rules?rulesetId=${selectedRuleset.id}`,
         );
-        const data = await res.json();
         setRules(data);
       } catch (error) {
         logger.error("Failed to load rules", {
@@ -157,25 +153,19 @@ export function RulesetManager() {
 
   const handleSaveRule = async (ruleData: Omit<Rule, "id" | "isActive">) => {
     try {
-      const url = editingRule
-        ? `${API_BASE}/api/compliance-v2/rules/${editingRule.id}`
-        : `${API_BASE}/api/compliance-v2/rules`;
-
-      const method = editingRule ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ruleData),
-      });
-
-      if (!res.ok) throw new Error("Failed to save rule");
+      if (editingRule) {
+        await apiClient.put(
+          `/api/compliance-v2/rules/${editingRule.id}`,
+          ruleData,
+        );
+      } else {
+        await apiClient.post("/api/compliance-v2/rules", ruleData);
+      }
 
       // Refresh rules
-      const rulesRes = await fetch(
-        `${API_BASE}/api/compliance-v2/rules?rulesetId=${selectedRuleset?.id}`,
+      const { data: rulesData } = await apiClient.get(
+        `/api/compliance-v2/rules?rulesetId=${selectedRuleset?.id}`,
       );
-      const rulesData = await rulesRes.json();
       setRules(rulesData);
 
       setShowRuleBuilder(false);
@@ -190,9 +180,7 @@ export function RulesetManager() {
     if (!confirm("¿Estás seguro de eliminar esta regla?")) return;
 
     try {
-      await fetch(`${API_BASE}/api/compliance-v2/rules/${ruleId}`, {
-        method: "DELETE",
-      });
+      await apiClient.delete(`/api/compliance-v2/rules/${ruleId}`);
       setRules((prev) => prev.filter((r) => r.id !== ruleId));
     } catch (error) {
       logger.error("Failed to delete rule", {
@@ -203,10 +191,8 @@ export function RulesetManager() {
 
   const handleToggleRule = async (rule: Rule) => {
     try {
-      await fetch(`${API_BASE}/api/compliance-v2/rules/${rule.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !rule.isActive }),
+      await apiClient.put(`/api/compliance-v2/rules/${rule.id}`, {
+        isActive: !rule.isActive,
       });
       setRules((prev) =>
         prev.map((r) =>

@@ -115,6 +115,8 @@ export interface Project {
     files?: number;
     members?: number;
   };
+  /** Included in list responses (GET /api/projects). */
+  files?: ProjectFile[];
 }
 
 /**
@@ -289,13 +291,31 @@ export interface TranslationResponse {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+export interface RecentProject {
+  id: string;
+  name: string;
+  updatedAt: string;
+  location?: string;
+  _count?: { files: number };
+}
+
 export interface DashboardStats {
   totalProjects: number;
   totalFiles: number;
   activeModels: number;
   totalSize: number;
-  recentActivity: RecentActivity[];
+  recentActivity: RecentProject[];
   isProcessing: boolean;
+  /**
+   * Month-over-month percentage trend strings.
+   * Each value is a formatted string like "+12%" or "-5%",
+   * or `null` when there is insufficient history to compute a trend.
+   */
+  trends?: {
+    projects: string | null;
+    files: string | null;
+    activeModels: string | null;
+  };
 }
 
 export interface RecentActivity {

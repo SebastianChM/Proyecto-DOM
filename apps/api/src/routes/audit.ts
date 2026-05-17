@@ -21,10 +21,14 @@ router.get(
       action,
       entity,
       entityId,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
-      limit: limit ? parseInt(limit, 10) : 50,
-      offset: offset ? parseInt(offset, 10) : 0,
+      from: from
+        ? isNaN(Date.parse(from))
+          ? undefined
+          : new Date(from)
+        : undefined,
+      to: to ? (isNaN(Date.parse(to)) ? undefined : new Date(to)) : undefined,
+      limit: Math.min(500, Math.max(1, parseInt(limit, 10) || 50)),
+      offset: Math.max(0, parseInt(offset, 10) || 0),
     });
 
     res.json(result);

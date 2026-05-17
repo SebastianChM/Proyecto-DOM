@@ -97,7 +97,7 @@ export function ProjectMembersList({
       logger.error("Error fetching members", {
         error: error instanceof Error ? error.message : String(error),
       });
-      toast.error("Error al cargar miembros");
+      toast.error("Failed to load project members");
     } finally {
       setLoading(false);
     }
@@ -114,13 +114,13 @@ export function ProjectMembersList({
         `/api/project-members/${projectId}/members/${userId}`,
         { role: newRole },
       );
-      toast.success("Rol actualizado");
+      toast.success("Member role updated");
       fetchMembers();
     } catch (error: unknown) {
       const axiosError = error as {
         response?: { data?: { message?: string } };
       };
-      toast.error("Error al cambiar rol", {
+      toast.error("Failed to update member role", {
         description: axiosError.response?.data?.message,
       });
     } finally {
@@ -136,14 +136,14 @@ export function ProjectMembersList({
       await apiClient.delete(
         `/api/project-members/${projectId}/members/${memberToRemove.userId}`,
       );
-      toast.success("Miembro removido");
+      toast.success("Member removed from project");
       setMemberToRemove(null);
       fetchMembers();
     } catch (error: unknown) {
       const axiosError = error as {
         response?: { data?: { message?: string } };
       };
-      toast.error("Error al remover miembro", {
+      toast.error("Failed to remove member", {
         description: axiosError.response?.data?.message,
       });
     } finally {
@@ -162,7 +162,7 @@ export function ProjectMembersList({
   if (members.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No hay miembros en este proyecto
+        No members in this project
       </div>
     );
   }

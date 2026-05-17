@@ -3,12 +3,17 @@ import prisma from "../lib/prisma";
 import { reportService } from "../services/reporting/report.service";
 import { ValidationIssue } from "@prisma/client";
 import { asyncHandler } from "../lib/async-handler";
-import { notFound } from "../lib/errors";
+import { notFound, unauthorized } from "../lib/errors";
 
 const router = Router();
 
 // GET /api/reports/validation/:runId
-router.get("/validation/:runId", asyncHandler(async (req, res) => {
+router.get(
+  "/validation/:runId",
+  asyncHandler(async (req, res) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const runId = req.params.runId as string;
 
     // 1. Fetch Data
@@ -71,6 +76,7 @@ router.get("/validation/:runId", asyncHandler(async (req, res) => {
       `attachment; filename=validation-report-${runId.substring(0, 8)}.pdf`,
     );
     res.send(pdfBuffer);
-}));
+  }),
+);
 
 export default router;

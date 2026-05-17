@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { dashboardService } from "@/lib/api/services";
+import type { DashboardStats } from "@/lib/api/types";
 import {
   FolderKanban,
   FileText,
@@ -21,15 +20,25 @@ import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  /** Pass `null` when there is insufficient history to compute a trend. */
+  trend: string | null;
+  color: string;
+}
+
 export default function DashboardPage() {
   const { user, loading: userLoading } = useUser();
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     totalProjects: 0,
     totalFiles: 0,
     activeModels: 0,
     totalSize: 0,
-    recentActivity: [] as any[],
+    recentActivity: [],
     isProcessing: false,
+    trends: { projects: null, files: null, activeModels: null },
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -42,6 +51,22 @@ export default function DashboardPage() {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
   };
 
+  const fetchDashboardData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await dashboardService.stats();
+      setStats(data);
+    } catch (error) {
+      logger.error("Failed to load dashboard stats", {
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      });
+      showError(error, user?.role, "Failed to load dashboard stats");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     // Wait for user authentication check to complete
     if (userLoading) return;
@@ -49,22 +74,12 @@ export default function DashboardPage() {
     // If not authenticated, we can't fetch stats
     if (!user) return;
 
-    const fetchDashboardData = async () => {
-      try {
-        const data = await dashboardService.stats();
-        setStats(data);
-      } catch (error) {
-        logger.error("Failed to load dashboard stats", {
-          error: error instanceof Error ? error.message : String(error),
-          timestamp: new Date().toISOString(),
-        });
-        showError(error, user?.role, "Failed to load dashboard stats");
-      } finally {
-        setStatsLoading(false);
-      }
-    };
     fetchDashboardData();
-  }, [user, userLoading]);
+
+    // Poll every 30 s so isProcessing reflects active background jobs
+    const interval = setInterval(fetchDashboardData, 30_000);
+    return () => clearInterval(interval);
+  }, [user, userLoading, fetchDashboardData]);
 
   if (userLoading) {
     return (
@@ -90,7 +105,13 @@ export default function DashboardPage() {
     );
   }
 
-  const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    trend,
+    color,
+  }: StatCardProps) => (
     <Card className="border border-border shadow-xs relative overflow-hidden group">
       <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
         <div className="flex items-center gap-2">
@@ -105,10 +126,18 @@ export default function DashboardPage() {
           {value}
         </div>
         <div className="mt-1 flex items-center text-[11px]">
-          <span className="text-success-fg bg-success-bg border border-success/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
-            <ArrowUpRight className="w-3 h-3" /> {trend}
-          </span>
-          <span className="text-muted-foreground ml-1.5">vs last month</span>
+          {trend !== null ? (
+            <>
+              <span className="text-success-fg bg-success-bg border border-success/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 font-medium">
+                <ArrowUpRight className="w-3 h-3" /> {trend}
+              </span>
+              <span className="text-muted-foreground ml-1.5">
+                vs last month
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -135,8 +164,11 @@ export default function DashboardPage() {
               <FolderKanban className="mr-1.5 h-4 w-4" /> View Projects
             </Button>
           </Link>
-          <Link href="/dashboard/projects">
-            <Button size="sm" className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20">
+          <Link href="/dashboard/projects?new=true">
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20"
+            >
               <Plus className="mr-1.5 h-4 w-4" /> New Project
             </Button>
           </Link>
@@ -149,29 +181,35 @@ export default function DashboardPage() {
           title="Total Projects"
           value={statsLoading ? "..." : stats.totalProjects}
           icon={FolderKanban}
-          trend="+12%"
+          trend={stats.trends?.projects ?? null}
           color="text-blue-500"
         />
         <StatCard
           title="Total Files"
           value={statsLoading ? "..." : stats.totalFiles}
           icon={FileText}
-          trend="+24%"
+          trend={stats.trends?.files ?? null}
           color="text-purple-500"
         />
         <StatCard
           title="Active Models"
           value={statsLoading ? "..." : stats.activeModels}
           icon={Box}
-          trend="+5%"
+          trend={stats.trends?.activeModels ?? null}
           color="text-orange-500"
         />
         <StatCard
           title="System Status"
-          value="Operational"
+          value={
+            statsLoading
+              ? "..."
+              : stats.isProcessing
+                ? "Processing"
+                : "Operational"
+          }
           icon={Activity}
-          trend="99.9%"
-          color="text-green-500"
+          trend={null}
+          color={stats.isProcessing ? "text-yellow-500" : "text-green-500"}
         />
       </div>
 
@@ -205,7 +243,7 @@ export default function DashboardPage() {
                 <p className="text-sm">No recent activity found.</p>
               </div>
             ) : (
-              stats.recentActivity.map((project: any) => (
+              stats.recentActivity.map((project) => (
                 <Link
                   href={`/dashboard/projects/${project.id}`}
                   key={project.id}
@@ -224,7 +262,9 @@ export default function DashboardPage() {
                           <Clock className="w-3 h-3" />
                           {new Date(project.updatedAt).toLocaleDateString()}
                           {project.location && (
-                            <span className="ml-1.5">· {project.location.split(",")[0]}</span>
+                            <span className="ml-1.5">
+                              · {project.location.split(",")[0]}
+                            </span>
                           )}
                         </p>
                       </div>
@@ -243,7 +283,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">System Health</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            System Health
+          </h3>
           <Card className="border border-border shadow-xs">
             <CardContent className="p-6 space-y-6">
               <div className="flex items-center justify-between">

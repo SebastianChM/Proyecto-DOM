@@ -18,9 +18,16 @@ import { propertyDictionaryService } from "../dictionary/property-dictionary.ser
 import { categoryDictionaryService } from "../dictionary/category-dictionary.service";
 
 const SUGGESTION_TTL = 24 * 60 * 60; // 24 hours in seconds
+// Same TTL as the dictionary cache — results become stale when the dictionary refreshes
+const CONTENT_CACHE_TTL = 60 * 60; // 1 hour
 
 function suggestionKey(analysisId: string): string {
   return `suggestion:${analysisId}`;
+}
+
+/** Cache key for deduplicating identical AI calls within the same hour. */
+function contentCacheKey(hash: string): string {
+  return `suggestion:content:${hash}`;
 }
 
 export interface AnalyzeResult {
@@ -58,6 +65,9 @@ export class SuggestionService implements ISuggestionService {
   /**
    * Analyse a regulatory text against a regulation pack, returning LLM-generated
    * requirement suggestions stored transiently in Redis (TTL 24 h).
+   *
+   * Identical requests (same pack + discipline + text) are served from a 1-hour
+   * content cache to avoid redundant OpenAI calls and their associated cost.
    */
   async analyze(
     packId: string,
@@ -82,14 +92,50 @@ export class SuggestionService implements ISuggestionService {
       );
     }
 
-    // 2. Fetch dictionary context
+    // 2. Content-hash deduplication — avoid calling OpenAI for identical inputs
+    const contentHash = crypto
+      .createHash("sha256")
+      .update(`${packId}:${disciplineFilter ?? ""}:${text}`)
+      .digest("hex");
+
+    const cachedSuggestions = await cacheService.get<SuggestedRequirement[]>(
+      contentCacheKey(contentHash),
+    );
+
+    if (cachedSuggestions) {
+      // Re-use suggestions but issue a fresh analysisId so approve/reject works
+      const analysisId = crypto.randomUUID();
+      const stored: StoredSuggestion = {
+        analysisId,
+        packId,
+        suggestions: cachedSuggestions,
+        createdAt: new Date().toISOString(),
+        userId,
+        disciplineFilter,
+      };
+      await cacheService.set(suggestionKey(analysisId), stored, SUGGESTION_TTL);
+
+      logger.info("[SuggestionService] Analysis served from content cache", {
+        analysisId,
+        packId,
+        count: cachedSuggestions.length,
+      });
+
+      return {
+        analysisId,
+        suggestions: cachedSuggestions,
+        count: cachedSuggestions.length,
+      };
+    }
+
+    // 3. Fetch dictionary context
     const locale = env.DEFAULT_LOCALE;
     const [properties, categories] = await Promise.all([
       propertyDictionaryService.getAll(locale),
       categoryDictionaryService.getAll(locale),
     ]);
 
-    // 3. Run suggester
+    // 4. Run suggester (calls OpenAI)
     const suggestions = await this.suggester.suggest(
       text,
       properties,
@@ -97,7 +143,21 @@ export class SuggestionService implements ISuggestionService {
       disciplineFilter,
     );
 
-    // 4. Store in Redis
+    // 5. Cache suggestions by content hash for 1 hour (deduplication window)
+    // Best-effort: if Redis is unavailable, serve the result anyway — user already paid for the OpenAI call
+    try {
+      await cacheService.set(
+        contentCacheKey(contentHash),
+        suggestions,
+        CONTENT_CACHE_TTL,
+      );
+    } catch {
+      logger.warn(
+        "[SuggestionService] Failed to set content cache — deduplication skipped for this result",
+      );
+    }
+
+    // 6. Store in Redis keyed by analysisId for approve/reject workflow
     const analysisId = crypto.randomUUID();
     const stored: StoredSuggestion = {
       analysisId,

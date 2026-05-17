@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   analyzeSuggestions,
+  analyzeFileForSuggestions,
   approveSuggestion,
   rejectSuggestion,
 } from "@/lib/api/compliance-v3";
@@ -18,6 +19,7 @@ export interface UseSuggestionsReturn {
   analyzing: boolean;
   error: ApiError | null;
   analyze: (text: string, discipline?: string) => Promise<void>;
+  analyzeFile: (file: File, discipline?: string) => Promise<void>;
   approve: (analysisId: string, index?: number) => Promise<Requirement>;
   reject: (analysisId: string) => Promise<void>;
 }
@@ -44,19 +46,58 @@ export function useSuggestions(packId: string | null): UseSuggestionsReturn {
     [packId],
   );
 
+  const analyzeFile = useCallback(
+    async (file: File, discipline?: string): Promise<void> => {
+      if (!packId) return;
+      setAnalyzing(true);
+      setError(null);
+      try {
+        const result = await analyzeFileForSuggestions(
+          packId,
+          file,
+          discipline || undefined,
+        );
+        setAnalysis(result);
+      } catch (err) {
+        setError(err as ApiError);
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    [packId],
+  );
+
   const approve = useCallback(
     async (analysisId: string, index?: number): Promise<Requirement> => {
-      const result = await approveSuggestion(analysisId, { index });
-      toast.success(`Requirement "${result.code}" created from suggestion`);
-      return result;
+      try {
+        const result = await approveSuggestion(analysisId, { index });
+        toast.success(`Requirement "${result.code}" created from suggestion`);
+        return result;
+      } catch (err) {
+        const msg =
+          (err as ApiError)?.body?.error ??
+          (err as Error)?.message ??
+          "Failed to approve suggestion";
+        toast.error(msg);
+        throw err;
+      }
     },
     [],
   );
 
   const reject = useCallback(async (analysisId: string): Promise<void> => {
-    await rejectSuggestion(analysisId);
-    setAnalysis(null);
+    try {
+      await rejectSuggestion(analysisId);
+      setAnalysis(null);
+    } catch (err) {
+      const msg =
+        (err as ApiError)?.body?.error ??
+        (err as Error)?.message ??
+        "Failed to reject analysis";
+      toast.error(msg);
+      throw err;
+    }
   }, []);
 
-  return { analysis, analyzing, error, analyze, approve, reject };
+  return { analysis, analyzing, error, analyze, analyzeFile, approve, reject };
 }

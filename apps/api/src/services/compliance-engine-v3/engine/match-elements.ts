@@ -5,7 +5,11 @@ import type { ResolvedRequirement } from "../../compliance-v3/project-config.ser
 const applicabilitySchema = z.object({
   targetCategories: z.array(z.string()).default([]),
   excludeCategories: z.array(z.string()).default([]),
-  propertyFilters: z.record(z.string(), z.string()).default({}),
+  propertyFilters: z
+    .record(z.string(), z.string())
+    .nullish()
+    .transform((v) => v ?? {})
+    .default({}),
   scope: z.enum(["ALL", "FILTERED"]).default("FILTERED"),
 });
 

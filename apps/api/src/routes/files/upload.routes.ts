@@ -6,7 +6,7 @@
 
 import { Router } from "express";
 import multer from "multer";
-import fs from "fs";
+import { unlink, access } from "fs/promises";
 import { rateLimiter } from "../../config/rate-limit.config";
 import { fileService } from "../../services/files.service";
 import { cacheService, RedisKeys } from "../../lib/redis";
@@ -22,6 +22,16 @@ import { badRequest } from "../../lib/errors";
 
 const router = Router();
 const upload = multer({ dest: "uploads/" });
+
+/** Best-effort async file cleanup — never throws. */
+async function safeDeleteFile(filePath: string): Promise<void> {
+  try {
+    await access(filePath);
+    await unlink(filePath);
+  } catch {
+    // intentionally ignored — cleanup is best-effort
+  }
+}
 
 /**
  * @swagger
@@ -62,19 +72,13 @@ router.post(
     const forceLocal = req.query.forceLocal === "true";
 
     if (!projectId) {
-      // Clean up uploaded file
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      await safeDeleteFile(req.file.path);
       throw badRequest("Project ID is required", "MISSING_PROJECT_ID");
     }
 
     // Server-side validation
     if (!isAllowedExtension(req.file.originalname)) {
-      // Clean up uploaded file immediately
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      await safeDeleteFile(req.file.path);
       throw badRequest(
         "Unsupported file format",
         "FILE_FORMAT_UNSUPPORTED",
@@ -109,9 +113,7 @@ router.post(
       });
     } catch (error: unknown) {
       // Clean up local file if it exists
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await safeDeleteFile(req.file.path);
       throw error;
     }
   }),

@@ -38,7 +38,9 @@ export interface UseProjectDetailReturn {
   setIsShareDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   // --- Project-level actions ---
-  handleUpdateProject: (data: Record<string, string | undefined>) => Promise<void>;
+  handleUpdateProject: (
+    data: Record<string, string | undefined>,
+  ) => Promise<void>;
   handleDeleteProject: () => Promise<void>;
 }
 
@@ -112,10 +114,18 @@ export function useProjectDetail(projectId: string): UseProjectDetailReturn {
   // ---------------------------------------------------------------------------
 
   const handleDeleteProject = useCallback(async () => {
-    await projectsService.delete(projectId);
-    router.push("/dashboard");
-    toast.success("Project deleted successfully");
-  }, [projectId, router]);
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this project? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+    try {
+      await projectsService.delete(projectId);
+      toast.success("Project deleted successfully");
+      router.push("/dashboard");
+    } catch (error) {
+      showError(error, user?.role, "Failed to delete project");
+    }
+  }, [projectId, router, user?.role]);
 
   // ---------------------------------------------------------------------------
   // Members

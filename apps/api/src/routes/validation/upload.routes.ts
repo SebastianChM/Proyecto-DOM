@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { unlink } from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import prisma from "../../lib/prisma";
 import { logger } from "../../lib/logger";
@@ -65,6 +66,15 @@ const upload = multer({
   },
 });
 
+/** Best-effort async file cleanup — never throws. */
+async function safeDeleteFile(filePath: string): Promise<void> {
+  try {
+    await unlink(filePath);
+  } catch {
+    // intentionally ignored — cleanup is best-effort
+  }
+}
+
 /**
  * POST /api/validation/upload-et
  * Upload ET document linked to a project
@@ -73,68 +83,58 @@ router.post(
   "/upload-et",
   upload.single("file"),
   asyncHandler(async (req: Request, res: Response) => {
-      if (!req.file) {
-        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
-      }
+    if (!req.file) {
+      throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
+    }
 
-      const { projectId } = req.body;
-      if (!projectId) {
-        // Cleanup uploaded file if validation fails
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        throw badRequest("projectId is required", "MISSING_PROJECT_ID");
-      }
+    const { projectId } = req.body;
+    if (!projectId) {
+      await safeDeleteFile(req.file.path);
+      throw badRequest("projectId is required", "MISSING_PROJECT_ID");
+    }
 
-      // Verify project exists
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { id: true }, // Select only ID for efficiency
-      });
+    // Verify project exists
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true },
+    });
 
-      if (!project) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        throw notFound("Project not found", "PROJECT_NOT_FOUND");
-      }
+    if (!project) {
+      await safeDeleteFile(req.file.path);
+      throw notFound("Project not found", "PROJECT_NOT_FOUND");
+    }
 
-      // Determine User ID (Session or Fallback)
-      // Note: In production, strictly enforce session user.
-      // Fallback kept for development convenience but marked clearly.
-      const authReq = req as AuthenticatedRequest;
-      let userId = authReq.session?.user?.id || authReq.user?.id;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.session?.user?.id;
 
-      if (!userId) {
-        // DEV FALLBACK: Use first user if no session (TO BE REMOVED IN PROD)
-        const firstUser = await prisma.user.findFirst({ select: { id: true } });
-        userId = firstUser?.id;
-      }
+    if (!userId) {
+      await safeDeleteFile(req.file.path);
+      throw unauthorized("Authentication required");
+    }
 
-      if (!userId) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        throw unauthorized("Authentication required");
-      }
+    // Create File Record
+    const etDocument = await prisma.file.create({
+      data: {
+        name: req.file.originalname,
+        originalName: req.file.originalname,
+        type: "ET_DOCUMENT",
+        size: req.file.size,
+        s3Key: req.file.path, // Using local path as 'key' for now
+        status: "READY",
+        projectId: projectId,
+        uploadedBy: userId,
+      },
+    });
 
-      // Create File Record
-      const etDocument = await prisma.file.create({
-        data: {
-          name: req.file.originalname,
-          originalName: req.file.originalname,
-          type: "ET_DOCUMENT",
-          size: req.file.size,
-          s3Key: req.file.path, // Using local path as 'key' for now
-          status: "READY",
-          projectId: projectId,
-          uploadedBy: userId,
-        },
-      });
+    logger.info(`[UPLOAD] ET Document created: ${etDocument.id}`);
 
-      logger.info(`[UPLOAD] ET Document created: ${etDocument.id}`);
-
-      res.status(201).json({
-        id: etDocument.id,
-        name: etDocument.name,
-        size: etDocument.size,
-        path: req.file.path,
-        createdAt: etDocument.createdAt,
-      });
+    res.status(201).json({
+      id: etDocument.id,
+      name: etDocument.name,
+      size: etDocument.size,
+      path: req.file.path,
+      createdAt: etDocument.createdAt,
+    });
   }),
 );
 

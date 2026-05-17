@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import * as React from "react";
 import { Check, ChevronsUpDown, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
@@ -13,6 +11,15 @@ import {
 } from "@/components/ui/popover";
 import axios from "axios";
 import { logger } from "@/lib/logger";
+
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  type: string;
+  [key: string]: unknown;
+}
 
 interface LocationPickerProps {
   value: string;
@@ -27,7 +34,7 @@ export function LocationPicker({
 }: LocationPickerProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [predictions, setPredictions] = React.useState<any[]>([]);
+  const [predictions, setPredictions] = React.useState<NominatimResult[]>([]);
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {

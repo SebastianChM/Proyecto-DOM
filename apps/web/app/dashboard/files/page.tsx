@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/axios-config";
 import {
@@ -65,9 +65,9 @@ export default function AllFilesPage() {
   const [filterProjects, setFilterProjects] = useState<FilterProject[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [supportedFormats, setSupportedFormats] = useState<Record<string, string[]>>(
-    FALLBACK_SUPPORTED_FORMATS,
-  );
+  const [supportedFormats, setSupportedFormats] = useState<
+    Record<string, string[]>
+  >(FALLBACK_SUPPORTED_FORMATS);
   const [viewerModal, setViewerModal] = useState<{
     isOpen: boolean;
     file: FileItem;
@@ -90,45 +90,56 @@ export default function AllFilesPage() {
   }, [searchQuery]);
 
   /** Fetch files from /api/files/all with server-side pagination and filters */
-  const fetchFiles = async (targetPage?: number) => {
-    try {
-      setLoading(true);
-      const p = targetPage ?? page;
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(pageSize),
-      });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (activeFilter !== "ALL") params.set("type", activeFilter);
-      if (selectedProjectId) params.set("projectId", selectedProjectId);
+  const fetchFiles = useCallback(
+    async (targetPage?: number) => {
+      try {
+        setLoading(true);
+        const p = targetPage ?? page;
+        const params = new URLSearchParams({
+          page: String(p),
+          pageSize: String(pageSize),
+        });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (activeFilter !== "ALL") params.set("type", activeFilter);
+        if (selectedProjectId) params.set("projectId", selectedProjectId);
 
-      const response = await apiClient.get(`/api/files/all?${params.toString()}`);
-      const { meta, filters, data } = response.data;
+        const response = await apiClient.get(
+          `/api/files/all?${params.toString()}`,
+        );
+        const { meta, filters, data } = response.data;
 
-      // Flatten project info into each file
-      const filesWithProject = (data as FileItem[]).map((f) => ({
-        ...f,
-        projectName: f.project?.name,
-        projectId: f.project?.id ?? f.projectId,
-      }));
+        // Flatten project info into each file
+        const filesWithProject = (data as FileItem[]).map((f) => ({
+          ...f,
+          projectName: f.project?.name,
+          projectId: f.project?.id ?? f.projectId,
+        }));
 
-      setFiles(filesWithProject);
-      setTotal(meta.total);
-      setTotalPages(meta.totalPages);
-      setPage(meta.page);
-      if (filters?.projects) setFilterProjects(filters.projects);
-    } catch (error) {
-      showError(error, user?.role, "Failed to load files");
-    } finally {
-      setLoading(false);
-    }
-  };
+        setFiles(filesWithProject);
+        setTotal(meta.total);
+        setTotalPages(meta.totalPages);
+        setPage(meta.page);
+        if (filters?.projects) setFilterProjects(filters.projects);
+      } catch (error) {
+        showError(error, user?.role, "Failed to load files");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      page,
+      debouncedSearch,
+      activeFilter,
+      selectedProjectId,
+      pageSize,
+      user?.role,
+    ],
+  );
 
   /** Re-fetch when pagination, search, or filters change */
   useEffect(() => {
     void fetchFiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, activeFilter, selectedProjectId, page]);
+  }, [fetchFiles]);
 
   useEffect(() => {
     const fetchSupportedFormats = async () => {
@@ -351,10 +362,7 @@ export default function AllFilesPage() {
             ))}
           </div>
 
-          <DropdownMenu
-            open={isFilterOpen}
-            onOpenChange={setIsFilterOpen}
-          >
+          <DropdownMenu open={isFilterOpen} onOpenChange={setIsFilterOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
@@ -362,7 +370,8 @@ export default function AllFilesPage() {
               >
                 <Filter className="mr-2 h-4 w-4" />
                 {selectedProjectId
-                  ? filterProjects.find((p) => p.id === selectedProjectId)?.name ?? "Project"
+                  ? (filterProjects.find((p) => p.id === selectedProjectId)
+                      ?.name ?? "Project")
                   : "Filter Projects"}
                 {selectedProjectId && (
                   <span className="ml-2 bg-brand text-white text-[10px] px-1.5 py-0.5 rounded-full">
@@ -393,7 +402,7 @@ export default function AllFilesPage() {
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
                       onClick={() => {
                         setSelectedProjectId(
-                          selectedProjectId === project.id ? "" : project.id
+                          selectedProjectId === project.id ? "" : project.id,
                         );
                         setPage(1);
                         setIsFilterOpen(false);
@@ -466,93 +475,102 @@ export default function AllFilesPage() {
         </div>
       ) : (
         <>
-        <div className="space-y-4">
-          {files.map((file) => (
-            <FileRow
-              key={file.id}
-              fileName={file.name}
-              fileType={file.type}
-              fileSize={formatSize(file.size)}
-              updatedAt={new Date(file.createdAt).toLocaleDateString()}
-              status={file.status}
-              progress={file.progress}
-              isSelected={selectedFiles.has(file.id)}
-              onSelect={() => toggleSelectFile(file.id)}
-              onView={() => handleViewFile(file)}
-              onRetry={() => {}}
-              projectName={file.projectName}
-              actions={
-                <div className="flex items-center gap-2 justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleViewFile(file)}
-                    className="text-primary hover:bg-blue-50 hover:text-blue-700 font-medium rounded-lg"
-                  >
-                    <Eye className="h-4 w-4 mr-2" /> View
-                  </Button>
-                  <Link href={`/dashboard/projects/${file.projectId}`}>
+          <div className="space-y-4">
+            {files.map((file) => (
+              <FileRow
+                key={file.id}
+                fileName={file.name}
+                fileType={file.type}
+                fileSize={formatSize(file.size)}
+                updatedAt={new Date(file.createdAt).toLocaleDateString()}
+                status={file.status}
+                progress={file.progress}
+                isSelected={selectedFiles.has(file.id)}
+                onSelect={() => toggleSelectFile(file.id)}
+                onView={() => handleViewFile(file)}
+                onRetry={() => {}}
+                projectName={file.projectName}
+                actions={
+                  <div className="flex items-center gap-2 justify-end">
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="hover:bg-secondary text-muted-foreground hover:text-foreground rounded-full"
+                      size="sm"
+                      onClick={() => handleViewFile(file)}
+                      className="text-primary hover:bg-blue-50 hover:text-blue-700 font-medium rounded-lg"
                     >
-                      <ArrowRight className="h-4 w-4" />
+                      <Eye className="h-4 w-4 mr-2" /> View
                     </Button>
-                  </Link>
-                </div>
-              }
-            />
-          ))}
-        </div>
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page <= 1}
-              className="text-muted-foreground"
-            >
-              Previous
-            </Button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-              .reduce<(number | string)[]>((acc, p, i, arr) => {
-                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((item, i) =>
-                typeof item === "string" ? (
-                  <span key={`dots-${i}`} className="px-2 text-muted-foreground">
-                    {item}
-                  </span>
-                ) : (
-                  <Button
-                    key={item}
-                    variant={item === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageChange(item)}
-                    className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
-                  >
-                    {item}
-                  </Button>
-                )
-              )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page >= totalPages}
-              className="text-muted-foreground"
-            >
-              Next
-            </Button>
+                    <Link href={`/dashboard/projects/${file.projectId}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-secondary text-muted-foreground hover:text-foreground rounded-full"
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                }
+              />
+            ))}
           </div>
-        )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page <= 1}
+                className="text-muted-foreground"
+              >
+                Previous
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(
+                  (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2,
+                )
+                .reduce<(number | string)[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, i) =>
+                  typeof item === "string" ? (
+                    <span
+                      key={`dots-${i}`}
+                      className="px-2 text-muted-foreground"
+                    >
+                      {item}
+                    </span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={item === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(item)}
+                      className={
+                        item === page
+                          ? "bg-primary text-white"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {item}
+                    </Button>
+                  ),
+                )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page >= totalPages}
+                className="text-muted-foreground"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </>
       )}
 

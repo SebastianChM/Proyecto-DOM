@@ -10,11 +10,14 @@
  */
 
 import { Router } from "express";
+import { basicAuth } from "../../middleware/auth";
 import crudRoutes from "./crud.routes";
 import uploadRoutes from "./upload.routes";
 import runnerRoutes from "./runner.routes";
 
 const router = Router();
+
+router.use(basicAuth);
 
 // Mount sub-routers
 router.use(uploadRoutes); // /upload-et

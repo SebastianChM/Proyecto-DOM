@@ -111,30 +111,79 @@ async function getReadyFile(fileId: string) {
   if (file.status !== "READY") {
     throw badRequest(
       "File not ready for BOM extraction. Current status: " + file.status,
-      "FILE_NOT_READY"
+      "FILE_NOT_READY",
     );
   }
   return file;
 }
 
 const MOCK_BOM: RawBomItem[] = [
-  { id: 1, name: "Mock Wall A", category: "Walls", family: "Basic Wall", type: "Generic 200mm", material: "Concrete", volume: 10.5, area: 20, length: 5, count: 1 },
-  { id: 2, name: "Mock Wall B", category: "Walls", family: "Basic Wall", type: "Generic 200mm", material: "Concrete", volume: 12.0, area: 24, length: 6, count: 1 },
-  { id: 3, name: "Mock Door", category: "Doors", family: "Single-Flush", type: "0915 x 2134mm", material: "Wood", volume: 2.1, area: 2, length: 0, count: 1 },
-  { id: 4, name: "Mock Window", category: "Windows", family: "Fixed", type: "0915 x 1220mm", material: "Glass", volume: 1.2, area: 1.5, length: 0, count: 1 },
+  {
+    id: 1,
+    name: "Mock Wall A",
+    category: "Walls",
+    family: "Basic Wall",
+    type: "Generic 200mm",
+    material: "Concrete",
+    volume: 10.5,
+    area: 20,
+    length: 5,
+    count: 1,
+  },
+  {
+    id: 2,
+    name: "Mock Wall B",
+    category: "Walls",
+    family: "Basic Wall",
+    type: "Generic 200mm",
+    material: "Concrete",
+    volume: 12.0,
+    area: 24,
+    length: 6,
+    count: 1,
+  },
+  {
+    id: 3,
+    name: "Mock Door",
+    category: "Doors",
+    family: "Single-Flush",
+    type: "0915 x 2134mm",
+    material: "Wood",
+    volume: 2.1,
+    area: 2,
+    length: 0,
+    count: 1,
+  },
+  {
+    id: 4,
+    name: "Mock Window",
+    category: "Windows",
+    family: "Fixed",
+    type: "0915 x 1220mm",
+    material: "Glass",
+    volume: 1.2,
+    area: 1.5,
+    length: 0,
+    count: 1,
+  },
 ];
 
 /** Get raw BOM items for a file (mock or real) */
-async function getRawBom(file: { apsUrn: string | null }): Promise<RawBomItem[]> {
+async function getRawBom(file: {
+  apsUrn: string | null;
+}): Promise<RawBomItem[]> {
   if (file.apsUrn?.startsWith("local-")) {
     return MOCK_BOM;
   }
   try {
-    return await bimQueryService.getBOM(file.apsUrn!) as RawBomItem[];
+    return (await bimQueryService.getBOM(file.apsUrn!)) as RawBomItem[];
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     if (msg.includes("APS_MODEL_NOT_READY")) {
-      throw conflict("Model properties are not yet extracted.", "APS_MODEL_NOT_READY");
+      throw conflict(
+        "Model properties are not yet extracted.",
+        "APS_MODEL_NOT_READY",
+      );
     }
     throw error;
   }
@@ -173,14 +222,19 @@ async function getRawBom(file: { apsUrn: string | null }): Promise<RawBomItem[]>
  *       200:
  *         description: BOM data with summary, pagination, and categories
  */
-router.get("/:id/bom", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id/bom",
+  asyncHandler(async (req: Request, res: Response) => {
     const file = await getReadyFile(req.params.id as string);
 
     const mode = (req.query.mode as string) || "aggregated";
     const categoryFilter = req.query.category as string | undefined;
-    const search = (req.query.search as string || "").toLowerCase();
+    const search = ((req.query.search as string) || "").toLowerCase();
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+    const pageSize = Math.min(
+      200,
+      Math.max(1, parseInt(req.query.pageSize as string) || 50),
+    );
 
     logger.debug(`[FILES_BOM] Using URN: ${file.apsUrn}`);
 
@@ -190,14 +244,15 @@ router.get("/:id/bom", asyncHandler(async (req: Request, res: Response) => {
     // Filter raw items
     let filtered = rawBom;
     if (categoryFilter) {
-      filtered = filtered.filter(i => i.category === categoryFilter);
+      filtered = filtered.filter((i) => i.category === categoryFilter);
     }
     if (search) {
-      filtered = filtered.filter(i =>
-        i.name.toLowerCase().includes(search) ||
-        i.family.toLowerCase().includes(search) ||
-        i.type.toLowerCase().includes(search) ||
-        i.material.toLowerCase().includes(search)
+      filtered = filtered.filter(
+        (i) =>
+          i.name.toLowerCase().includes(search) ||
+          i.family.toLowerCase().includes(search) ||
+          i.type.toLowerCase().includes(search) ||
+          i.material.toLowerCase().includes(search),
       );
     }
 
@@ -213,7 +268,7 @@ router.get("/:id/bom", asyncHandler(async (req: Request, res: Response) => {
     const pageData = dataset.slice(offset, offset + pageSize);
 
     // Available categories (from full unfiltered raw BOM)
-    const categories = [...new Set(rawBom.map(i => i.category))].sort();
+    const categories = [...new Set(rawBom.map((i) => i.category))].sort();
 
     res.json({
       meta: {
@@ -230,14 +285,17 @@ router.get("/:id/bom", asyncHandler(async (req: Request, res: Response) => {
       summary,
       data: pageData,
     });
-}));
+  }),
+);
 
 /**
  * GET /:id/bom/export
  * Export BOM as CSV (aggregated by default)
  * Query: ?mode=raw|aggregated (default: aggregated)
  */
-router.get("/:id/bom/export", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id/bom/export",
+  asyncHandler(async (req: Request, res: Response) => {
     const file = await getReadyFile(req.params.id as string);
     const mode = (req.query.mode as string) || "aggregated";
 
@@ -250,24 +308,40 @@ router.get("/:id/bom/export", asyncHandler(async (req: Request, res: Response) =
     const escapeCsv = (val: unknown) => {
       const str = String(val ?? "");
       return str.includes(",") || str.includes('"') || str.includes("\n")
-        ? `"${str.replace(/"/g, '""')}"` : str;
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
     };
 
     let csv: string;
 
     if (mode === "raw") {
-      const columns = ["id", "name", "category", "family", "type", "material", "volume", "area", "length", "count"];
+      const columns = [
+        "id",
+        "name",
+        "category",
+        "family",
+        "type",
+        "material",
+        "volume",
+        "area",
+        "length",
+        "count",
+      ];
       const header = columns.join(",");
-      const rows = rawBom.map(item =>
-        columns.map(col => escapeCsv((item as unknown as Record<string, unknown>)[col])).join(",")
+      const rows = rawBom.map((item) =>
+        columns
+          .map((col) =>
+            escapeCsv((item as unknown as Record<string, unknown>)[col]),
+          )
+          .join(","),
       );
       csv = [header, ...rows].join("\n");
     } else {
       // Aggregated export
       const aggregated = aggregateBom(rawBom);
-      const columns = ["category", "family", "type", "material", "count", "totalVolume", "totalArea", "totalLength"];
-      const header = "Category,Family,Type,Material,Count,Total Volume (m³),Total Area (m²),Total Length (m)";
-      const rows = aggregated.map(item =>
+      const header =
+        "Category,Family,Type,Material,Count,Total Volume (m³),Total Area (m²),Total Length (m)";
+      const rows = aggregated.map((item) =>
         [
           escapeCsv(item.category),
           escapeCsv(item.family),
@@ -277,23 +351,29 @@ router.get("/:id/bom/export", asyncHandler(async (req: Request, res: Response) =
           item.totalVolume.toFixed(3),
           item.totalArea.toFixed(3),
           item.totalLength.toFixed(3),
-        ].join(",")
+        ].join(","),
       );
       csv = [header, ...rows].join("\n");
     }
 
     const safeName = (file.name || "bom").replace(/[^a-zA-Z0-9._-]/g, "_");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="BOM_${safeName}_${mode}.csv"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="BOM_${safeName}_${mode}.csv"`,
+    );
     res.send(csv);
-}));
+  }),
+);
 
 /**
  * POST /bom/compare
  * Compare BOMs from two files (uses aggregated view)
  * Body: { fileIdA: string, fileIdB: string }
  */
-router.post("/bom/compare", asyncHandler(async (req: Request, res: Response) => {
+router.post(
+  "/bom/compare",
+  asyncHandler(async (req: Request, res: Response) => {
     const { fileIdA, fileIdB } = req.body;
     if (!fileIdA || !fileIdB) {
       throw badRequest("fileIdA and fileIdB are required", "MISSING_PARAMS");
@@ -305,10 +385,16 @@ router.post("/bom/compare", asyncHandler(async (req: Request, res: Response) => 
     ]);
 
     if (!fileA?.apsUrn || !fileB?.apsUrn) {
-      throw notFound("One or both files not found or not processed", "FILE_NOT_FOUND");
+      throw notFound(
+        "One or both files not found or not processed",
+        "FILE_NOT_FOUND",
+      );
     }
     if (fileA.status !== "READY" || fileB.status !== "READY") {
-      throw badRequest("Both files must be READY for comparison", "FILE_NOT_READY");
+      throw badRequest(
+        "Both files must be READY for comparison",
+        "FILE_NOT_READY",
+      );
     }
 
     const [rawA, rawB] = await Promise.all([
@@ -334,7 +420,12 @@ router.post("/bom/compare", asyncHandler(async (req: Request, res: Response) => 
 
     const added: { key: string; countB: number }[] = [];
     const removed: { key: string; countA: number }[] = [];
-    const changed: { key: string; countA: number; countB: number; volumeDiff: number }[] = [];
+    const changed: {
+      key: string;
+      countA: number;
+      countB: number;
+      volumeDiff: number;
+    }[] = [];
     const unchanged: { key: string; count: number }[] = [];
 
     for (const k of allKeys) {
@@ -345,15 +436,30 @@ router.post("/bom/compare", asyncHandler(async (req: Request, res: Response) => 
       } else if (!inB) {
         removed.push({ key: k, countA: inA.count });
       } else if (inA.count !== inB.count) {
-        changed.push({ key: k, countA: inA.count, countB: inB.count, volumeDiff: inB.totalVolume - inA.totalVolume });
+        changed.push({
+          key: k,
+          countA: inA.count,
+          countB: inB.count,
+          volumeDiff: inB.totalVolume - inA.totalVolume,
+        });
       } else {
         unchanged.push({ key: k, count: inA.count });
       }
     }
 
     res.json({
-      fileA: { id: fileA.id, name: fileA.name, totalRawElements: rawA.length, totalAggregated: aggA.length },
-      fileB: { id: fileB.id, name: fileB.name, totalRawElements: rawB.length, totalAggregated: aggB.length },
+      fileA: {
+        id: fileA.id,
+        name: fileA.name,
+        totalRawElements: rawA.length,
+        totalAggregated: aggA.length,
+      },
+      fileB: {
+        id: fileB.id,
+        name: fileB.name,
+        totalRawElements: rawB.length,
+        totalAggregated: aggB.length,
+      },
       summary: {
         added: added.length,
         removed: removed.length,
@@ -362,6 +468,7 @@ router.post("/bom/compare", asyncHandler(async (req: Request, res: Response) => 
       },
       details: { added, removed, changed },
     });
-}));
+  }),
+);
 
 export default router;

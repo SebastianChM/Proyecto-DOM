@@ -40,7 +40,7 @@ export const errorHandler = (
   err: unknown,
   req: Request,
   res: Response,
-  _next: NextFunction, // eslint-disable-line @typescript-eslint/no-unused-vars
+  _next: NextFunction,
 ) => {
   const requestId = (req.headers["x-request-id"] as string) || undefined;
 

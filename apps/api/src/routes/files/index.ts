@@ -12,6 +12,7 @@
  */
 
 import { Router } from "express";
+import { basicAuth } from "../../middleware/auth";
 import uploadRoutes from "./upload.routes";
 import downloadRoutes from "./download.routes";
 import syncRoutes from "./sync.routes";
@@ -19,6 +20,8 @@ import bomRoutes from "./bom.routes";
 import crudRoutes from "./crud.routes";
 
 const router = Router();
+
+router.use(basicAuth);
 
 // Mount sub-routers
 router.use(uploadRoutes);

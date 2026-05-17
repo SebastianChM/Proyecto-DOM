@@ -18,7 +18,9 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/stats", asyncHandler(async (req, res) => {
+router.get(
+  "/stats",
+  asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) {
       throw unauthorized("Authentication required");
@@ -84,6 +86,82 @@ router.get("/stats", asyncHandler(async (req, res) => {
           },
         });
 
+        // 6. Month-over-month trends — compare last 30 days vs previous 30 days
+        const now = new Date();
+        const thirtyDaysAgo = new Date(
+          now.getTime() - 30 * 24 * 60 * 60 * 1000,
+        );
+        const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+        const [
+          projectsThisPeriod,
+          projectsLastPeriod,
+          filesThisPeriod,
+          filesLastPeriod,
+          activeModelsThisPeriod,
+          activeModelsLastPeriod,
+        ] = await Promise.all([
+          prisma.project.count({
+            where: {
+              OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              createdAt: { gte: thirtyDaysAgo },
+            },
+          }),
+          prisma.project.count({
+            where: {
+              OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+            },
+          }),
+          prisma.file.count({
+            where: {
+              project: {
+                OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              },
+              createdAt: { gte: thirtyDaysAgo },
+            },
+          }),
+          prisma.file.count({
+            where: {
+              project: {
+                OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              },
+              createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+            },
+          }),
+          prisma.file.count({
+            where: {
+              project: {
+                OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              },
+              status: "READY",
+              type: { in: ["RVT", "IFC", "NWC", "DWG"] },
+              updatedAt: { gte: thirtyDaysAgo },
+            },
+          }),
+          prisma.file.count({
+            where: {
+              project: {
+                OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+              },
+              status: "READY",
+              type: { in: ["RVT", "IFC", "NWC", "DWG"] },
+              updatedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+            },
+          }),
+        ]);
+
+        const computeTrend = (
+          current: number,
+          previous: number,
+        ): string | null => {
+          if (previous === 0 && current === 0) return null;
+          if (previous === 0) return current > 0 ? "New" : null;
+          const diff = current - previous;
+          const pct = Math.round((diff / previous) * 100);
+          return pct >= 0 ? `+${pct}%` : `${pct}%`;
+        };
+
         return {
           totalProjects,
           totalFiles: filesAgg._count.id,
@@ -91,12 +169,21 @@ router.get("/stats", asyncHandler(async (req, res) => {
           activeModels,
           recentActivity: recentProjects,
           isProcessing: processingCount > 0,
+          trends: {
+            projects: computeTrend(projectsThisPeriod, projectsLastPeriod),
+            files: computeTrend(filesThisPeriod, filesLastPeriod),
+            activeModels: computeTrend(
+              activeModelsThisPeriod,
+              activeModelsLastPeriod,
+            ),
+          },
         };
       },
       10, // 10 seconds TTL for better real-time status
     );
 
     res.json(stats);
-}));
+  }),
+);
 
 export default router;

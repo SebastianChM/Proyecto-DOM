@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { filesService, conversionService } from "@/lib/api/services";
-import {
-  usePollingWithBackoff,
-} from "@/hooks/usePollingWithBackoff";
-import { Users, UserPlus } from "lucide-react";
+import { usePollingWithBackoff } from "@/hooks/usePollingWithBackoff";
+import { Users, UserPlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,12 +31,8 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs-simple";
-import {
-  ProjectSettingsModal,
-} from "@/components/ProjectSettingsModal";
-import {
-  ConversionTracker,
-} from "@/components/ConversionTracker";
+import { ProjectSettingsModal } from "@/components/ProjectSettingsModal";
+import { ConversionTracker } from "@/components/ConversionTracker";
 import { ShareProjectDialog } from "@/components/ShareProjectDialog";
 import { ProjectMembersList } from "@/components/ProjectMembersList";
 import { useProjectPermissions } from "@/hooks/useProjectPermissions";
@@ -47,6 +41,32 @@ import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
 import { useConversions } from "@/hooks/useConversions";
 import { isFileLifecycleActive } from "@/lib/viewer/readiness";
+import type { ProjectFileDetail } from "@/lib/api/types";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ComplianceManager } from "@/components/compliance-v3/ComplianceManager";
+
+// ---------------------------------------------------------------------------
+// ComplianceTabContent — thin wrapper delegating to the shared ComplianceManager
+// ---------------------------------------------------------------------------
+
+function ComplianceTabContent({
+  projectId,
+  files = [],
+}: {
+  projectId: string;
+  files?: ProjectFileDetail[];
+}) {
+  return <ComplianceManager projectId={projectId} initialFiles={files} />;
+}
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -212,32 +232,6 @@ export default function ProjectDetailPage() {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleBulkValidate = () => {
-    if (selectedFiles.length === 0) return;
-
-    let passed = 0;
-    let failed = 0;
-
-    selectedFiles.forEach((fileId) => {
-      const file = project?.files.find((f) => f.id === fileId);
-      if (file) {
-        const namingRegex = /^[A-Z0-9]+-[A-Z]+-[0-9]+/i;
-        const isNamingValid = namingRegex.test(file.name);
-        const isSizeValid = file.size <= 200 * 1024 * 1024;
-
-        if (isNamingValid && isSizeValid) passed++;
-        else failed++;
-      }
-    });
-
-    toast.info(`Bulk Validation Complete`, {
-      description: `${passed} passed, ${failed} failed. Check individual files for details.`,
-    });
-
-    setSelectedFiles([]);
-  };
-
   const handleCompareFiles = () => {
     if (selectedFiles.length !== 2 || !project) return;
 
@@ -281,7 +275,11 @@ export default function ProjectDetailPage() {
         clientName={project.clientName || "DOM Client"}
         discipline={project.discipline || "Architecture"}
         status={(project.status as "Active" | "Archived" | "Draft") || "Active"}
-        lastUpdated="Today"
+        lastUpdated={new Date(project.updatedAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })}
         projectId={projectId}
         onNewFile={() => fileInputRef.current?.click()}
         onImportAps={() => setIsApsBrowserOpen(true)}
@@ -322,6 +320,7 @@ export default function ProjectDetailPage() {
             <Users className="h-4 w-4" />
             Team
           </TabsTrigger>
+          <TabsTrigger value="compliance">Compliance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -371,6 +370,13 @@ export default function ProjectDetailPage() {
               canManageMembers={can.manageMembers}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="compliance">
+          <ComplianceTabContent
+            projectId={projectId}
+            files={project?.files ?? []}
+          />
         </TabsContent>
 
         <TabsContent value="files">
@@ -450,7 +456,11 @@ export default function ProjectDetailPage() {
       <ViewerModal
         isOpen={!!viewerModal}
         onClose={() => setViewerModal(null)}
-        file={viewerModal?.file ? { ...viewerModal.file, apsUrn: viewerModal.file.apsUrn ?? null } : null}
+        file={
+          viewerModal?.file
+            ? { ...viewerModal.file, apsUrn: viewerModal.file.apsUrn ?? null }
+            : null
+        }
         token={viewerModal?.token}
       />
 

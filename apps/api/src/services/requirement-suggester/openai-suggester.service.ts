@@ -11,6 +11,11 @@ const TEMPERATURE = 0.2;
 const MAX_TOKENS = 4000;
 const MIN_CONFIDENCE = 0.5;
 
+// Safety caps — prevents prompt bloat if the dictionary grows to hundreds of entries.
+// The LLM doesn't extract better requirements from a list of 500 vs 150 canonical names.
+const MAX_PROPERTIES = 150;
+const MAX_CATEGORIES = 100;
+
 const suggestedConditionSchema = z.object({
   property: z.string().min(1),
   operator: z.string().min(1),
@@ -30,15 +35,33 @@ const suggestedRequirementSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-const llmResponseSchema = z.array(suggestedRequirementSchema);
+// Accepts both { requirements: [...] } (JSON-object mode) and bare [...] (fallback)
+const llmResponseSchema = z.union([
+  z.array(suggestedRequirementSchema),
+  z.object({ requirements: z.array(suggestedRequirementSchema) }),
+]);
 
 function buildSystemPrompt(
   properties: PropertyEntry[],
   categories: CategoryEntry[],
   discipline?: string,
 ): string {
-  const propNames = properties.map((p) => p.canonicalName).join(", ");
-  const catNames = categories.map((c) => c.canonicalName).join(", ");
+  // When discipline is known, prefer discipline-specific categories first to reduce noise
+  const orderedCategories = discipline
+    ? [
+        ...categories.filter((c) => c.discipline === discipline),
+        ...categories.filter(
+          (c) => !c.discipline || c.discipline !== discipline,
+        ),
+      ]
+    : categories;
+
+  // Apply caps — dictionary growth must not silently inflate token costs
+  const cappedProps = properties.slice(0, MAX_PROPERTIES);
+  const cappedCats = orderedCategories.slice(0, MAX_CATEGORIES);
+
+  const propNames = cappedProps.map((p) => p.canonicalName).join(", ");
+  const catNames = cappedCats.map((c) => c.canonicalName).join(", ");
   const disciplineHint = discipline
     ? `Focus on the "${discipline}" discipline only.`
     : "Identify the appropriate discipline for each requirement.";
@@ -54,7 +77,7 @@ ${propNames || "(none)"}
 Known category dictionary (use canonicalName values only):
 ${catNames || "(none)"}
 
-Return a valid JSON array (no markdown, no explanation) of requirement objects.
+Return a JSON object with a single key "requirements" containing an array of requirement objects.
 Each object must have exactly these fields:
 {
   "description": "string — clear requirement description",
@@ -79,15 +102,7 @@ Rules:
 - Only include requirements you can extract with confidence >= 0.5.
 - Use only property and category canonicalNames listed above when possible.
 - If a suitable canonicalName is not found, use the raw name from the text.
-- Return [] if no requirements can be extracted.
-- Return ONLY the JSON array, no other text.
-- Do not use markdown code fences or backticks of any kind.`;
-}
-
-function buildRetryPrompt(originalText: string): string {
-  return `The previous response was not valid JSON. Please re-read this text and return ONLY a valid JSON array (no markdown fences, no explanation):
-
-${originalText}`;
+- Return {"requirements": []} if no requirements can be extracted.`;
 }
 
 async function callOpenAI(
@@ -104,6 +119,9 @@ async function callOpenAI(
       model: MODEL,
       temperature: TEMPERATURE,
       max_tokens: MAX_TOKENS,
+      // JSON object mode: guarantees valid JSON output, eliminates parse failures
+      // and the costly retry that would re-send the full conversation.
+      response_format: { type: "json_object" },
       messages,
     }),
   });
@@ -129,7 +147,10 @@ function parseLlmContent(content: string): SuggestedRequirement[] | null {
       });
       return null;
     }
-    return result.data as SuggestedRequirement[];
+    // Unwrap { requirements: [...] } or use the bare array directly
+    return Array.isArray(result.data)
+      ? (result.data as SuggestedRequirement[])
+      : (result.data as { requirements: SuggestedRequirement[] }).requirements;
   } catch {
     return null;
   }
@@ -147,35 +168,21 @@ export class OpenAISuggester implements IRequirementSuggester {
     const systemPrompt = buildSystemPrompt(properties, categories, discipline);
 
     try {
-      // First attempt
-      const firstContent = await callOpenAI(this.apiKey, [
+      const content = await callOpenAI(this.apiKey, [
         { role: "system", content: systemPrompt },
         { role: "user", content: text },
       ]);
 
-      const firstResult = parseLlmContent(firstContent);
+      const result = parseLlmContent(content);
 
-      if (firstResult !== null) {
-        return firstResult.filter((s) => s.confidence >= MIN_CONFIDENCE);
+      if (result !== null) {
+        return result.filter((s) => s.confidence >= MIN_CONFIDENCE);
       }
 
-      logger.warn("[OpenAISuggester] First parse failed, retrying once");
-
-      // Second attempt — ask the model to fix the JSON
-      const retryContent = await callOpenAI(this.apiKey, [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
-        { role: "assistant", content: firstContent },
-        { role: "user", content: buildRetryPrompt(firstContent) },
-      ]);
-
-      const retryResult = parseLlmContent(retryContent);
-
-      if (retryResult !== null) {
-        return retryResult.filter((s) => s.confidence >= MIN_CONFIDENCE);
-      }
-
-      logger.warn("[OpenAISuggester] Retry parse also failed, returning []");
+      // JSON mode should prevent reaching here, but handle defensively
+      logger.warn(
+        "[OpenAISuggester] Failed to parse LLM response despite JSON mode",
+      );
       return [];
     } catch (error) {
       logger.warn("[OpenAISuggester] Network or API error, returning []", {

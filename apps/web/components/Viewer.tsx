@@ -23,6 +23,8 @@ interface ViewerProps {
   token?: string;
   fileId?: string;
   fileStatus?: string;
+  /** APS dbIds to select and zoom to after model loads (for compliance issue highlighting) */
+  selectIds?: number[];
   onViewerInitialized?: (viewer: any) => void;
 }
 
@@ -37,14 +39,21 @@ export default function Viewer({
   token: providedToken,
   fileId,
   fileStatus,
+  selectIds,
   onViewerInitialized,
 }: ViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const origWarnRef = useRef<((...args: any[]) => void) | null>(null);
   const retriedTranslationRef = useRef(false);
+  const selectIdsRef = useRef<number[] | undefined>(selectIds);
   const { user } = useUser();
   const [viewerError, setViewerError] = useState<string | null>(null);
+
+  // Keep ref in sync so the model-loaded callback has the latest value
+  useEffect(() => {
+    selectIdsRef.current = selectIds;
+  }, [selectIds]);
 
   const retryTranslation = async () => {
     if (!fileId || retriedTranslationRef.current) return;
@@ -213,6 +222,20 @@ export default function Viewer({
             if (onViewerInitialized) {
               onViewerInitialized(newViewer);
             }
+
+            // Register model-loaded handler to select/highlight requested elements
+            newViewer.addEventListener(
+              window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT,
+              () => {
+                const ids = selectIdsRef.current;
+                if (ids && ids.length > 0) {
+                  newViewer.select(ids);
+                  newViewer.fitToView(ids);
+                }
+              },
+              { once: true },
+            );
+
             loadModel(newViewer, urn);
           }
         });

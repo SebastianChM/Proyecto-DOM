@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import apiClient from "@/lib/axios-config";
 import { io } from "socket.io-client";
@@ -80,6 +81,7 @@ interface NotificationContextType {
   addNotification: (
     notification: Omit<Notification, "id" | "createdAt" | "read">,
   ) => Promise<void>;
+  subscribeToProject: (projectId: string) => void;
 }
 
 // ==================== CONTEXT ====================
@@ -109,6 +111,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
   // Socket state removed as it was unused
 
   // Socket Connection Effect
@@ -125,7 +128,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     socketInstance.on("connect", () => {
       logger.debug("Socket connected", { id: socketInstance.id });
-      socketInstance.emit("join_user_room", user.id);
+      if (user.id) {
+        socketInstance.emit("join_user_room", user.id);
+      }
     });
 
     socketInstance.on("notification", (payload: { data: Notification }) => {
@@ -157,9 +162,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       logger.error("Socket connection error", { error: error.message });
     });
 
-    // setSocket(socketInstance)
+    socketRef.current = socketInstance;
 
     return () => {
+      socketRef.current = null;
       socketInstance.disconnect();
     };
   }, [user]);
@@ -170,9 +176,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     setIsLoading(true);
     try {
-      const response = await apiClient.get(
-        `/api/notifications?userId=${user.id}&limit=100`,
-      );
+      const response = await apiClient.get(`/api/notifications?limit=100`);
       const result = response.data;
 
       if (result.success) {
@@ -312,6 +316,13 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     [user],
   );
 
+  // Subscribe to project-specific socket room for real-time project events
+  const subscribeToProject = useCallback((projectId: string) => {
+    if (socketRef.current?.connected && projectId) {
+      socketRef.current.emit("join_project_room", projectId);
+    }
+  }, []);
+
   // Initial fetch
   useEffect(() => {
     if (user) {
@@ -340,6 +351,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     deleteNotification,
     clearAll,
     addNotification,
+    subscribeToProject,
   };
 
   return (

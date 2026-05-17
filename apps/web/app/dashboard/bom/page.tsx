@@ -1,8 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/axios-config";
+import { projectsService } from "@/lib/api/services";
+import type { Project, ProjectFile } from "@/lib/api/types";
 import {
   TableProperties,
   ChevronRight,
@@ -28,12 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/error-handler";
 import { useUser } from "@/context/UserContext";
-
-interface Project {
-  id: string;
-  name: string;
-  files: any[];
-}
 
 interface BomMeta {
   mode: string;
@@ -77,7 +72,7 @@ export default function BOMPage() {
   const { user } = useUser();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFile, setSelectedFile] = useState<any | null>(null);
+  const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [bomResponse, setBomResponse] = useState<BomResponse | null>(null);
   const [loadingBom, setLoadingBom] = useState(false);
 
@@ -91,8 +86,8 @@ export default function BOMPage() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await apiClient.get("/api/projects");
-        setProjects(Array.isArray(response.data) ? response.data : []);
+        const response = await projectsService.list({ pageSize: 100 });
+        setProjects(response.data ?? []);
       } catch (error) {
         showError(error, user?.role, "Failed to load projects");
         setProjects([]);
@@ -116,7 +111,7 @@ export default function BOMPage() {
         if (q) params.set("search", q);
 
         const response = await apiClient.get(
-          `/api/files/${fileId}/bom?${params.toString()}`
+          `/api/files/${fileId}/bom?${params.toString()}`,
         );
         setBomResponse(response.data);
       } catch (error) {
@@ -126,10 +121,10 @@ export default function BOMPage() {
         setLoadingBom(false);
       }
     },
-    [user?.role]
+    [user?.role],
   );
 
-  const handleFileSelect = (file: any) => {
+  const handleFileSelect = (file: ProjectFile) => {
     if (file.status !== "READY") {
       toast.error("File must be processed (READY) to extract quantities.");
       return;
@@ -154,7 +149,8 @@ export default function BOMPage() {
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    if (selectedFile) fetchBom(selectedFile.id, newPage, categoryFilter, search);
+    if (selectedFile)
+      fetchBom(selectedFile.id, newPage, categoryFilter, search);
   };
 
   const handleCategoryClick = (cat: string) => {
@@ -168,7 +164,7 @@ export default function BOMPage() {
     try {
       const response = await apiClient.get(
         `/api/files/${selectedFile.id}/bom/export?mode=aggregated`,
-        { responseType: "blob" }
+        { responseType: "blob" },
       );
       const url = URL.createObjectURL(response.data);
       const link = document.createElement("a");
@@ -221,17 +217,15 @@ export default function BOMPage() {
                         {project.name}
                       </div>
                       {project.files?.filter(
-                        (f: any) => f.type === "RVT" || f.type === "IFC",
+                        (f) => f.type === "RVT" || f.type === "IFC",
                       ).length === 0 && (
                         <div className="px-4 py-2 text-sm text-muted-foreground italic">
                           No BIM models
                         </div>
                       )}
                       {project.files
-                        ?.filter(
-                          (f: any) => f.type === "RVT" || f.type === "IFC",
-                        )
-                        .map((file: any) => (
+                        ?.filter((f) => f.type === "RVT" || f.type === "IFC")
+                        .map((file) => (
                           <button
                             key={file.id}
                             onClick={() => handleFileSelect(file)}
@@ -294,7 +288,9 @@ export default function BOMPage() {
                       <div className="text-2xl font-bold text-foreground">
                         {meta?.totalRawElements.toLocaleString()}
                       </div>
-                      <div className="text-xs text-muted-foreground">Total Elements</div>
+                      <div className="text-xs text-muted-foreground">
+                        Total Elements
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-card border border-border">
@@ -302,7 +298,9 @@ export default function BOMPage() {
                       <div className="text-2xl font-bold text-foreground">
                         {meta?.totalAggregated.toLocaleString()}
                       </div>
-                      <div className="text-xs text-muted-foreground">Unique Types</div>
+                      <div className="text-xs text-muted-foreground">
+                        Unique Types
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-card border border-border">
@@ -310,15 +308,22 @@ export default function BOMPage() {
                       <div className="text-2xl font-bold text-foreground">
                         {categories.length}
                       </div>
-                      <div className="text-xs text-muted-foreground">Categories</div>
+                      <div className="text-xs text-muted-foreground">
+                        Categories
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-card border border-border">
                     <CardContent className="p-4">
                       <div className="text-2xl font-bold text-foreground">
-                        {summary.reduce((s, c) => s + c.totalVolume, 0).toFixed(1)} m³
+                        {summary
+                          .reduce((s, c) => s + c.totalVolume, 0)
+                          .toFixed(1)}{" "}
+                        m³
                       </div>
-                      <div className="text-xs text-muted-foreground">Total Volume</div>
+                      <div className="text-xs text-muted-foreground">
+                        Total Volume
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -409,14 +414,22 @@ export default function BOMPage() {
               </div>
 
               {/* Filtered info */}
-              {meta && (meta.totalFiltered !== meta.totalRawElements || categoryFilter || search) && (
-                <div className="text-xs text-muted-foreground flex-shrink-0">
-                  Showing {meta.totalItems} aggregated rows from {meta.totalFiltered.toLocaleString()} elements
-                  {meta.totalFiltered !== meta.totalRawElements && (
-                    <> (filtered from {meta.totalRawElements.toLocaleString()} total)</>
-                  )}
-                </div>
-              )}
+              {meta &&
+                (meta.totalFiltered !== meta.totalRawElements ||
+                  categoryFilter ||
+                  search) && (
+                  <div className="text-xs text-muted-foreground flex-shrink-0">
+                    Showing {meta.totalItems} aggregated rows from{" "}
+                    {meta.totalFiltered.toLocaleString()} elements
+                    {meta.totalFiltered !== meta.totalRawElements && (
+                      <>
+                        {" "}
+                        (filtered from {meta.totalRawElements.toLocaleString()}{" "}
+                        total)
+                      </>
+                    )}
+                  </div>
+                )}
 
               {/* Data Table */}
               <Card className="flex-1 min-h-0 flex flex-col bg-card border border-border overflow-hidden">
@@ -448,31 +461,48 @@ export default function BOMPage() {
                             <td className="px-4 py-2.5">
                               <button
                                 className="font-medium text-foreground hover:text-primary transition-colors"
-                                onClick={() => handleCategoryClick(item.category)}
+                                onClick={() =>
+                                  handleCategoryClick(item.category)
+                                }
                               >
                                 {item.category}
                               </button>
                             </td>
-                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[180px]" title={item.family}>
+                            <td
+                              className="px-4 py-2.5 text-muted-foreground truncate max-w-[180px]"
+                              title={item.family}
+                            >
                               {item.family || "—"}
                             </td>
-                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[200px]" title={item.type}>
+                            <td
+                              className="px-4 py-2.5 text-muted-foreground truncate max-w-[200px]"
+                              title={item.type}
+                            >
                               {item.type || "—"}
                             </td>
-                            <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[150px]" title={item.material}>
+                            <td
+                              className="px-4 py-2.5 text-muted-foreground truncate max-w-[150px]"
+                              title={item.material}
+                            >
                               {item.material || "—"}
                             </td>
                             <td className="px-4 py-2.5 text-right font-semibold text-foreground">
                               {item.count}
                             </td>
                             <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                              {item.totalVolume > 0 ? item.totalVolume.toFixed(3) : "—"}
+                              {item.totalVolume > 0
+                                ? item.totalVolume.toFixed(3)
+                                : "—"}
                             </td>
                             <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                              {item.totalArea > 0 ? item.totalArea.toFixed(3) : "—"}
+                              {item.totalArea > 0
+                                ? item.totalArea.toFixed(3)
+                                : "—"}
                             </td>
                             <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                              {item.totalLength > 0 ? item.totalLength.toFixed(3) : "—"}
+                              {item.totalLength > 0
+                                ? item.totalLength.toFixed(3)
+                                : "—"}
                             </td>
                           </tr>
                         ))}
@@ -485,46 +515,49 @@ export default function BOMPage() {
                 {meta && meta.totalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card flex-shrink-0">
                     <div className="text-xs text-muted-foreground">
-                      Page {meta.page} of {meta.totalPages} · {meta.totalItems} rows
+                      Page {page} of {meta.totalPages} · {meta.totalItems} rows
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={meta.page <= 1}
-                        onClick={() => handlePageChange(meta.page - 1)}
+                        disabled={page <= 1}
+                        onClick={() => handlePageChange(page - 1)}
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      {Array.from({ length: Math.min(meta.totalPages, 7) }, (_, i) => {
-                        // Show pages around current
-                        let p: number;
-                        if (meta.totalPages <= 7) {
-                          p = i + 1;
-                        } else if (meta.page <= 4) {
-                          p = i + 1;
-                        } else if (meta.page >= meta.totalPages - 3) {
-                          p = meta.totalPages - 6 + i;
-                        } else {
-                          p = meta.page - 3 + i;
-                        }
-                        return (
-                          <Button
-                            key={p}
-                            variant={p === meta.page ? "default" : "ghost"}
-                            size="sm"
-                            className={`w-8 h-8 p-0 ${p === meta.page ? "bg-brand text-white" : ""}`}
-                            onClick={() => handlePageChange(p)}
-                          >
-                            {p}
-                          </Button>
-                        );
-                      })}
+                      {Array.from(
+                        { length: Math.min(meta.totalPages, 7) },
+                        (_, i) => {
+                          // Show pages around current
+                          let p: number;
+                          if (meta.totalPages <= 7) {
+                            p = i + 1;
+                          } else if (page <= 4) {
+                            p = i + 1;
+                          } else if (page >= meta.totalPages - 3) {
+                            p = meta.totalPages - 6 + i;
+                          } else {
+                            p = page - 3 + i;
+                          }
+                          return (
+                            <Button
+                              key={p}
+                              variant={p === page ? "default" : "ghost"}
+                              size="sm"
+                              className={`w-8 h-8 p-0 ${p === page ? "bg-brand text-white" : ""}`}
+                              onClick={() => handlePageChange(p)}
+                            >
+                              {p}
+                            </Button>
+                          );
+                        },
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={meta.page >= meta.totalPages}
-                        onClick={() => handlePageChange(meta.page + 1)}
+                        disabled={page >= meta.totalPages}
+                        onClick={() => handlePageChange(page + 1)}
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>

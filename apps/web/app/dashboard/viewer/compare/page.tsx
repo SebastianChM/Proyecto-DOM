@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
 import { useEffect, useRef, useState, Suspense } from "react";
@@ -8,24 +5,25 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { authService } from "@/lib/api/services";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
-import { useUser } from "@/context/UserContext";
-import {} from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 import { VersionSelector, Version } from "@/components/viewer/VersionSelector";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Autodesk Viewer SDK has no TypeScript types — any is unavoidable here
 declare global {
   interface Window {
     Autodesk: any;
     THREE: any;
   }
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function CompareViewerContent() {
   const viewerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const viewerInstanceRef = useRef<any>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useUser();
 
   // URL Params
   const urlPrimaryUrn = searchParams.get("primary");
@@ -70,9 +68,9 @@ function CompareViewerContent() {
 
         setVersions(mockVersions);
 
-        // Auto-select if not set
-        if (!primaryUrn && mockVersions[0]) setPrimaryUrn(mockVersions[0].id);
-        if (!diffUrn && mockVersions[1]) setDiffUrn(mockVersions[1].id);
+        // Auto-select if not already set (functional form avoids stale closure)
+        setPrimaryUrn((prev) => prev || (mockVersions[0]?.id ?? ""));
+        setDiffUrn((prev) => prev || (mockVersions[1]?.id ?? ""));
       } catch (err) {
         logger.error("Failed to fetch versions", {
           error: (err as Error)?.message,
@@ -148,10 +146,14 @@ function CompareViewerContent() {
             const documentId1 = formatUrn(primaryUrn);
             const documentId2 = formatUrn(diffUrn);
 
-            const loadModel = (urn: string, opts: any = {}) => {
+            const loadModel = (
+              urn: string,
+              opts: Record<string, unknown> = {},
+            ) => {
               return new Promise((resolve, reject) => {
                 window.Autodesk.Viewing.Document.load(
                   urn,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   (doc: any) => {
                     const defaultModel = doc.getRoot().getDefaultGeometry();
                     viewer
@@ -200,19 +202,20 @@ function CompareViewerContent() {
             }
 
             if (mounted) setLoading(false);
-          } catch (err: any) {
+          } catch (err: unknown) {
             if (mounted) {
-              logger.error("Viewer initialization error", {
-                error: err.message || String(err),
-              });
-              const msg = err.message || "Failed to initialize comparison";
-              setError(msg);
+              const errMsg = err instanceof Error ? err.message : String(err);
+              logger.error("Viewer initialization error", { error: errMsg });
+              setError(errMsg || "Failed to initialize comparison");
               setLoading(false);
             }
           }
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (mounted) {
+          logger.error("Failed to load viewer dependencies", {
+            error: err instanceof Error ? err.message : String(err),
+          });
           setError("Failed to load viewer dependencies");
           setLoading(false);
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Upload, FileText, X } from "lucide-react";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { DISCIPLINES } from "@/lib/api/compliance-v3.constants";
 import type { SuggestedRequirement } from "@/lib/api/compliance-v3.types";
@@ -29,18 +30,35 @@ interface SuggestionReviewerProps {
 }
 
 export function SuggestionReviewer({ packId }: SuggestionReviewerProps) {
-  const { analysis, analyzing, error, analyze, approve, reject } =
+  const { analysis, analyzing, error, analyze, analyzeFile, approve, reject } =
     useSuggestions(packId);
 
+  const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [text, setText] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [discipline, setDiscipline] = useState<string>("");
   const [approvedIndexes, setApprovedIndexes] = useState<Set<number>>(
     new Set(),
   );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAnalyze = async () => {
-    await analyze(text, discipline || undefined);
     setApprovedIndexes(new Set());
+    if (inputMode === "file" && selectedFile) {
+      await analyzeFile(selectedFile, discipline || undefined);
+    } else {
+      await analyze(text, discipline || undefined);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleApprove = async (analysisId: string, index: number) => {
@@ -51,21 +69,101 @@ export function SuggestionReviewer({ packId }: SuggestionReviewerProps) {
   const handleRejectAll = async (analysisId: string) => {
     await reject(analysisId);
     setText("");
+    setSelectedFile(null);
     setApprovedIndexes(new Set());
   };
 
+  const canAnalyze = inputMode === "file" ? !!selectedFile : text.length >= 10;
+
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="regulatory-text">Regulatory Text</Label>
-        <Textarea
-          id="regulatory-text"
-          rows={6}
-          placeholder="Paste regulatory text here to extract requirements (minimum 10 characters)..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+      {/* Input mode toggle */}
+      <div className="flex gap-1 p-1 bg-muted rounded-md w-fit">
+        <button
+          type="button"
+          onClick={() => setInputMode("text")}
+          className={`px-3 py-1.5 text-sm rounded transition-colors ${
+            inputMode === "text"
+              ? "bg-background shadow-sm font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Paste Text
+        </button>
+        <button
+          type="button"
+          onClick={() => setInputMode("file")}
+          className={`px-3 py-1.5 text-sm rounded transition-colors flex items-center gap-1.5 ${
+            inputMode === "file"
+              ? "bg-background shadow-sm font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          Upload Document
+        </button>
       </div>
+
+      {/* Text input */}
+      {inputMode === "text" && (
+        <div className="space-y-2">
+          <Label htmlFor="regulatory-text">Regulatory Text</Label>
+          <Textarea
+            id="regulatory-text"
+            rows={6}
+            placeholder="Paste regulatory text here to extract requirements (minimum 10 characters)..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* File input */}
+      {inputMode === "file" && (
+        <div className="space-y-2">
+          <Label>Document</Label>
+          {!selectedFile ? (
+            <label
+              htmlFor="doc-upload"
+              className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+            >
+              <Upload className="h-6 w-6 text-muted-foreground mb-2" />
+              <span className="text-sm text-muted-foreground">
+                Click to upload PDF, DOCX or TXT
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                Max 10 MB
+              </span>
+              <input
+                id="doc-upload"
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.doc,.txt"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+            </label>
+          ) : (
+            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+              <span className="text-sm truncate flex-1">
+                {selectedFile.name}
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {(selectedFile.size / 1024).toFixed(0)} KB
+              </span>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                title="Remove file"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <Select value={discipline} onValueChange={setDiscipline}>
@@ -82,10 +180,7 @@ export function SuggestionReviewer({ packId }: SuggestionReviewerProps) {
           </SelectContent>
         </Select>
 
-        <Button
-          onClick={handleAnalyze}
-          disabled={analyzing || text.length < 10}
-        >
+        <Button onClick={handleAnalyze} disabled={analyzing || !canAnalyze}>
           {analyzing ? "Analyzing..." : "Analyze with AI"}
         </Button>
       </div>

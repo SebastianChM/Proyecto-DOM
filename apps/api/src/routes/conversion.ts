@@ -38,7 +38,7 @@ router.get(
 router.post(
   "/batch",
   asyncHandler(async (req, res) => {
-    const userId = req.session?.user?.id || "system";
+    const userId = req.session!.user!.id;
     const { fileIds, format } = batchSchema.parse(req.body);
     const result = await conversionService.createBatch(
       userId,
@@ -64,7 +64,9 @@ router.post(
 router.get(
   "/batch/:batchId",
   asyncHandler(async (req, res) => {
-    const result = await conversionService.getBatchStatus(req.params.batchId as string);
+    const result = await conversionService.getBatchStatus(
+      req.params.batchId as string,
+    );
     res.json(result);
   }),
 );
@@ -77,9 +79,10 @@ router.get(
   "/batch/:batchId/download",
   asyncHandler(async (req, res) => {
     try {
-      const { archive, filename } = await conversionService.getBatchDownloadArchive(
-        req.params.batchId as string,
-      );
+      const { archive, filename } =
+        await conversionService.getBatchDownloadArchive(
+          req.params.batchId as string,
+        );
 
       res.setHeader(
         "Content-Disposition",
@@ -131,7 +134,7 @@ router.get(
 router.post(
   "/:fileId",
   asyncHandler(async (req, res) => {
-    const userId = req.session?.user?.id || "system";
+    const userId = req.session!.user!.id;
     const fileId = req.params.fileId as string;
 
     // Check if fileId is actually "batch" (collision protection if mapped at root)
@@ -207,7 +210,9 @@ router.get(
     }
 
     const { stream, filename, contentType, length } =
-      await conversionService.getDownloadData(req.params.conversionId as string);
+      await conversionService.getDownloadData(
+        req.params.conversionId as string,
+      );
 
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", contentType);

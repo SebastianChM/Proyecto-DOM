@@ -8,32 +8,81 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { useUser } from "@/context/UserContext";
+import { userService } from "@/lib/api/services";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { user } = useUser();
-  const [projectUpdates, setProjectUpdates] = useState(true);
-  const [fileProcessing, setFileProcessing] = useState(true);
-  const [glassmorphism, setGlassmorphism] = useState(true);
-  const [displayName, setDisplayName] = useState("Sebastian C.");
+  const { user, refreshUser } = useUser();
+  const [projectUpdates, setProjectUpdates] = useState(() => {
+    try {
+      return localStorage.getItem("dom_pref_projectUpdates") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [fileProcessing, setFileProcessing] = useState(() => {
+    try {
+      return localStorage.getItem("dom_pref_fileProcessing") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [glassmorphism, setGlassmorphism] = useState(() => {
+    try {
+      return localStorage.getItem("dom_pref_glassmorphism") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    toast.success("Settings saved successfully", {
-      description: "Your preferences have been updated.",
-    });
-  };
 
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect
+    setMounted(true);
   }, []);
+
+  // Initialise displayName from user once available
+  useEffect(() => {
+    if (user?.name && !displayName) {
+      const saved = localStorage.getItem("dom_pref_displayName");
+      setDisplayName(saved ?? user.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.name]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Persist display name to the server when it has changed.
+      // This ensures the name appears correctly to other users in the platform.
+      if (displayName.trim() && displayName.trim() !== user?.name) {
+        await userService.updateProfile(displayName.trim());
+        // Refresh the user context so the new name is reflected immediately
+        await refreshUser();
+      }
+
+      // UI preferences are device-specific and stored locally.
+      localStorage.setItem("dom_pref_displayName", displayName.trim());
+      localStorage.setItem("dom_pref_projectUpdates", String(projectUpdates));
+      localStorage.setItem("dom_pref_fileProcessing", String(fileProcessing));
+      localStorage.setItem("dom_pref_glassmorphism", String(glassmorphism));
+
+      toast.success("Settings saved", {
+        description:
+          "Your display name has been updated. UI preferences are saved for this device.",
+      });
+    } catch {
+      toast.error("Failed to save settings", {
+        description:
+          "Your display name could not be updated. Please try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const isDark = theme === "dark";
 
@@ -61,17 +110,23 @@ export default function SettingsPage() {
 
             <div className="flex flex-col items-center text-center relative z-10">
               <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-3xl font-bold text-white ring-4 ring-white/10 mb-4 shadow-sm">
-                SC
+                {user?.name ? (
+                  user.name.charAt(0).toUpperCase()
+                ) : (
+                  <User className="w-10 h-10" />
+                )}
               </div>
               <h3 className="text-xl font-bold text-foreground">
-                Sebastian C.
+                {displayName || user?.name || "—"}
               </h3>
               <p className="text-muted-foreground text-sm mb-4">
-                Architect & BIM Manager
+                {user?.role === "ADMIN" ? "Administrator" : "BIM User"}
               </p>
               <div className="flex items-center space-x-2 text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full border border-border">
                 <Shield className="w-3 h-3 text-green-400" />
-                <span>Admin Access</span>
+                <span>
+                  {user?.role === "ADMIN" ? "Admin Access" : "User Access"}
+                </span>
               </div>
             </div>
 

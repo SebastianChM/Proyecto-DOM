@@ -1,3 +1,8 @@
+/**
+ * @deprecated This component is superseded by `components/compliance-v3/ComplianceManager`.
+ * It is not imported anywhere in the application and will be removed in a future cleanup.
+ * Do NOT add new usages. Use `ComplianceManager` instead.
+ */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -85,24 +90,23 @@ interface ComplianceDashboardProps {
 // CONSTANTS
 // ============================================================================
 
-import { API_CONFIG } from "@/lib/config";
-const API_BASE = API_CONFIG.BASE_URL;
+import { apiClient } from "@/lib/axios-config";
 
 const STATUS_CONFIG = {
   COMPLETED: {
     color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
     icon: CheckCircle2,
-    label: "Completado",
+    label: "Completed",
   },
   RUNNING: {
     color: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
     icon: Loader2,
-    label: "En proceso",
+    label: "In progress",
   },
   FAILED: {
     color: "bg-red-500/10 text-red-700 dark:text-red-400",
     icon: AlertTriangle,
-    label: "Fallido",
+    label: "Failed",
   },
 };
 
@@ -442,16 +446,12 @@ export function ComplianceDashboard({
 
     try {
       const [runsRes, rulesetsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/compliance-v2/runs?projectId=${projectId}`),
-        fetch(`${API_BASE}/api/compliance-v2/rulesets`),
+        apiClient.get(`/api/compliance-v2/runs?projectId=${projectId}`),
+        apiClient.get("/api/compliance-v2/rulesets"),
       ]);
 
-      if (!runsRes.ok || !rulesetsRes.ok) {
-        throw new Error("No se pudieron cargar los datos del servidor");
-      }
-
-      const runsData = await runsRes.json();
-      const rulesetsData = await rulesetsRes.json();
+      const runsData = runsRes.data;
+      const rulesetsData = rulesetsRes.data;
 
       setRuns(Array.isArray(runsData) ? runsData : []);
       setRulesets(Array.isArray(rulesetsData) ? rulesetsData : []);
@@ -475,15 +475,12 @@ export function ComplianceDashboard({
 
   const fetchModels = useCallback(async () => {
     try {
-      const res = await fetch(
-        `${API_BASE}/api/compliance-v2/runs/models?projectId=${projectId}`,
+      const { data } = await apiClient.get(
+        `/api/compliance-v2/runs/models?projectId=${projectId}`,
       );
-      if (res.ok) {
-        const data = await res.json();
-        setModels(Array.isArray(data) ? data : []);
-        if (Array.isArray(data) && data.length > 0 && !selectedModel) {
-          setSelectedModel(data[0].apsUrn);
-        }
+      setModels(Array.isArray(data) ? data : []);
+      if (Array.isArray(data) && data.length > 0 && !selectedModel) {
+        setSelectedModel(data[0].apsUrn);
       }
     } catch (err) {
       logger.error("Failed to fetch models", {
@@ -509,21 +506,10 @@ export function ComplianceDashboard({
     try {
       setRunningMessage("Ejecutando validación...");
 
-      const res = await fetch(`${API_BASE}/api/compliance-v2/runs/demo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rulesetId: selectedRuleset,
-          projectId,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Error al ejecutar la validación");
-      }
-
-      const result = await res.json();
+      const { data: result } = await apiClient.post(
+        "/api/compliance-v2/runs/demo",
+        { rulesetId: selectedRuleset, projectId },
+      );
       setRunningMessage("Procesando resultados...");
 
       if (result.runId) {
@@ -565,23 +551,15 @@ export function ComplianceDashboard({
       const model = models.find((m) => m.apsUrn === selectedModel);
       setRunningMessage(`Analizando ${model?.name || "modelo"}...`);
 
-      const res = await fetch(`${API_BASE}/api/compliance-v2/runs/model`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { data: result } = await apiClient.post(
+        "/api/compliance-v2/runs/model",
+        {
           rulesetId: selectedRuleset,
           projectId,
           modelUrn: selectedModel,
           modelName: model?.name,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Error al validar el modelo");
-      }
-
-      const result = await res.json();
+        },
+      );
       setRunningMessage("Procesando resultados...");
 
       if (result.runId) {

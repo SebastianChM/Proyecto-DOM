@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/context/UserContext";
 import { showError } from "@/lib/error-handler";
+import { toast } from "sonner";
 
 interface FileVersion {
   id: string;
@@ -122,11 +123,15 @@ export default function FileHistoryPage() {
       router.push(
         `/dashboard/viewer/compare?primary=${version1.urn}&diff=${version2.urn}&file=${fileId}&type=${type}`,
       );
+    } else {
+      toast.error(
+        "One or more selected versions have not been translated yet. Only READY versions can be compared.",
+      );
     }
   };
 
   const handleViewVersion = (urn: string) => {
-    router.push(`/dashboard/viewer/${fileId}?urn=${urn}`);
+    router.push(`/dashboard/viewer?urn=${urn}`);
   };
 
   if (loading) {

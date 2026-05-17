@@ -182,9 +182,11 @@ export function PackBrowser({
             <Card
               key={pack.id}
               className={
-                selectable ? "cursor-pointer hover:border-primary" : ""
+                selectable || onSelectPack
+                  ? "cursor-pointer hover:border-primary transition-colors"
+                  : ""
               }
-              onClick={selectable ? () => onSelectPack?.(pack) : undefined}
+              onClick={onSelectPack ? () => onSelectPack(pack) : undefined}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">

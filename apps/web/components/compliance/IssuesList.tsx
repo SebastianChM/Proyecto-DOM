@@ -83,8 +83,7 @@ interface IssuesListProps {
 // CONSTANTS
 // ============================================================================
 
-import { API_CONFIG } from "@/lib/config";
-const API_BASE = API_CONFIG.BASE_URL;
+import { apiClient } from "@/lib/axios-config";
 
 const SEVERITY_CONFIG = {
   CRITICAL: {
@@ -148,7 +147,7 @@ const STATUS_CONFIG = {
 // LOADING SKELETON
 // ============================================================================
 
-function IssuesListSkeleton() {
+export function IssuesListSkeleton() {
   return (
     <div className="space-y-4">
       {/* Summary Pills Skeleton */}
@@ -261,7 +260,11 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
   const [totalPages, setTotalPages] = useState(0);
 
   // Severity counts (unfiltered, for summary pills)
-  const [counts, setCounts] = useState<Record<string, number>>({ CRITICAL: 0, WARNING: 0, INFO: 0 });
+  const [counts, setCounts] = useState<Record<string, number>>({
+    CRITICAL: 0,
+    WARNING: 0,
+    INFO: 0,
+  });
 
   // Loading & Error States
   const [loading, setLoading] = useState(true);
@@ -278,40 +281,39 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
   }, [searchTerm]);
 
   // Fetch issues with server-side pagination and filters
-  const fetchIssues = useCallback(async (targetPage?: number) => {
-    setLoading(true);
-    setError(null);
+  const fetchIssues = useCallback(
+    async (targetPage?: number) => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const p = targetPage ?? page;
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(pageSize),
-      });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (severityFilter !== "all") params.set("severity", severityFilter);
-      if (statusFilter !== "all") params.set("status", statusFilter);
+      try {
+        const p = targetPage ?? page;
+        const params = new URLSearchParams({
+          page: String(p),
+          pageSize: String(pageSize),
+        });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (severityFilter !== "all") params.set("severity", severityFilter);
+        if (statusFilter !== "all") params.set("status", statusFilter);
 
-      const res = await fetch(
-        `${API_BASE}/api/compliance-v2/runs/${runId}/issues?${params.toString()}`,
-      );
-      if (!res.ok) {
-        throw new Error("No se pudieron cargar las incidencias");
+        const { data: json } = await apiClient.get(
+          `/api/compliance-v2/runs/${runId}/issues?${params.toString()}`,
+        );
+        setIssues(json.data ?? []);
+        setTotal(json.meta?.total ?? 0);
+        setTotalPages(json.meta?.totalPages ?? 0);
+        setPage(json.meta?.page ?? p);
+        if (json.counts) setCounts(json.counts);
+      } catch (err: unknown) {
+        const error = err as Error;
+        setError(error.message || "Error de conexión");
+        setIssues([]);
+      } finally {
+        setLoading(false);
       }
-      const json = await res.json();
-      setIssues(json.data ?? []);
-      setTotal(json.meta?.total ?? 0);
-      setTotalPages(json.meta?.totalPages ?? 0);
-      setPage(json.meta?.page ?? p);
-      if (json.counts) setCounts(json.counts);
-    } catch (err: unknown) {
-      const error = err as Error;
-      setError(error.message || "Error de conexión");
-      setIssues([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [runId, page, pageSize, debouncedSearch, severityFilter, statusFilter]);
+    },
+    [runId, page, pageSize, debouncedSearch, severityFilter, statusFilter],
+  );
 
   /** Re-fetch on filter/pagination change */
   useEffect(() => {
@@ -347,18 +349,9 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
     setUpdatingIssueId(issueId);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/compliance-v2/runs/issues/${issueId}/status`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error("Error al actualizar");
-      }
+      await apiClient.put(`/api/compliance-v2/runs/issues/${issueId}/status`, {
+        status: newStatus,
+      });
 
       // Refresh current page to get updated data
       await fetchIssues(page);
@@ -409,7 +402,10 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                 className="pl-9"
               />
             </div>
-            <Select value={severityFilter} onValueChange={handleSeverityFilterChange}>
+            <Select
+              value={severityFilter}
+              onValueChange={handleSeverityFilterChange}
+            >
               <SelectTrigger className="w-full sm:w-[160px]">
                 <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Severidad" />
@@ -421,7 +417,10 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                 <SelectItem value="INFO">Información</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+            <Select
+              value={statusFilter}
+              onValueChange={handleStatusFilterChange}
+            >
               <SelectTrigger className="w-full sm:w-[160px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
@@ -680,7 +679,9 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
             Anterior
           </Button>
           {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+            .filter(
+              (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2,
+            )
             .reduce<(number | string)[]>((acc, p, i, arr) => {
               if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
               acc.push(p);
@@ -698,11 +699,15 @@ export function IssuesList({ runId, onViewElement }: IssuesListProps) {
                   size="sm"
                   onClick={() => handlePageChange(item)}
                   disabled={loading}
-                  className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
+                  className={
+                    item === page
+                      ? "bg-primary text-white"
+                      : "text-muted-foreground"
+                  }
                 >
                   {item}
                 </Button>
-              )
+              ),
             )}
           <Button
             variant="outline"

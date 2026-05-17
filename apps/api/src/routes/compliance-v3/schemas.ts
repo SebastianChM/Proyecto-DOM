@@ -270,8 +270,17 @@ export const analysisIdParamSchema = z.object({
 
 export type AnalysisIdParam = z.infer<typeof analysisIdParamSchema>;
 
+// ~4 chars per token; 80k chars ≈ 20k tokens — leaves headroom for system prompt + output
+const MAX_ANALYZE_TEXT_CHARS = 80_000;
+
 export const analyzeSchema = z.object({
-  text: z.string().min(10, "Text must be at least 10 characters"),
+  text: z
+    .string()
+    .min(10, "Text must be at least 10 characters")
+    .max(
+      MAX_ANALYZE_TEXT_CHARS,
+      `Text must not exceed ${MAX_ANALYZE_TEXT_CHARS} characters`,
+    ),
   discipline: z.string().optional(),
 });
 

@@ -268,6 +268,10 @@ export function getRunIssues(
   );
 }
 
+export function deleteRun(runId: string): Promise<void> {
+  return api.delete<void>(`${BASE}/compliance/runs/${runId}`);
+}
+
 export function analyzeSuggestions(
   packId: string,
   data: AnalyzeInput,
@@ -275,6 +279,20 @@ export function analyzeSuggestions(
   return api.post<StoredAnalysis>(
     `${BASE}/packs/${packId}/suggestions/analyze`,
     data,
+  );
+}
+
+export function analyzeFileForSuggestions(
+  packId: string,
+  file: File,
+  discipline?: string,
+): Promise<StoredAnalysis> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (discipline) formData.append("discipline", discipline);
+  return api.post<StoredAnalysis>(
+    `${BASE}/packs/${packId}/suggestions/analyze-file`,
+    formData,
   );
 }
 

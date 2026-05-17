@@ -198,7 +198,7 @@ app.use("/api/auth", rateLimiter.authLimiter(), authRouter);
 app.use("/api/users", rateLimiter.apiLimiter(), usersRouter);
 
 // Files: sync-status needs its own permissive limiter (polled frequently by frontend)
-app.use("/api/files", rateLimiter.apiLimiter(), syncRoutes);
+app.use("/api/files", rateLimiter.apiLimiter(), basicAuth, syncRoutes);
 // Files: generic API limiter on all routes; strict upload limiter is applied
 // at route level only for POST /api/files/upload.
 app.use("/api/files", rateLimiter.apiLimiter(), filesRouter);
@@ -216,11 +216,16 @@ app.use("/api/notifications", rateLimiter.apiLimiter(), notificationsRouter);
 app.use("/api/reports", rateLimiter.heavyOperationLimiter(), reportsRouter);
 
 // Conversion routes: Specific conversion limiter
-app.use("/api/conversion", rateLimiter.conversionLimiter(), conversionRouter);
+app.use(
+  "/api/conversion",
+  rateLimiter.conversionLimiter(),
+  basicAuth,
+  conversionRouter,
+);
 app.use("/api/translation", rateLimiter.apiLimiter(), translationRouter);
 
-app.use("/api/viewer", rateLimiter.apiLimiter(), viewerRouter);
-app.use("/api/dashboard", rateLimiter.apiLimiter(), dashboardRouter);
+app.use("/api/viewer", rateLimiter.apiLimiter(), basicAuth, viewerRouter);
+app.use("/api/dashboard", rateLimiter.apiLimiter(), basicAuth, dashboardRouter);
 
 // APS routes: Derivatives limiter for specific routes
 app.use("/api/aps", rateLimiter.derivativesLimiter(), apsRouter);
@@ -236,28 +241,47 @@ app.use(
   rateLimiter.apiLimiter(),
   designAutomationCallbackRouter,
 );
-app.use("/api/compliance-v2", rateLimiter.apiLimiter(), complianceV2Router);
+app.use(
+  "/api/compliance-v2",
+  rateLimiter.apiLimiter(),
+  basicAuth,
+  complianceV2Router,
+);
 app.use(
   "/api/compliance-v2/runs",
   rateLimiter.heavyOperationLimiter(),
+  basicAuth,
   complianceRunsRouter,
 );
 app.use(
   "/api/compliance-v2/export",
   rateLimiter.apiLimiter(),
+  basicAuth,
   complianceExportRouter,
 );
 app.use("/api/compliance-v3", rateLimiter.apiLimiter(), complianceV3Router);
 app.use(
   "/api/data-sources",
   rateLimiter.heavyOperationLimiter(),
+  basicAuth,
   dataSourcesRouter,
 );
-app.use("/api/workflows", rateLimiter.apiLimiter(), workflowsRouter);
+app.use("/api/workflows", rateLimiter.apiLimiter(), basicAuth, workflowsRouter);
 app.use("/api/audit", rateLimiter.apiLimiter(), auditRouter);
 
-// Swagger Documentation
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Swagger Documentation — protected in production
+app.use(
+  "/api-docs",
+  env.NODE_ENV === "production"
+    ? basicAuth
+    : (
+        _req: import("express").Request,
+        _res: import("express").Response,
+        next: import("express").NextFunction,
+      ) => next(),
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec),
+);
 
 // BullBoard — Queue monitoring UI
 import { createBullBoard } from "@bull-board/api";

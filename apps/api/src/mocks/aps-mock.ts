@@ -11,7 +11,9 @@
  * conditional export in the service files is transparent to consumers.
  */
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* ---------------------------------------------------------------------------
+ * APS Mock Services — see file-level JSDoc above for usage
+ * --------------------------------------------------------------------------- */
 
 import { logger } from "../lib/logger";
 

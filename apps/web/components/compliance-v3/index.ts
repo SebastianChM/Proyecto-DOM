@@ -10,3 +10,7 @@ export { DisciplineScoreCard } from "./DisciplineScoreCard";
 export { IssueDetailPanel } from "./IssueDetailPanel";
 export { TraceabilityMatrix } from "./TraceabilityMatrix";
 export { ComplianceExport } from "./ComplianceExport";
+export { RunResultsPanel } from "./RunResultsPanel";
+export { ComplianceManager } from "./ComplianceManager";
+
+export type { RunResultsPanelProps } from "./RunResultsPanel";

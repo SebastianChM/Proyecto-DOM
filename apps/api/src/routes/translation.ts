@@ -5,7 +5,7 @@ import { apsOssService } from "../services/aps/oss.service";
 import { logger } from "../lib/logger";
 import { asyncHandler } from "../lib/async-handler";
 import { badRequest, conflict, notFound } from "../lib/errors";
-import fs from "fs";
+import { access, readFile } from "fs/promises";
 
 const router = Router();
 
@@ -34,6 +34,9 @@ const router = Router();
 router.post(
   "/:fileId/translate",
   asyncHandler(async (req, res) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw badRequest("Authentication required", "UNAUTHORIZED");
+    }
     const fileId = Array.isArray(req.params.fileId)
       ? req.params.fileId[0]
       : req.params.fileId;
@@ -61,7 +64,12 @@ router.post(
     let effectiveUrn = file.apsUrn;
 
     if (file.status === "UPLOADING" || file.apsUrn === "UPLOADING") {
-      if (!file.localPath || !fs.existsSync(file.localPath)) {
+      const localExists = file.localPath
+        ? await access(file.localPath)
+            .then(() => true)
+            .catch(() => false)
+        : false;
+      if (!file.localPath || !localExists) {
         throw conflict(
           "File upload to APS did not complete and local source is missing. Re-upload the file.",
           "UPLOAD_RECOVERY_SOURCE_MISSING",
@@ -76,7 +84,7 @@ router.post(
         },
       );
 
-      const buffer = fs.readFileSync(file.localPath);
+      const buffer = await readFile(file.localPath);
       const apsObject = await apsOssService.uploadObject(
         buffer,
         file.originalName || file.name,

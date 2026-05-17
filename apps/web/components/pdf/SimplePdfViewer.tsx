@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,27 +30,25 @@ export function SimplePdfViewer({
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
 
-  // Fix: Use useMemo for File URL generation to avoid effect-based state sync
-  const fileUrl = useMemo(() => {
-    // If a direct URL is provided, use it
-    if (propFileUrl) return propFileUrl;
-    // Otherwise, create blob URL from File
-    if (!file) return null;
-    return URL.createObjectURL(file);
+  // Create an object URL for File prop and revoke it on cleanup to avoid memory leaks.
+  // If a direct URL is provided, use it as-is (no cleanup needed).
+  const [fileUrl, setFileUrl] = useState<string | null>(propFileUrl ?? null);
+
+  useEffect(() => {
+    if (propFileUrl) {
+      setFileUrl(propFileUrl);
+      return;
+    }
+    if (!file) {
+      setFileUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFileUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
   }, [file, propFileUrl]);
-
-  // Cleanup ObjectURL when component unmounts or file changes
-  // (Note: useMemo doesn't cleanup, so we actually DO need an effect for revocation,
-  // but we can assume React handles it well enough or use a ref)
-  // Actually, strictly speaking, we MUST revoke.
-  // So let's use the pattern: State is derived from prop, but side-effect (URL creation) is handled carefully.
-
-  // Better Pattern: Just use existing fileUrl logic but ignore the lint if necessary,
-  // OR: use a custom hook.
-  // Let's stick to the user Request: FIX THE ERROR.
-  // The error is "setState synchronously".
-  // We can wrap it in a condition: if (fileUrl !== newUrl) setFileUrl(newUrl).
-
   // Sync Page Number
   useEffect(() => {
     if (highlight?.page) {

@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
 import { asyncHandler } from "../../lib/async-handler";
-import { badRequest } from "../../lib/errors";
+import { badRequest, notFound } from "../../lib/errors";
 import { logger } from "../../lib/logger";
 import { complianceRunnerV3Service } from "../../services/compliance-v3/compliance-runner-v3.service";
+import { reportService } from "../../services/reporting/report.service";
+import prisma from "../../lib/prisma";
 import {
   projectIdParamSchema,
   runIdParamSchema,
@@ -166,6 +168,126 @@ router.get(
     );
 
     res.json(result);
+  }),
+);
+
+// DELETE /compliance/runs/:runId
+router.delete(
+  "/compliance/runs/:runId",
+  asyncHandler(async (req: Request, res: Response) => {
+    const paramResult = runIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      throw badRequest(
+        "Invalid runId",
+        "VALIDATION_ERROR",
+        paramResult.error.issues,
+      );
+    }
+
+    const { runId } = paramResult.data;
+    logger.info("[RunsRoutes] Delete run", { runId });
+
+    await complianceRunnerV3Service.deleteRun(runId);
+
+    res.status(204).end();
+  }),
+);
+
+// GET /compliance/runs/:runId/export?format=pdf
+router.get(
+  "/compliance/runs/:runId/export",
+  asyncHandler(async (req: Request, res: Response) => {
+    const paramResult = runIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      throw badRequest(
+        "Invalid runId",
+        "VALIDATION_ERROR",
+        paramResult.error.issues,
+      );
+    }
+
+    const { runId } = paramResult.data;
+    const format = req.query.format ?? "pdf";
+
+    if (format !== "pdf") {
+      throw badRequest(
+        `Unsupported export format: ${format}. Only 'pdf' is supported.`,
+        "UNSUPPORTED_FORMAT",
+      );
+    }
+
+    // Load run with project and config → packs
+    const run = await prisma.complianceRun.findUnique({
+      where: { id: runId },
+      include: {
+        config: { include: { packs: { select: { name: true } } } },
+      },
+    });
+    if (!run) {
+      throw notFound(`ComplianceRun not found: ${runId}`, "RUN_NOT_FOUND");
+    }
+
+    // Load all issues for this run (no pagination — PDF needs full data)
+    const issues = await prisma.complianceIssue.findMany({
+      where: { runId },
+      orderBy: [{ severity: "asc" }, { createdAt: "asc" }],
+    });
+
+    // Fetch project name
+    const project = await prisma.project.findUnique({
+      where: { id: run.projectId },
+      select: { name: true },
+    });
+
+    const metadata = (run.metadata as Record<string, unknown> | null) ?? {};
+    const totalElements =
+      typeof metadata.totalElements === "number"
+        ? metadata.totalElements
+        : (run.totalElements ?? 0);
+    const score =
+      typeof metadata.complianceScore === "number"
+        ? Math.round(metadata.complianceScore)
+        : Math.round(run.complianceScore ?? 0);
+
+    const mapIssue = (i: (typeof issues)[number]) => ({
+      ruleName: i.ruleName,
+      elementName: i.elementName,
+      elementCategory: i.elementCategory,
+      propertyName: i.propertyName,
+      expectedValue: i.expectedValue,
+      actualValue: i.actualValue,
+    });
+
+    const pdfBuffer = await reportService.generateComplianceReport({
+      runId,
+      projectName: project?.name ?? run.projectId,
+      packName:
+        run.config?.packs?.map((p) => p.name).join(", ") || "Compliance Pack",
+      score,
+      totalElements,
+      criticalIssues: issues
+        .filter((i) => i.severity === "CRITICAL")
+        .map(mapIssue),
+      warningIssues: issues
+        .filter((i) => i.severity === "WARNING")
+        .map(mapIssue),
+      infoIssues: issues.filter((i) => i.severity === "INFO").map(mapIssue),
+      generatedAt: new Date().toLocaleString("es-CL", {
+        timeZone: "America/Santiago",
+      }),
+    });
+
+    logger.info("[RunsRoutes] Compliance PDF exported", {
+      runId,
+      issueCount: issues.length,
+    });
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="compliance-${runId}.pdf"`,
+      "Content-Length": String(pdfBuffer.length),
+    });
+    res.send(pdfBuffer);
   }),
 );
 

@@ -9,11 +9,12 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import * as path from "path";
 import * as fs from "fs";
+import { unlink, access } from "fs/promises";
 import prisma from "../lib/prisma";
 import { dataExtractorService } from "../services/data-extractor.service";
 import { logger } from "../lib/logger";
 import { asyncHandler } from "../lib/async-handler";
-import { badRequest, notFound } from "../lib/errors";
+import { badRequest, notFound, unauthorized } from "../lib/errors";
 
 const router = Router();
 
@@ -58,60 +59,63 @@ router.post(
   "/extract",
   upload.single("file"),
   asyncHandler(async (req: Request, res: Response) => {
-      const { projectId } = req.body;
-      const file = req.file;
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
+    const { projectId } = req.body;
+    const file = req.file;
 
-      if (!file) {
-        throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
-      }
+    if (!file) {
+      throw badRequest("No file uploaded", "FILE_UPLOAD_INVALID");
+    }
 
-      if (!projectId) {
-        // Clean up uploaded file
-        fs.unlinkSync(file.path);
-        throw badRequest("projectId is required", "MISSING_PROJECT_ID");
-      }
+    if (!projectId) {
+      // Clean up uploaded file (async)
+      await unlink(file.path).catch(() => {});
+      throw badRequest("projectId is required", "MISSING_PROJECT_ID");
+    }
 
-      logger.info(
-        `[DATA_SOURCES] Extracting from: ${file.originalname} (${file.mimetype})`,
+    logger.info(
+      `[DATA_SOURCES] Extracting from: ${file.originalname} (${file.mimetype})`,
+    );
+
+    let result;
+    if (file.mimetype === "application/pdf") {
+      result = await dataExtractorService.extractFromPDF(
+        file.path,
+        file.originalname,
       );
-
-      let result;
-      if (file.mimetype === "application/pdf") {
-        result = await dataExtractorService.extractFromPDF(
-          file.path,
-          file.originalname,
-        );
-      } else {
-        result = await dataExtractorService.extractFromExcel(
-          file.path,
-          file.originalname,
-        );
-      }
-
-      // Save to database
-      const dataSourceId = await dataExtractorService.saveDataSource(
-        projectId,
-        result,
+    } else {
+      result = await dataExtractorService.extractFromExcel(
+        file.path,
+        file.originalname,
       );
+    }
 
-      // Clean up uploaded file after processing
-      fs.unlinkSync(file.path);
+    // Save to database
+    const dataSourceId = await dataExtractorService.saveDataSource(
+      projectId,
+      result,
+    );
 
-      res.status(201).json({
-        id: dataSourceId,
-        success: result.success,
-        documentName: result.documentName,
-        documentType: result.documentType,
-        tablesCount: result.tables.length,
-        tables: result.tables.map((t) => ({
-          name: t.name,
-          headers: t.headers,
-          rowsCount: t.rows.length,
-          confidence: t.confidence,
-        })),
-        metadata: result.metadata,
-        errors: result.errors,
-      });
+    // Clean up uploaded file after processing (async)
+    await unlink(file.path).catch(() => {});
+
+    res.status(201).json({
+      id: dataSourceId,
+      success: result.success,
+      documentName: result.documentName,
+      documentType: result.documentType,
+      tablesCount: result.tables.length,
+      tables: result.tables.map((t) => ({
+        name: t.name,
+        headers: t.headers,
+        rowsCount: t.rows.length,
+        confidence: t.confidence,
+      })),
+      metadata: result.metadata,
+      errors: result.errors,
+    });
   }),
 );
 
@@ -122,64 +126,70 @@ router.post(
 router.post(
   "/extract-from-file/:fileId",
   asyncHandler(async (req: Request, res: Response) => {
-      const fileId = req.params.fileId as string;
-      const { projectId } = req.body;
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
+    const fileId = req.params.fileId as string;
+    const { projectId } = req.body;
 
-      // Get file from database
-      const file = await prisma.file.findUnique({
-        where: { id: fileId },
-      });
+    // Get file from database
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+    });
 
-      if (!file) {
-        throw notFound("File not found", "FILE_NOT_FOUND");
-      }
+    if (!file) {
+      throw notFound("File not found", "FILE_NOT_FOUND");
+    }
 
-      if (!file.s3Key) {
-        throw badRequest("File does not have local storage", "FILE_NO_STORAGE");
-      }
+    if (!file.s3Key) {
+      throw badRequest("File does not have local storage", "FILE_NO_STORAGE");
+    }
 
-      const filePath = path.join(__dirname, "../../uploads", file.s3Key);
+    const filePath = path.join(__dirname, "../../uploads", file.s3Key);
 
-      if (!fs.existsSync(filePath)) {
-        throw notFound("File not found on disk", "FILE_NOT_ON_DISK");
-      }
+    const fileExists = await access(filePath)
+      .then(() => true)
+      .catch(() => false);
+    if (!fileExists) {
+      throw notFound("File not found on disk", "FILE_NOT_ON_DISK");
+    }
 
-      logger.info(`[DATA_SOURCES] Extracting from existing file: ${file.name}`);
+    logger.info(`[DATA_SOURCES] Extracting from existing file: ${file.name}`);
 
-      let result;
-      if (file.type === "PDF") {
-        result = await dataExtractorService.extractFromPDF(filePath, file.name);
-      } else if (["EXCEL", "XLS", "XLSX"].includes(file.type)) {
-        result = await dataExtractorService.extractFromExcel(
-          filePath,
-          file.name,
-        );
-      } else {
-        throw badRequest(`Unsupported file type: ${file.type}`, "UNSUPPORTED_FILE_TYPE");
-      }
-
-      // Save to database
-      const dataSourceId = await dataExtractorService.saveDataSource(
-        projectId || file.projectId,
-        result,
-        fileId,
+    let result;
+    if (file.type === "PDF") {
+      result = await dataExtractorService.extractFromPDF(filePath, file.name);
+    } else if (["EXCEL", "XLS", "XLSX"].includes(file.type)) {
+      result = await dataExtractorService.extractFromExcel(filePath, file.name);
+    } else {
+      throw badRequest(
+        `Unsupported file type: ${file.type}`,
+        "UNSUPPORTED_FILE_TYPE",
       );
+    }
 
-      res.status(201).json({
-        id: dataSourceId,
-        success: result.success,
-        documentName: result.documentName,
-        documentType: result.documentType,
-        tablesCount: result.tables.length,
-        tables: result.tables.map((t) => ({
-          name: t.name,
-          headers: t.headers,
-          rowsCount: t.rows.length,
-          confidence: t.confidence,
-        })),
-        metadata: result.metadata,
-        errors: result.errors,
-      });
+    // Save to database
+    const dataSourceId = await dataExtractorService.saveDataSource(
+      projectId || file.projectId,
+      result,
+      fileId,
+    );
+
+    res.status(201).json({
+      id: dataSourceId,
+      success: result.success,
+      documentName: result.documentName,
+      documentType: result.documentType,
+      tablesCount: result.tables.length,
+      tables: result.tables.map((t) => ({
+        name: t.name,
+        headers: t.headers,
+        rowsCount: t.rows.length,
+        confidence: t.confidence,
+      })),
+      metadata: result.metadata,
+      errors: result.errors,
+    });
   }),
 );
 
@@ -187,7 +197,12 @@ router.post(
  * GET /api/data-sources
  * List all data sources for a project
  */
-router.get("/", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const { projectId } = req.query;
 
     if (!projectId) {
@@ -208,13 +223,19 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.json(dataSources);
-}));
+  }),
+);
 
 /**
  * GET /api/data-sources/:id
  * Get a data source with full extracted data
  */
-router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const id = req.params.id as string;
 
     const dataSource = await dataExtractorService.getDataSource(id);
@@ -224,13 +245,19 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
     }
 
     res.json(dataSource);
-}));
+  }),
+);
 
 /**
  * GET /api/data-sources/:id/tables/:tableIndex
  * Get a specific table from a data source
  */
-router.get("/:id/tables/:tableIndex", asyncHandler(async (req: Request, res: Response) => {
+router.get(
+  "/:id/tables/:tableIndex",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const id = req.params.id as string;
     const tableIndex = req.params.tableIndex as string;
     const index = parseInt(tableIndex);
@@ -251,13 +278,19 @@ router.get("/:id/tables/:tableIndex", asyncHandler(async (req: Request, res: Res
     }
 
     res.json(tables[index]);
-}));
+  }),
+);
 
 /**
  * PUT /api/data-sources/:id/status
  * Update data source status (e.g., mark as reviewed)
  */
-router.put("/:id/status", asyncHandler(async (req: Request, res: Response) => {
+router.put(
+  "/:id/status",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const id = req.params.id as string;
     const { status } = req.body;
 
@@ -274,13 +307,19 @@ router.put("/:id/status", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.json(updated);
-}));
+  }),
+);
 
 /**
  * DELETE /api/data-sources/:id
  * Delete a data source
  */
-router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
+router.delete(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as { session?: { user?: { id?: string } } }).session?.user?.id) {
+      throw unauthorized("Authentication required");
+    }
     const id = req.params.id as string;
 
     await prisma.dataSource.delete({
@@ -288,6 +327,7 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
     });
 
     res.status(204).send();
-}));
+  }),
+);
 
 export default router;

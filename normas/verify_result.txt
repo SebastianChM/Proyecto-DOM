@@ -1,0 +1,125 @@
+﻿
+=== R003 - Art 4.1.1 altura habitable (found: "4.1.1.") ===
+4.1.1. En las edificaciones o parte de ellas destinadas a vivienda, hospedaje, oficinas, y comercio, seconsiderarßn:
+á á 1. Locales habitables: los destinados a la permanencia de personas, tales como: dormitorios o habitaciones, comedores,salas de estar, oficinas, consultorios, salas de reuni¾n y salas de venta.
+á á 2. Locales no habitables : los destinados al trßnsito o estadÝa esporßdica de personas, tales como cuartos de ba±o,cocinas, salas de vestir, lavaderos, vestÝbulos, galerÝas o pasillos.
+á á Los locales habitables tendrßn una altura mÝnima de piso a cielo, medida en obra terminada, de 2,30 m, salvo bajopasadas de vigas, instalaciones horizontales, y ßreas menores de recintos ubicados directamente bajo techumbresinclinadas.
+á á La medida vertical mÝnima de obra terminada en pasada
+
+=== R010 - Art 4.1.2 ventana (found: "4.1.2.") ===
+4.1.2. Los locales habitables deberßn tener, al menos, una ventanaá que permita la entrada de aire y luz delexterior, con una distancia mÝnima libre horizontal de 1,5 m medida en forma perpendicular a la ventana cuando se trate dedormitorios. Sin embargo, se admitirßn ventanas fijas selladas siempre que se contemplen ductos de ventilaci¾nadecuados o sistemas de aire acondicionado conectados a grupo electr¾geno automßtico y que no se trate de dormitorioso recintos en los que se consulten artefactos de combusti¾n de cualquier tipo. Asimismo, las salas de reuni¾n o de venta ylos locales de cualquier tipo pertenecientes a un centro comercial cerrado, podrßn no consultar ventana siempre quedispongan de un sistema de climatizaci¾n artificial.
+á á Los locales no habitables sin ventanas o con vent
+
+=== R006 - Art 4.1.7 rampas (desde pos 543391) ===
+pendiente at -1
+4.1.7. Todo edificio de uso p·blico y todo aquel que sin importar su carga de ocupaci¾n, preste un servicio a lacomunidad, asÝ como las edificaciones colectivas, deberßn ser accesibles y utilizables en forma autovalente y sin dificultadpor personas con discapacidad, especialmente por aquellas con movilidad reducida, debiendo cumplir con los siguientesrequisitos mÝnimos:
+á á 1. Deberßn contemplar una ruta accesible, que conecte el espacio p·blico con todos los accesos del edificio, lasunidades o recintos de uso p·blico o que contemplen atenci¾n de p·blico, las vÝas de evacuaci¾n, los servicios higiÚnicos,los estacionamientos para personas con discapacidad, y ascensores que sean parte de esta ruta.
+á á Al interior del edificio, el ancho de la ruta accesible corresponderß al ancho determinado para las vÝas de evacuaci¾n, conun mÝnimo de 1,10 m, y su altura mÝnima serß de 2,10 m. En el piso de salida del edificio, el ancho de la ruta en el tramocomprendido entre el acceso del edifico y el 
+
+=== R009 - Art 4.2.7 barandas ===
+pos 644221:
+4.2.7. Todas las aberturas de pisos, mezaninas, costados abiertos de escaleras, descansos, pasarelas, rampas,balcones, terrazas, y ventanas de edificios que se encuentren a una altura superior a 1m por sobre el suelo adyacente,deberßn estar provistas de barandas o antepechos de solidez suficiente para evitar la caÝda fortuita de personas. Dichasbarandas o antepechos tendrßn una altura no inferior a 0,95 m medida verticalmente desde el nivel de piso interiorterminado en el plomo interior del remate superior de la baranda o antepecho, y deberßn resistir una sobrecarga horizontal,aplicada en cual
+
+=== R001 - Art 4.2.10 tabla escaleras ===
+Found at pos 648297:
+mÝnimo requerido para las escaleras que forman parte de una vÝa de evacuaci¾n,conforme a la carga de ocupaci¾n del ßrea servida, serß la que se±ala la siguiente tabla:
+á á á á á á á á á á ESCALERAS
+N║ de personasá á á á á á Cantidad y ancho mÝnimo
+hasta 50á á á á á á á á á á á 1á á á á 1,10 m
+Desde 51 hasta 100á á á á á á 1á á á á 1,20 m
+Desde 101 hasta 150á á á á á á 1á á á á 1,30 m
+Desde 151 hasta 200á á á á á á 1á á á á 1,40 m
+Desde 201 hasta 250á á á á á á 1á á á á 1,50 m
+Desde 251 hasta 300á á á á á á 2á á á á 1,20 m
+Desde 301 hasta 400á á á á á á 2á á á á 1,30 m
+Desde 401 hasta 500á á á á á á 2á á á á 1,40 m
+Desde 501 hasta 700á á á á á á 2á á á á 1,50 m
+Desde 701 hasta 1.000á á á á á 2á á á á 1,60 m
+á á Cuando la carga de ocupaci¾n de una edificaci¾n sea superior a 1.000 personas deberß adjuntarse al proyecto unEstudio de Evacuaci¾n que determine la cantidad, disposici¾n y caracte
+
+=== R007/R008 - Art 4.2.11 peldanos (found: "4.2.11.") ===
+4.2.11. Las escaleras de evacuaci¾n deben consultar pasamanos en un costado a lo menos y cumplir ademßslos siguientes requerimientos:
+á á 1. En los tramos inclinados el pasamanos debe ubicarse a una altura de entre 0,85 m y 1,05 m y en los descansos ovestÝbulos a una altura de entre 0,95 m y 1,05 m.
+á á 2. Los pelda±os tendrßn un ancho de huella no inferior a 0,28 m en proyecci¾n horizontal y una altura de contrahuella nomayor a 0,18 m ni menor a 0,13 m. Esta norma deberß cumplirse en cualquier pelda±o que forme parte de una vÝa deevacuaci¾n.
+á á 3. En las escaleras que forman parte de una zona vertical de seguridad los tramos deben ser rectos y las huellas de lospelda±os y descansos deben ser antideslizantes.
+á á Se except·an de lo indicado en este artÝculo los pelda±os de escaleras auxil
+
+=== R002 - Art 4.2.24 puertas escape (found: "4.2.24.") ===
+4.2.24. Las puertas de escape tendrßn un ancho nominal de hoja no menor a 0,85 m y un alto no menor de 2 m.Cuando contemplen mecanismos de apertura o dispositivos anti pßnico, estos deberßn ubicarse a una altura de 0,95 m.
+á á El ancho libre de salida, en ning·n caso, podrß ser menor a 0,80 m, y el espesor horizontal del umbral de la puerta o vanode escape no podrß ser mayor a 0,60 m.
+á á En el piso de salida del edificio, la puerta de salida de la escalera de evacuaci¾n tendrß un ancho nominal de hoja nomenor a 0,90 m.
+á á Inciso Eliminado.
+Decreto 75, VIVIENDAArt. UNICO N║ 62D.O. 25.06.2001
+Decreto 50, VIVIENDAArt. PRIMERO N░ 11,11.1D.O. 04.03.2016
+Decreto 50, VIVIENDAArt. PRIMERO N░ 11,11.2D.O. 04.03.2016
+á á ArtÝculo 4.2.25. Las puertas de acceso a una escalera de evacuaci¾n no pueden 
+
+=== FUEGO - Art 4.3.3 tabla resistencia ===
+ia al fuego, se estarß a lodispuesto en el artÝculo 4.3.2. de esta Ordenanza.
+á á á á RESISTENCIA AL FUEGO REQUERIDA PARA LOS ELEMENTOS DE CONSTRUCCION DE EDIFICIOS
+á á ____________________________________________________
+á á |á á á á ELEMENTOS DE CONSTRUCCIONá á á á á á á á |
+___|__________________________________________________|
+|Ti| (1) | (2) | (3) | (4) | (5) | (6)| (7)| (8) |(9) |
+|po|á á |á á |á á |á á |á á |á á |á á |á á |á á |
+|==|=====|=====|=====|=====|=====|====|====|=====|====|
+|a |F-180|F-120|F-120|F-120|F-120|F-30|F-60|F-120|F-60|
+|--|-----|-----|-----|-----|-----|----|----|-----|----|
+|b |F-150|F-120|F-90 |F-90 |F-90 |F-15|F-30|F-90 |F-60|
+|--|-----|-----|-----|-----|-----|----|----|-----|----|
+Decreto 75, VIVIENDAArt. UNICO N║ 64D.O. 25.06.2001
+7/5/26, 11:29 a.m. Ley Chile - Decreto 47 05-JUN-1992 MINISTERIO DE VIVIENDA Y URBANISMO - Biblioteca del Congreso Nacional
+https://www.bcn.cl/leychile/navegar/imprimir?idNorma=8201&idVersion=2026-04-25 148/282
+|c |F-120|F-90 |F-60 |F-60 |F-60 | -- |F-15|F-60 |F-30|
+|--|-----|-----|-----|-----|-----|----|----|-----|----|
+|d |F-120|F-60 |F-60 |F-60 |F-30 | -- | -- |F-30 |F-15|
+|__|_____|_____|_____|_____|_____|____|____|_____|____|
+SIMBOLOGIA:
+Elementos verticales:
+(1) Muros cortafuego
+(2) Muros zona vertical de seguridad y caja de escalera
+(3) Muros caja ascensores
+(4) Muros divisorios entre unidades (hasta la cubierta)
+(5) Elementos soportantes verticales
+(6) Muros no soportantes y tabiques
+á Elementos verticales y horizontales:
+(7) Escaleras
+á Elementos horizontales:
+(8) Elementos soportantes horizontales
+(9) Techumbre incluido cielo falso
+á á ArtÝculo 4.3.4. Para aplicar lo dispuesto en el artÝculo anterior deberß considerarse, ademßs del destino y del n·mero depisos del edificio, su superficie edificada, o la carga de ocupaci¾n, o la densidad de carga combustible, seg·n corresponda,como se se±ala en las tablas 1, 2 y 3 siguientes:
+á á á á á á á á TABLA 1á á á á á á á á á á á á
+á á á á á á á á á á á á á á á á á á á á á á á á á á á á á á
+DESTINO DELá á SUPERFICIE EDIFICADAá á NUMERO DE PISOS
+EDIFICIOá á á á á á (m2)á á á á á á á á á 1 2 3 4 5 6 7
+á á á á á á á á á á á á á á á á á á á á á o ms
+Habitacionalá á Cualquieraá á á á á á á á d d c c b a a
+á á á á á á á á
+á á á á á á á á á á á á á á á á á á á á á á á á á á á á
+á á á á á á á á sobre 5.000á á á á á á á á c b a a a a a
+Hoteles oá á á sobre 1.500 y hasta 5.000á c b b b a a a
+similaresá á á sobre 500 y hasta 1.500á á c c b b a a a
+á á á á á á á
+
+=== R016 - Art 5.6.2 albanileria (found: "5.6.2.") ===
+5.6.2. Los muros de alba±ilerÝa de ladrillo se construirßn entre pilares y cadenas de hormig¾n armado, salvo lasexcepciones consultadas expresamente en esta Ordenanza.
+á á Los espesores mÝnimos de los muros de alba±ilerÝa, de arriba hacia abajo, serßn los siguientes:
+PISOá á á á á ESPESOR DE LOS MUROS PARA LADRILLOS
+á á á á á á á á á á HECHOS A MANO
+1 (Superior)á 20 cm (exteriores)
+á á á á á 14 cms (interiores)
+2 (Inferior)á 20 cm (exteriores)á á con losa de
+á á á á á á á á á á á á á á á á á á á á entrepiso
+á á á á á 14 cm (interiores)
+á á á á á 20 cmá á á á á á á á á sin losa de
+á á á á á á á á á á á á á á á á á á á á entrepiso
+á á El espesor de los muros fabricados con ladrillos hechos a mßquina serß determinado, entre otros factores, por lacapacidad resistente de aquÚllos al esfuerzo ve
+
+=== R017 - Art 5.7.5 fundaciones (found: "5.7.5.") ===
+5.7.5. La excavaci¾n para cimientos, excepto en roca, se profundizarß hasta un nivel tal que se obtenga unaprotecci¾n segura contra los efectos del agua superficial y de las heladas.
+á á La profundidad mÝnima de los cimientos de hormig¾n o de alba±ilerÝa serß de 0,60 m, debiendo penetrar Ústos, a lomenos, 0,20 m en las capas no removidas del terreno, siempre que Úste sea capaz de soportar las tasas previstas.
+á á Bajo responsabilidad del profesional competente autor del proyecto estructural se admitirßn profundidades menores uotras soluciones tÚcnicamente adecuadas, situaci¾n de la que deberß quedar constancia en el Libro de Obras, a falta deindicaci¾n al respecto en el citado proyecto.
+Decreto 75, VIVIENDAArt. UNICO N║ 113D.O. 25.06.2001
+á á ArtÝculo 5.7.6. Ning·n cimiento podrß tener un 
+
+=== FIN VERIFICACION ===

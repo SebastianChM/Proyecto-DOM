@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { projectsService } from "@/lib/api/services";
 import { ApiError } from "@/lib/api/types";
@@ -75,55 +73,73 @@ export default function ProjectsPage() {
 
   // Autodesk Import State
   const [isAutodeskDialogOpen, setIsAutodeskDialogOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
 
-  const fetchProjects = async (pg?: number, q?: string, sort?: string) => {
-    try {
-      setLoading(true);
-      const currentPage = pg ?? page;
-      const currentSearch = q ?? searchQuery;
-      const currentSort = sort ?? sortOrder;
+  const fetchProjects = useCallback(
+    async (pg?: number, q?: string, sort?: string) => {
+      try {
+        setLoading(true);
+        const currentPage = pg ?? page;
+        const currentSearch = q ?? searchQuery;
+        const currentSort = sort ?? sortOrder;
 
-      const sortBy = currentSort === "name" ? "name" : "updatedAt";
-      const sortOrd = currentSort === "oldest" ? "asc" : currentSort === "name" ? "asc" : "desc";
+        const sortBy = currentSort === "name" ? "name" : "updatedAt";
+        const sortOrd =
+          currentSort === "oldest"
+            ? "asc"
+            : currentSort === "name"
+              ? "asc"
+              : "desc";
 
-      const result = await projectsService.list({
-        page: currentPage,
-        pageSize,
-        search: currentSearch || undefined,
-        sortBy,
-        sortOrder: sortOrd,
-      });
+        const result = await projectsService.list({
+          page: currentPage,
+          pageSize,
+          search: currentSearch || undefined,
+          sortBy,
+          sortOrder: sortOrd,
+        });
 
-      setProjects(result.data);
-      setTotalPages(result.meta.totalPages);
-      setTotal(result.meta.total);
-    } catch (error) {
-      showError(error, user?.role, "Failed to load projects");
-    } finally {
-      setLoading(false);
-    }
-  };
+        setProjects(result.data);
+        setTotalPages(result.meta.totalPages);
+        setTotal(result.meta.total);
+      } catch (error) {
+        showError(error, user?.role, "Failed to load projects");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [page, searchQuery, sortOrder, user?.role],
+  );
 
   useEffect(() => {
     setIsMounted(true);
-    fetchProjects(1);
+    void fetchProjects(1);
+
+    // Auto-open 'New Project' dialog when navigating from the dashboard
+    // with the ?new=true query parameter.
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setIsDialogOpen(true);
+        // Remove the query param from the URL without re-rendering
+        window.history.replaceState({}, "", "/dashboard/projects");
+      }
+    }
+    // initial load only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced search
+  // Debounced search — always passes current values to avoid stale closure
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
-      fetchProjects(1, searchQuery, sortOrder);
+      void fetchProjects(1, searchQuery, sortOrder);
     }, 400);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, [searchQuery, sortOrder, fetchProjects]);
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    fetchProjects(newPage);
+    void fetchProjects(newPage);
   };
 
   const handleImportFromAutodesk = async (data: {
@@ -132,7 +148,6 @@ export default function ProjectsPage() {
     hubId: string;
     name: string;
   }) => {
-    setImporting(true);
     try {
       await projectsService.importAps({
         name: data.name,
@@ -144,11 +159,9 @@ export default function ProjectsPage() {
 
       toast.success("Project linked successfully! Synchronization started.");
       setIsAutodeskDialogOpen(false);
-      fetchProjects(1);
+      void fetchProjects(1);
     } catch (error) {
       showError(error, user?.role, "Failed to link project");
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -182,7 +195,9 @@ export default function ProjectsPage() {
         error.body?.details &&
         Array.isArray(error.body.details)
       ) {
-        (error.body.details as Array<{ path: string; message: string }>).forEach((err) => {
+        (
+          error.body.details as Array<{ path: string; message: string }>
+        ).forEach((err) => {
           toast.error(`${err.path}: ${err.message}`);
         });
       } else {
@@ -217,11 +232,18 @@ export default function ProjectsPage() {
   };
 
   const toggleSort = () => {
-    const next = sortOrder === "newest" ? "oldest" : sortOrder === "oldest" ? "name" : "newest";
+    const next =
+      sortOrder === "newest"
+        ? "oldest"
+        : sortOrder === "oldest"
+          ? "name"
+          : "newest";
     setSortOrder(next);
     setPage(1);
     fetchProjects(1, searchQuery, next);
-    toast.info(`Sorting by: ${next === "newest" ? "Newest" : next === "oldest" ? "Oldest" : "Name"}`);
+    toast.info(
+      `Sorting by: ${next === "newest" ? "Newest" : next === "oldest" ? "Oldest" : "Name"}`,
+    );
   };
 
   return (
@@ -266,12 +288,9 @@ export default function ProjectsPage() {
                 onOpenChange={setIsAutodeskDialogOpen}
               >
                 <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mr-2"
-                  >
-                    <Database className="mr-1.5 h-3.5 w-3.5" /> Link from Autodesk
+                  <Button variant="outline" size="sm" className="mr-2">
+                    <Database className="mr-1.5 h-3.5 w-3.5" /> Link from
+                    Autodesk
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="border-border text-foreground sm:max-w-2xl">
@@ -294,7 +313,10 @@ export default function ProjectsPage() {
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20">
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white shadow-sm shadow-[#6366f1]/20"
+                  >
                     <Plus className="mr-1.5 h-3.5 w-3.5" /> New Project
                   </Button>
                 </DialogTrigger>
@@ -446,70 +468,67 @@ export default function ProjectsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project, index) => (
+            {projects.map((project) => (
               <Link href={`/dashboard/projects/${project.id}`} key={project.id}>
-                <div
-                  className="bg-card border border-border rounded-lg p-4 h-full group relative hover:border-primary/30 transition-colors"
-                >
-
-                <div className="flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="p-2 bg-brand-subtle rounded-md text-primary">
-                      <Folder className="h-4 w-4" />
+                <div className="bg-card border border-border rounded-lg p-4 h-full group relative hover:border-primary/30 transition-colors">
+                  <div className="flex flex-col h-full">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="p-2 bg-brand-subtle rounded-md text-primary">
+                        <Folder className="h-4 w-4" />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-red-400 hover:bg-secondary -mr-2 -mt-2 z-20"
+                        onClick={(e) => confirmDelete(e, project.id)}
+                        aria-label="Delete project"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-red-400 hover:bg-secondary -mr-2 -mt-2 z-20"
-                      onClick={(e) => confirmDelete(e, project.id)}
-                      aria-label="Delete project"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </div>
 
-                  <h3 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
-                    {project.name}
-                  </h3>
+                    <h3 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
+                      {project.name}
+                    </h3>
 
-                  {(project.clientName || project.location) && (
-                    <div className="flex flex-col gap-1 mb-3 text-xs text-muted-foreground">
-                      {project.clientName && (
-                        <div className="flex items-center">
-                          <span className="font-semibold mr-1">Client:</span>{" "}
-                          {project.clientName}
-                        </div>
-                      )}
-                      {project.location && (
-                        <div className="flex items-center">
-                          <span className="font-semibold mr-1">Loc:</span>{" "}
-                          <span className="truncate max-w-[200px]">
-                            {project.location}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {(project.clientName || project.location) && (
+                      <div className="flex flex-col gap-1 mb-3 text-xs text-muted-foreground">
+                        {project.clientName && (
+                          <div className="flex items-center">
+                            <span className="font-semibold mr-1">Client:</span>{" "}
+                            {project.clientName}
+                          </div>
+                        )}
+                        {project.location && (
+                          <div className="flex items-center">
+                            <span className="font-semibold mr-1">Loc:</span>{" "}
+                            <span className="truncate max-w-[200px]">
+                              {project.location}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  <p className="text-muted-foreground text-xs line-clamp-2 mb-4 flex-1">
-                    {project.description || "No description provided."}
-                  </p>
+                    <p className="text-muted-foreground text-xs line-clamp-2 mb-4 flex-1">
+                      {project.description || "No description provided."}
+                    </p>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-border">
-                    <div className="flex items-center text-xs text-muted-foreground">
-                      <FileText className="mr-1 h-3 w-3" />
-                      <span className="font-medium text-foreground">
-                        {project._count?.files ?? 0} Files
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <FileText className="mr-1 h-3 w-3" />
+                        <span className="font-medium text-foreground">
+                          {project._count?.files ?? 0} Files
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                        {new Date(project.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
-                      {new Date(project.updatedAt).toLocaleDateString()}
-                    </span>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))}
           </div>
 
           {/* Pagination Controls */}
@@ -525,7 +544,9 @@ export default function ProjectsPage() {
                 Previous
               </Button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                .filter(
+                  (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2,
+                )
                 .reduce<(number | string)[]>((acc, p, i, arr) => {
                   if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
                   acc.push(p);
@@ -533,7 +554,10 @@ export default function ProjectsPage() {
                 }, [])
                 .map((item, i) =>
                   typeof item === "string" ? (
-                    <span key={`dots-${i}`} className="px-2 text-muted-foreground">
+                    <span
+                      key={`dots-${i}`}
+                      className="px-2 text-muted-foreground"
+                    >
                       {item}
                     </span>
                   ) : (
@@ -542,11 +566,15 @@ export default function ProjectsPage() {
                       variant={item === page ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePageChange(item)}
-                      className={item === page ? "bg-primary text-white" : "text-muted-foreground"}
+                      className={
+                        item === page
+                          ? "bg-primary text-white"
+                          : "text-muted-foreground"
+                      }
                     >
                       {item}
                     </Button>
-                  )
+                  ),
                 )}
               <Button
                 variant="outline"

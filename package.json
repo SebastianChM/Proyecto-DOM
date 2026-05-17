@@ -32,7 +32,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "concurrently \"tsc --noEmit --project apps/api/tsconfig.json\" \"tsc --noEmit --project apps/web/tsconfig.json\"",
-    "security:scan": "node tools/scripts/security-scan.js",
+    "security:scan": "npm audit --audit-level=high && node tools/scripts/security-scan.js",
     "db:backup": "node tools/scripts/backup-db.js",
     "db:restore": "node tools/scripts/restore-db.js",
     "prepare": "husky"

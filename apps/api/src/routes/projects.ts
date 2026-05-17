@@ -1,5 +1,6 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { logger } from "../lib/logger";
 import { cacheService, RedisKeys } from "../lib/redis";
 import {
@@ -104,16 +105,22 @@ const createProjectSchemaWithValidation = createProjectSchema.refine(
  *         description: Server error
  */
 // Create project
-router.post("/", asyncHandler(async (req, res) => {
+router.post(
+  "/",
+  asyncHandler(async (req, res) => {
     // Validate input
     const validation = createProjectSchemaWithValidation.safeParse(req.body);
     logger.debug("POST /projects validation", { valid: validation.success });
 
     if (!validation.success) {
-      throw badRequest("Validation failed", "VALIDATION_ERROR", validation.error.issues.map((e) => ({
-        path: e.path.join("."),
-        message: e.message,
-      })));
+      throw badRequest(
+        "Validation failed",
+        "VALIDATION_ERROR",
+        validation.error.issues.map((e) => ({
+          path: e.path.join("."),
+          message: e.message,
+        })),
+      );
     }
 
     const {
@@ -189,7 +196,8 @@ router.post("/", asyncHandler(async (req, res) => {
     });
 
     res.status(201).json(project);
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -223,7 +231,9 @@ router.post("/", asyncHandler(async (req, res) => {
  *         description: Paginated list of projects with metadata
  */
 // List projects (paginated, cached) - Solo proyectos donde el usuario tiene acceso
-router.get("/", asyncHandler(async (req, res) => {
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) {
       throw unauthorized();
@@ -233,10 +243,17 @@ router.get("/", asyncHandler(async (req, res) => {
     const search = (req.query.search as string)?.trim() || "";
     const status = (req.query.status as string)?.trim() || "";
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
-    const sortBy = (["updatedAt", "name", "createdAt"].includes(req.query.sortBy as string))
-      ? (req.query.sortBy as string) : "updatedAt";
-    const sortOrder = (req.query.sortOrder === "asc") ? "asc" as const : "desc" as const;
+    const pageSize = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.pageSize as string) || 20),
+    );
+    const sortBy = ["updatedAt", "name", "createdAt"].includes(
+      req.query.sortBy as string,
+    )
+      ? (req.query.sortBy as string)
+      : "updatedAt";
+    const sortOrder =
+      req.query.sortOrder === "asc" ? ("asc" as const) : ("desc" as const);
 
     const cacheKey = `${RedisKeys.projectsList(userId)}:p=${page}:ps=${pageSize}:s=${search}:st=${status}:sb=${sortBy}:so=${sortOrder}`;
 
@@ -273,21 +290,28 @@ router.get("/", asyncHandler(async (req, res) => {
           filters.push({ status });
         }
 
-        const where = filters.length > 0
-          ? { AND: [baseWhere, ...filters] }
-          : baseWhere;
+        const where: Prisma.ProjectWhereInput =
+          filters.length > 0 ? { AND: [baseWhere, ...filters] } : baseWhere;
 
         // Parallel: count + paginated data
         const [total, projects] = await Promise.all([
-          prisma.project.count({ where: where as any }),
+          prisma.project.count({ where }),
           prisma.project.findMany({
-            where: where as any,
+            where,
             orderBy: { [sortBy]: sortOrder },
             skip: (page - 1) * pageSize,
             take: pageSize,
             include: {
               files: {
-                select: { id: true, name: true, type: true, status: true, apsUrn: true, createdAt: true, updatedAt: true },
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  status: true,
+                  apsUrn: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
                 orderBy: { updatedAt: "desc" },
               },
               _count: {
@@ -313,7 +337,8 @@ router.get("/", asyncHandler(async (req, res) => {
       60,
     );
     res.json(result);
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -337,7 +362,10 @@ router.get("/", asyncHandler(async (req, res) => {
  *         description: Server error
  */
 // Get project by ID - Requiere permiso de lectura
-router.get("/:id", requireProjectAccess, asyncHandler(async (req, res) => {
+router.get(
+  "/:id",
+  requireProjectAccess,
+  asyncHandler(async (req, res) => {
     const cacheKey = RedisKeys.projectDetail(req.params.id as string);
 
     // Cache for 1 minute
@@ -388,7 +416,8 @@ router.get("/:id", requireProjectAccess, asyncHandler(async (req, res) => {
     });
 
     res.json({ ...project, files: filesWithProgress });
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -423,16 +452,21 @@ router.get("/:id", requireProjectAccess, asyncHandler(async (req, res) => {
  *         description: Server error
  */
 // Update project - Requiere permiso de edición
-router.put("/:id", requirePermission("project:update"), asyncHandler(async (req, res) => {
+router.put(
+  "/:id",
+  requirePermission("project:update"),
+  asyncHandler(async (req, res) => {
     const validation = updateProjectSchema.safeParse(req.body);
     logger.debug("PUT /projects/:id validation", { valid: validation.success });
 
     if (!validation.success) {
-      throw badRequest("Validation failed", "VALIDATION_ERROR", 
+      throw badRequest(
+        "Validation failed",
+        "VALIDATION_ERROR",
         validation.error.issues.map((e) => ({
           path: e.path.join("."),
           message: e.message,
-        }))
+        })),
       );
     }
 
@@ -468,7 +502,8 @@ router.put("/:id", requirePermission("project:update"), asyncHandler(async (req,
     ]);
 
     res.json(project);
-}));
+  }),
+);
 
 /**
  * @swagger
@@ -490,7 +525,10 @@ router.put("/:id", requirePermission("project:update"), asyncHandler(async (req,
  *         description: Server error
  */
 // Delete project - Requiere permiso de eliminación
-router.delete("/:id", requirePermission("project:delete"), asyncHandler(async (req, res) => {
+router.delete(
+  "/:id",
+  requirePermission("project:delete"),
+  asyncHandler(async (req, res) => {
     await prisma.project.delete({
       where: { id: req.params.id as string },
     });
@@ -503,7 +541,8 @@ router.delete("/:id", requirePermission("project:delete"), asyncHandler(async (r
     ]);
 
     res.json({ success: true });
-}));
+  }),
+);
 
 const importApsProjectSchema = z.object({
   name: z.string(),
@@ -523,7 +562,9 @@ const importApsProjectSchema = z.object({
  *     tags: [Projects]
  */
 // Import Autodesk Project & Auto-Subscribe to Webhooks
-router.post("/import-aps", asyncHandler(async (req, res) => {
+router.post(
+  "/import-aps",
+  asyncHandler(async (req, res) => {
     const userId = req.session?.user?.id;
     if (!userId) throw unauthorized("Authentication required");
 
@@ -598,13 +639,17 @@ router.post("/import-aps", asyncHandler(async (req, res) => {
       .catch((e) => logger.warn("Cache invalidation failed", { error: e }));
 
     res.status(201).json(project);
-}));
+  }),
+);
 
 /**
  * GET /:id/export
  * Export all project data as JSON
  */
-router.get("/:id/export", requireProjectAccess, asyncHandler(async (req, res) => {
+router.get(
+  "/:id/export",
+  requireProjectAccess,
+  asyncHandler(async (req, res) => {
     const projectId = req.params.id as string;
 
     const project = await prisma.project.findUnique({
@@ -616,8 +661,13 @@ router.get("/:id/export", requireProjectAccess, asyncHandler(async (req, res) =>
         },
         files: {
           select: {
-            id: true, name: true, type: true, size: true, status: true,
-            createdAt: true, updatedAt: true,
+            id: true,
+            name: true,
+            type: true,
+            size: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
           },
         },
         _count: { select: { files: true, members: true } },
@@ -632,8 +682,14 @@ router.get("/:id/export", requireProjectAccess, asyncHandler(async (req, res) =>
     const complianceRuns = await prisma.complianceRun.findMany({
       where: { projectId },
       select: {
-        id: true, status: true, complianceScore: true, totalElements: true,
-        passedCount: true, failedCount: true, startedAt: true, completedAt: true,
+        id: true,
+        status: true,
+        complianceScore: true,
+        totalElements: true,
+        passedCount: true,
+        failedCount: true,
+        startedAt: true,
+        completedAt: true,
       },
       orderBy: { startedAt: "desc" },
       take: 20,
@@ -645,10 +701,17 @@ router.get("/:id/export", requireProjectAccess, asyncHandler(async (req, res) =>
       complianceRuns,
     };
 
-    const safeName = (project.name || "project").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const safeName = (project.name || "project").replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_",
+    );
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="export_${safeName}.json"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="export_${safeName}.json"`,
+    );
     res.json(exportData);
-}));
+  }),
+);
 
 export default router;

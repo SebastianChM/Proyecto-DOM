@@ -6,6 +6,7 @@ import {
   getRunById,
   getRunsByProject,
   getRunIssues,
+  deleteRun as apiDeleteRun,
 } from "@/lib/api/compliance-v3";
 import { usePollingWithBackoff } from "@/hooks/usePollingWithBackoff";
 import type {
@@ -29,6 +30,7 @@ export interface UseComplianceRunsReturn {
   error: ApiError | null;
   fetchRuns: () => Promise<void>;
   evaluate: (params: EvaluateParams) => Promise<ComplianceRun>;
+  deleteRun: (runId: string) => Promise<void>;
   pollRun: (runId: string, onComplete: (run: ComplianceRun) => void) => void;
 }
 
@@ -123,7 +125,21 @@ export function useComplianceRuns(
     [],
   );
 
-  return { runs, pagination, loading, error, fetchRuns, evaluate, pollRun };
+  const deleteRun = useCallback(async (runId: string): Promise<void> => {
+    await apiDeleteRun(runId);
+    setRuns((prev) => prev.filter((r) => r.id !== runId));
+  }, []);
+
+  return {
+    runs,
+    pagination,
+    loading,
+    error,
+    fetchRuns,
+    evaluate,
+    deleteRun,
+    pollRun,
+  };
 }
 
 export function useRunDetail(runId: string | null): UseRunDetailReturn {

@@ -32,9 +32,13 @@ const RUN_STATUS = {
   PENDING: "PENDING",
   RUNNING: "RUNNING",
   COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
   ERROR: "ERROR",
   TIMEOUT: "TIMEOUT",
 } as const;
+
+// File status value that indicates APS translation is complete and model is queryable
+const FILE_TRANSLATED_STATUS = "READY";
 
 const ISSUE_STATUS = {
   OPEN: "OPEN",
@@ -55,6 +59,18 @@ function modelCacheKey(modelUrn: string): string {
   return `compliance:model:${modelUrn}`;
 }
 
+export interface RequirementBreakdownEntry {
+  id: string;
+  code: string;
+  description: string;
+  discipline: string;
+  severity: string;
+  legalReference: string;
+  matchedElements: number;
+  passed: number;
+  failed: number;
+}
+
 export interface RunProgress {
   totalElements: number;
   processedElements: number;
@@ -67,6 +83,10 @@ export interface RunProgress {
   };
   startedAt: string;
   completedAt: string | null;
+  /** Elements grouped by BIM category (e.g. { "Walls": 245, "Doors": 83 }) */
+  elementsByCategory?: Record<string, number>;
+  /** Per-requirement evaluation summary */
+  requirementBreakdown?: RequirementBreakdownEntry[];
 }
 
 export interface ComplianceRunWithMeta extends ComplianceRun {
@@ -99,6 +119,7 @@ export interface IComplianceRunnerV3Service {
     filters: { severity?: string },
     pagination: { page: number; limit: number },
   ): Promise<PaginatedResponse<ComplianceIssue>>;
+  deleteRun(runId: string): Promise<void>;
 }
 
 // Serialized form for Redis (Map is not JSON-serializable)
@@ -154,6 +175,33 @@ function makePropertyResolver(
   };
 }
 
+// Build objectid → category name from APS object tree
+interface ApsTreeNode {
+  objectid: number;
+  name?: string;
+  objects?: ApsTreeNode[];
+}
+
+function buildCategoryMap(
+  nodes: ApsTreeNode[],
+  categoryName: string,
+  map: Map<number, string>,
+  depth: number,
+): void {
+  for (const node of nodes) {
+    if (depth === 1) {
+      // This node IS the category
+      categoryName = node.name ?? "Unknown";
+    }
+    if (depth > 0) {
+      map.set(node.objectid, categoryName);
+    }
+    if (node.objects?.length) {
+      buildCategoryMap(node.objects, categoryName, map, depth + 1);
+    }
+  }
+}
+
 class ApsElementExtractor implements IElementExtractor {
   async extract(
     modelUrn: string,
@@ -165,8 +213,32 @@ class ApsElementExtractor implements IElementExtractor {
       conversionMap.set(conv.fromUnit, new Map([[conv.toUnit, conv.factor]]));
     }
 
-    const response =
-      await modelDerivativeService.getAllModelProperties(modelUrn);
+    const APS_TIMEOUT_MS = 90_000;
+
+    // Fetch properties and object tree in parallel
+    const guid = await modelDerivativeService.getDefaultViewGuid(modelUrn);
+    const [response, treeResponse] = await Promise.race([
+      Promise.all([
+        modelDerivativeService.getAllModelProperties(modelUrn),
+        modelDerivativeService.getObjectTree(modelUrn, guid),
+      ]),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("APS call timed out after 90s")),
+          APS_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+
+    // Build objectid → category map from the tree
+    const categoryMap = new Map<number, string>();
+    const treeRoot = (
+      treeResponse as unknown as { data?: { objects?: ApsTreeNode[] } }
+    )?.data?.objects;
+    if (treeRoot?.length) {
+      buildCategoryMap(treeRoot, "Unknown", categoryMap, 0);
+    }
+
     const apsResponse = response as unknown as ApsModelPropertiesResponse;
     const collection = apsResponse?.data?.collection ?? [];
 
@@ -175,13 +247,34 @@ class ApsElementExtractor implements IElementExtractor {
     for (const apsEl of collection) {
       if (!apsEl.properties) continue;
 
-      const identityGroup =
-        apsEl.properties["Identity Data"] ??
-        apsEl.properties["Datos de identidad"] ??
-        {};
-      const rawCategory = String(
-        identityGroup["Category"] ?? identityGroup["Categoría"] ?? "Unknown",
-      );
+      // Use the object tree category (most reliable), then fall back to Identity Data
+      let rawCategory: string = categoryMap.get(apsEl.objectid) ?? "Unknown";
+
+      if (rawCategory === "Unknown") {
+        const identityGroup =
+          apsEl.properties["Identity Data"] ??
+          apsEl.properties["Datos de identidad"] ??
+          {};
+        const catFromProps =
+          identityGroup["Category"] ?? identityGroup["Categoría"];
+        if (catFromProps) rawCategory = String(catFromProps);
+      }
+
+      // Last fallback: search ALL property groups for a "Category" key
+      if (rawCategory === "Unknown") {
+        outer: for (const group of Object.values(apsEl.properties)) {
+          for (const [key, val] of Object.entries(group)) {
+            if (
+              (key === "Category" || key === "Categoría") &&
+              val &&
+              String(val) !== ""
+            ) {
+              rawCategory = String(val);
+              break outer;
+            }
+          }
+        }
+      }
 
       const categoryEntry = await categoryDictionaryService.resolve(
         rawCategory,
@@ -249,6 +342,33 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       );
     }
     const configId = (config as { id: string }).id;
+
+    // Step 2b: Guard — verify the file associated with this URN has completed APS translation
+    const fileRecord = await prisma.file.findFirst({
+      where: { apsUrn: modelUrn },
+      select: { id: true, status: true, name: true },
+    });
+    if (fileRecord && fileRecord.status !== FILE_TRANSLATED_STATUS) {
+      // Create a FAILED run so the user can see the error in the UI
+      const failedRun = await prisma.complianceRun.create({
+        data: {
+          projectId,
+          configId,
+          modelUrn,
+          status: RUN_STATUS.FAILED,
+          errorMessage:
+            "Model translation not complete. Please wait until the file is fully translated before running compliance.",
+          createdBy: userId ?? null,
+        },
+      });
+      logger.warn("[ComplianceRunnerV3] Rejected: file not translated", {
+        runId: failedRun.id,
+        fileId: fileRecord.id,
+        fileStatus: fileRecord.status,
+        modelUrn,
+      });
+      return { runId: failedRun.id };
+    }
 
     // Step 3: Create run in PENDING
     const run = await prisma.complianceRun.create({
@@ -396,6 +516,23 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       }
     }
 
+    // Guard: reject runs where no elements could be extracted
+    if (elements.length === 0) {
+      logger.warn("[ComplianceRunnerV3] No elements extracted — aborting run", {
+        runId,
+        modelUrn,
+      });
+      await prisma.complianceRun.update({
+        where: { id: runId },
+        data: {
+          status: RUN_STATUS.FAILED,
+          errorMessage:
+            "No elements extracted from model. Verify the model has geometry and the URN is valid.",
+        },
+      });
+      return;
+    }
+
     // Update progress with totals
     await prisma.complianceRun.update({
       where: { id: runId },
@@ -414,6 +551,34 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
 
     // Step 7: Match and evaluate with timeout check
     const evaluations: ElementEvaluation[] = [];
+
+    // Per-requirement counters for breakdown
+    const reqBreakdown = new Map<
+      string,
+      {
+        code: string;
+        description: string;
+        discipline: string;
+        severity: string;
+        legalReference: string;
+        matched: number;
+        passed: number;
+        failed: number;
+      }
+    >();
+    for (const req of requirements) {
+      reqBreakdown.set(req.id, {
+        code: req.code,
+        description: req.description,
+        discipline: req.discipline,
+        severity: req.severity,
+        legalReference: req.legalReference,
+        matched: 0,
+        passed: 0,
+        failed: 0,
+      });
+    }
+
     for (const req of requirements) {
       if (Date.now() - pipelineStart > EVALUATION_TIMEOUT_MS) {
         logger.warn("[ComplianceRunnerV3] Evaluation timeout exceeded", {
@@ -428,9 +593,17 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       }
 
       const matching = matchElementsForRequirement(req, elements);
+      const entry = reqBreakdown.get(req.id)!;
+      entry.matched += matching.length;
+
       for (const element of matching) {
         const result = evaluateRequirement(req, element, resolver);
         evaluations.push(result);
+        if (result.status === "PASS") {
+          entry.passed++;
+        } else if (result.status === "FAIL" || result.status === "ERROR") {
+          entry.failed++;
+        }
       }
     }
 
@@ -446,6 +619,28 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       (e) => e.severity.toUpperCase() === "RECOMMENDED",
     ).length;
 
+    // Build category breakdown from all extracted elements
+    const elementsByCategory: Record<string, number> = {};
+    for (const el of elements) {
+      elementsByCategory[el.category] =
+        (elementsByCategory[el.category] ?? 0) + 1;
+    }
+
+    // Build requirement breakdown array
+    const requirementBreakdown: RequirementBreakdownEntry[] = [
+      ...reqBreakdown.entries(),
+    ].map(([id, v]) => ({
+      id,
+      code: v.code,
+      description: v.description,
+      discipline: v.discipline,
+      severity: v.severity,
+      legalReference: v.legalReference,
+      matchedElements: v.matched,
+      passed: v.passed,
+      failed: v.failed,
+    }));
+
     const finalProgress: RunProgress = {
       totalElements: elements.length,
       processedElements: elements.length,
@@ -458,6 +653,8 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
       },
       startedAt,
       completedAt: new Date().toISOString(),
+      elementsByCategory,
+      requirementBreakdown,
     };
 
     if (!dryRun) {
@@ -499,6 +696,10 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
           where: { id: runId },
           data: {
             status: RUN_STATUS.COMPLETED,
+            totalElements: elements.length,
+            passedCount: evaluations.filter((e) => e.status === "PASS").length,
+            failedCount: failedEvaluations.length,
+            complianceScore: score,
             metadata: finalProgress as object,
           },
         });
@@ -527,6 +728,10 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
         where: { id: runId },
         data: {
           status: RUN_STATUS.COMPLETED,
+          totalElements: elements.length,
+          passedCount: evaluations.filter((e) => e.status === "PASS").length,
+          failedCount: failedEvaluations.length,
+          complianceScore: score,
           metadata: finalProgress as object,
         },
       });
@@ -536,6 +741,28 @@ export class ComplianceRunnerV3Service implements IComplianceRunnerV3Service {
         score,
       });
     }
+  }
+
+  async deleteRun(runId: string): Promise<void> {
+    const run = await prisma.complianceRun.findUnique({
+      where: { id: runId },
+      select: { id: true, status: true },
+    });
+    if (!run) {
+      throw notFound(
+        `ComplianceRun not found: ${runId}`,
+        "COMPLIANCE_RUN_NOT_FOUND",
+      );
+    }
+    if (run.status === "RUNNING" || run.status === "PENDING") {
+      throw badRequest(
+        "Cannot delete a run that is still in progress",
+        "RUN_IN_PROGRESS",
+      );
+    }
+    await prisma.complianceIssue.deleteMany({ where: { runId } });
+    await prisma.complianceRun.delete({ where: { id: runId } });
+    logger.info("[ComplianceRunnerV3] Run deleted", { runId });
   }
 
   async getRunById(runId: string): Promise<ComplianceRunWithMeta> {

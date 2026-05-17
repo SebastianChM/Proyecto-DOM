@@ -5,6 +5,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,27 +47,28 @@ interface ProjectConfigPanelProps {
 }
 
 export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
-  const {
-    config,
-    resolved,
-    loading,
-    upsert,
-    addConfigOverride,
-    removeConfigOverride,
-  } = useComplianceConfig(projectId);
+  const { config, loading, upsert, addConfigOverride, removeConfigOverride } =
+    useComplianceConfig(projectId);
 
   const [isPackSelectorOpen, setIsPackSelectorOpen] = useState(false);
   const [isOverrideFormOpen, setIsOverrideFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [localPackIds, setLocalPackIds] = useState<string[]>([]);
+  const [localPacks, setLocalPacks] = useState<Pack[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (config !== null && config !== undefined) {
-      setLocalPackIds(config.packIds ?? []);
+    if (initialized) return;
+    const configPacks = (config as unknown as { packs?: Pack[] })?.packs;
+    if (configPacks && configPacks.length > 0) {
+      setLocalPacks(configPacks);
+      setInitialized(true);
+    } else if (config !== null && config !== undefined) {
+      // config loaded but no packs assigned
+      setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.id]);
+  }, [config]);
 
   const {
     register,
@@ -83,20 +85,25 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
   const watchedAction = watch("action");
 
   const handleAddPack = (pack: Pack) => {
-    if (!localPackIds.includes(pack.id)) {
-      setLocalPackIds((prev) => [...prev, pack.id]);
+    if (!localPacks.find((p) => p.id === pack.id)) {
+      setLocalPacks((prev) => [...prev, pack]);
     }
     setIsPackSelectorOpen(false);
   };
 
   const handleRemovePack = (packId: string) => {
-    setLocalPackIds((prev) => prev.filter((id) => id !== packId));
+    setLocalPacks((prev) => prev.filter((p) => p.id !== packId));
   };
 
   const handleSaveConfig = async () => {
     setSaving(true);
     try {
-      await upsert(localPackIds);
+      await upsert(localPacks.map((p) => p.id));
+      toast.success("Configuration saved successfully.");
+    } catch (err) {
+      toast.error("Failed to save configuration.", {
+        description: (err as Error)?.message,
+      });
     } finally {
       setSaving(false);
     }
@@ -121,8 +128,6 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
     );
   }
 
-  const resolvedPacks = resolved?.packs ?? [];
-
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Compliance Configuration</h2>
@@ -140,36 +145,34 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
           </Button>
         </div>
 
-        {resolvedPacks.length === 0 && localPackIds.length === 0 ? (
+        {localPacks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No packs assigned.</p>
         ) : (
           <div className="space-y-2">
-            {resolvedPacks
-              .filter((p) => localPackIds.includes(p.id))
-              .map((pack) => (
-                <div
-                  key={pack.id}
-                  className="flex items-center justify-between p-2 border rounded-md"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{pack.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {pack.code}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {pack.status}
-                    </Badge>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleRemovePack(pack.id)}
-                    className="text-muted-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+            {localPacks.map((pack) => (
+              <div
+                key={pack.id}
+                className="flex items-center justify-between p-2 border rounded-md"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{pack.name}</span>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {pack.code}
+                  </span>
+                  <Badge variant="outline" className="text-xs">
+                    {pack.status}
+                  </Badge>
                 </div>
-              ))}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleRemovePack(pack.id)}
+                  className="text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
 

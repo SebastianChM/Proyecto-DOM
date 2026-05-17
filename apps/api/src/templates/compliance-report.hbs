@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Compliance Report — {{packName}}</title>
+    <style>
+        body { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; line-height: 1.6; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #005691; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { color: #005691; font-size: 24px; font-weight: bold; }
+        .meta { text-align: right; font-size: 13px; color: #666; }
+        h1 { color: #005691; font-size: 26px; margin-bottom: 4px; }
+        h2 { font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-top: 28px; color: #444; }
+        .subtitle { font-size: 14px; color: #777; margin-bottom: 24px; }
+        .summary-box { background: #f4f8fc; padding: 18px 24px; border-radius: 8px; border-left: 5px solid #005691; display: flex; justify-content: space-around; margin-bottom: 28px; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #333; }
+        .stat-label { font-size: 11px; text-transform: uppercase; color: #888; margin-top: 2px; }
+        .score-value { color: {{scoreColor}}; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }
+        th { background: #005691; color: white; text-align: left; padding: 8px 10px; }
+        td { border-bottom: 1px solid #eee; padding: 8px 10px; vertical-align: top; }
+        tr:nth-child(even) { background: #fafafa; }
+        .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: bold; color: white; }
+        .badge-CRITICAL { background: #c62828; }
+        .badge-WARNING  { background: #ef6c00; }
+        .badge-INFO     { background: #1565c0; }
+        .section-title { font-size: 14px; font-weight: bold; margin-top: 20px; margin-bottom: 6px; color: #444; }
+        .no-issues { color: #43a047; font-style: italic; font-size: 13px; padding: 10px 0; }
+        .footer { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 12px; }
+        .page-break { page-break-before: always; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">DOM</div>
+        <div class="meta">
+            <div><strong>Project:</strong> {{projectName}}</div>
+            <div><strong>Pack:</strong> {{packName}}</div>
+            <div><strong>Run ID:</strong> {{runId}}</div>
+            <div><strong>Date:</strong> {{generatedAt}}</div>
+        </div>
+    </div>
+
+    <h1>Compliance Report</h1>
+    <p class="subtitle">Automated BIM compliance evaluation against {{packName}}</p>
+
+    <div class="summary-box">
+        <div class="stat">
+            <div class="stat-value score-value">{{score}}%</div>
+            <div class="stat-label">Compliance Score</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{totalElements}}</div>
+            <div class="stat-label">Elements Scanned</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" style="color:#c62828">{{criticalCount}}</div>
+            <div class="stat-label">Critical Issues</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" style="color:#ef6c00">{{warningCount}}</div>
+            <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" style="color:#1565c0">{{infoCount}}</div>
+            <div class="stat-label">Info</div>
+        </div>
+    </div>
+
+    {{#if criticalIssues.length}}
+    <h2>Critical Issues ({{criticalIssues.length}})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th width="8%">Severity</th>
+                <th width="18%">Rule</th>
+                <th width="18%">Element</th>
+                <th width="12%">Category</th>
+                <th width="16%">Property</th>
+                <th width="14%">Expected</th>
+                <th width="14%">Actual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each criticalIssues}}
+            <tr>
+                <td><span class="badge badge-CRITICAL">CRITICAL</span></td>
+                <td>{{ruleName}}</td>
+                <td>{{elementName}}</td>
+                <td>{{elementCategory}}</td>
+                <td>{{propertyName}}</td>
+                <td>{{expectedValue}}</td>
+                <td>{{actualValue}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    {{/if}}
+
+    {{#if warningIssues.length}}
+    <h2>Warnings ({{warningIssues.length}})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th width="8%">Severity</th>
+                <th width="18%">Rule</th>
+                <th width="18%">Element</th>
+                <th width="12%">Category</th>
+                <th width="16%">Property</th>
+                <th width="14%">Expected</th>
+                <th width="14%">Actual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each warningIssues}}
+            <tr>
+                <td><span class="badge badge-WARNING">WARNING</span></td>
+                <td>{{ruleName}}</td>
+                <td>{{elementName}}</td>
+                <td>{{elementCategory}}</td>
+                <td>{{propertyName}}</td>
+                <td>{{expectedValue}}</td>
+                <td>{{actualValue}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    {{/if}}
+
+    {{#if infoIssues.length}}
+    <h2>Informational ({{infoIssues.length}})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th width="8%">Severity</th>
+                <th width="18%">Rule</th>
+                <th width="18%">Element</th>
+                <th width="12%">Category</th>
+                <th width="16%">Property</th>
+                <th width="14%">Expected</th>
+                <th width="14%">Actual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each infoIssues}}
+            <tr>
+                <td><span class="badge badge-INFO">INFO</span></td>
+                <td>{{ruleName}}</td>
+                <td>{{elementName}}</td>
+                <td>{{elementCategory}}</td>
+                <td>{{propertyName}}</td>
+                <td>{{expectedValue}}</td>
+                <td>{{actualValue}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    {{/if}}
+
+    {{#unless hasIssues}}
+    <p class="no-issues">✓ No compliance issues found. All evaluated elements passed the requirements.</p>
+    {{/unless}}
+
+    <div class="footer">
+        DOM BIM Platform — Compliance Report — Generated {{generatedAt}} — Run {{runId}}
+    </div>
+</body>
+</html>

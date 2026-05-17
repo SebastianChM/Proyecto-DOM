@@ -102,6 +102,8 @@ describe("ComplianceRunnerV3Service", () => {
 
   function setupBaseMocks() {
     jest.spyOn(prisma.complianceRun, "findFirst").mockResolvedValue(null);
+    // Guard: file lookup returns null → skip URN guard (file not tracked locally)
+    jest.spyOn(prisma.file, "findFirst").mockResolvedValue(null);
     jest
       .spyOn(projectComplianceConfigService, "getConfig")
       .mockResolvedValue(MOCK_CONFIG as never);
@@ -286,6 +288,7 @@ describe("ComplianceRunnerV3Service", () => {
 
     it("should mark run as ERROR when element extractor throws", async () => {
       jest.spyOn(prisma.complianceRun, "findFirst").mockResolvedValue(null);
+      jest.spyOn(prisma.file, "findFirst").mockResolvedValue(null);
       jest
         .spyOn(projectComplianceConfigService, "getConfig")
         .mockResolvedValue(MOCK_CONFIG as never);

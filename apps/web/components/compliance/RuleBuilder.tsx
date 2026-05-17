@@ -41,8 +41,7 @@ interface RuleBuilderProps {
   onCancel: () => void;
 }
 
-import { API_CONFIG } from "@/lib/config";
-const API_BASE = API_CONFIG.BASE_URL;
+import { apiClient } from "@/lib/axios-config";
 
 export function RuleBuilder({
   rule,
@@ -80,11 +79,11 @@ export function RuleBuilder({
     const fetchData = async () => {
       try {
         const [catRes, opRes] = await Promise.all([
-          fetch(`${API_BASE}/api/compliance-v2/categories`),
-          fetch(`${API_BASE}/api/compliance-v2/operators`),
+          apiClient.get("/api/compliance-v2/categories"),
+          apiClient.get("/api/compliance-v2/operators"),
         ]);
-        const catData = await catRes.json();
-        const opData = await opRes.json();
+        const catData = catRes.data;
+        const opData = opRes.data;
         setCategories(catData);
         setOperators(opData);
       } catch (err) {

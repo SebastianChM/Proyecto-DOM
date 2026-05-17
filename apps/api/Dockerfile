@@ -18,8 +18,15 @@ COPY packages/z-schema-patched/ packages/z-schema-patched/
 # 2. Prisma schema (required by prisma generate)
 COPY packages/database/prisma/ packages/database/prisma/
 
-# 3. Install ALL deps (devDeps needed for tsc + prisma CLI)
-RUN npm ci
+# 3. Install ALL deps with lifecycle scripts blocked (supply-chain attack mitigation).
+#    Only the two Prisma scripts required for `prisma generate` are re-run explicitly.
+#    All other lifecycle scripts (puppeteer Chrome download, scarf telemetry, etc.) are skipped.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV SCARF_ANALYTICS=false
+RUN npm ci --ignore-scripts
+# Re-run ONLY the Prisma install scripts needed to download the query-engine binary.
+RUN node node_modules/prisma/scripts/preinstall-entry.js && \
+    node node_modules/@prisma/engines/scripts/postinstall.js
 
 # 4. Generate Prisma client
 RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
@@ -41,7 +48,11 @@ RUN apk add --no-cache openssl
 RUN addgroup -g 1001 -S nodejs && \
     adduser  -u 1001 -S nodejs -G nodejs
 
-# 1. Re-install production-only dependencies
+# Suppress lifecycle scripts and telemetry in the production install
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV SCARF_ANALYTICS=false
+
+# 1. Re-install production-only dependencies (lifecycle scripts already blocked)
 COPY --chown=nodejs:nodejs package.json package-lock.json ./
 COPY --chown=nodejs:nodejs apps/api/package.json apps/api/
 COPY --chown=nodejs:nodejs apps/web/package.json apps/web/

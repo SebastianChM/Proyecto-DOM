@@ -14,6 +14,7 @@ import { api } from "./client";
 import type { AxiosRequestConfig } from "axios";
 import type {
   AuthMeResponse,
+  AuthUser,
   BatchConversionResponse,
   BatchConversionStatusResponse,
   BatchDownloadResponse,
@@ -47,6 +48,20 @@ export const authService = {
 
   /** POST /api/auth/logout — destroy session */
   logout: () => api.post<void>("/api/auth/logout"),
+};
+
+// ---------------------------------------------------------------------------
+// User profile
+// ---------------------------------------------------------------------------
+
+export const userService = {
+  /**
+   * PATCH /api/auth/me — update the current user's display name.
+   * The name is persisted to the database and reflected in the session
+   * immediately, so subsequent calls to `/api/auth/me` return the new value.
+   */
+  updateProfile: (name: string) =>
+    api.patch<{ success: boolean; user: AuthUser }>("/api/auth/me", { name }),
 };
 
 // ---------------------------------------------------------------------------
