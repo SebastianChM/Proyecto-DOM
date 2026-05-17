@@ -11,6 +11,32 @@ import { showError } from "@/lib/error-handler";
 import { logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
+// Module-level project cache — survives tab switches and soft navigations.
+// Data older than TTL_MS is silently refreshed in the background while the
+// stale value is shown immediately (stale-while-revalidate pattern).
+// ---------------------------------------------------------------------------
+
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+interface CacheEntry {
+  data: ProjectDetail;
+  ts: number;
+}
+
+const projectCache = new Map<string, CacheEntry>();
+
+function getCached(id: string): ProjectDetail | null {
+  const entry = projectCache.get(id);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) return null; // expired
+  return entry.data;
+}
+
+function setCached(id: string, data: ProjectDetail): void {
+  projectCache.set(id, { data, ts: Date.now() });
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -52,9 +78,11 @@ export function useProjectDetail(projectId: string): UseProjectDetailReturn {
   const { user } = useUser();
   const router = useRouter();
 
-  // --- Core state ---
-  const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  // --- Core state — initialise from cache for instant display ---
+  const [project, setProject] = useState<ProjectDetail | null>(() =>
+    getCached(projectId),
+  );
+  const [loading, setLoading] = useState(() => getCached(projectId) === null);
 
   // --- Members state ---
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -64,12 +92,13 @@ export function useProjectDetail(projectId: string): UseProjectDetailReturn {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
-  // Fetch project
+  // Fetch project (stale-while-revalidate: show cache, refresh in background)
   // ---------------------------------------------------------------------------
 
   const fetchProject = useCallback(async () => {
     try {
       const data = await projectsService.get(projectId);
+      setCached(projectId, data);
       setProject(data);
     } catch (error) {
       showError(error, user?.role, "Failed to load project details");
@@ -120,6 +149,7 @@ export function useProjectDetail(projectId: string): UseProjectDetailReturn {
     if (!confirmed) return;
     try {
       await projectsService.delete(projectId);
+      projectCache.delete(projectId); // evict from cache on delete
       toast.success("Project deleted successfully");
       router.push("/dashboard");
     } catch (error) {

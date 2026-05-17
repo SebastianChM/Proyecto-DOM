@@ -30,6 +30,8 @@ function CompareViewerContent() {
   const urlDiffUrn = searchParams.get("diff");
   const fileId = searchParams.get("file");
   const type = searchParams.get("type") || "3d"; // '2d' or '3d'
+  /** When launched from a project context, this holds the originating projectId. */
+  const projectId = searchParams.get("project");
 
   // State
   const [versions, setVersions] = useState<Version[]>([]);
@@ -275,19 +277,32 @@ function CompareViewerContent() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleBack}
+            onClick={
+              projectId
+                ? () => router.push(`/dashboard/projects/${projectId}`)
+                : handleBack
+            }
             className="text-foreground hover:bg-secondary"
+            title={projectId ? "Back to project" : "Go back"}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
 
           <div className="flex flex-col">
             <h1 className="text-lg font-bold text-foreground leading-tight">
-              Comparison View
+              {projectId ? "Comparison View" : "Comparison View"}
             </h1>
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold text-primary">
               {type === "2d" ? "Pixel Compare" : "Geometric Diff"}
             </span>
+            {projectId && (
+              <button
+                onClick={() => router.push(`/dashboard/projects/${projectId}`)}
+                className="text-[10px] text-primary underline underline-offset-2 hover:no-underline w-fit mt-0.5"
+              >
+                ← Back to project
+              </button>
+            )}
           </div>
 
           {/* Version Selectors */}

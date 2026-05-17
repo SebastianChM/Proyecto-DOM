@@ -25,12 +25,7 @@ import { logger } from "@/lib/logger";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectDetailsPanel } from "@/components/ProjectDetailsPanel";
 import { FilesTabContent } from "@/components/FilesTabContent";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs-simple";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ProjectSettingsModal } from "@/components/ProjectSettingsModal";
 import { ConversionTracker } from "@/components/ConversionTracker";
 import { ShareProjectDialog } from "@/components/ShareProjectDialog";
@@ -245,7 +240,7 @@ export default function ProjectDetailPage() {
       const type = isPdf || isDwg ? "2d" : "3d";
 
       router.push(
-        `/dashboard/viewer/compare?primary=${file1.apsUrn}&diff=${file2.apsUrn}&type=${type}`,
+        `/dashboard/viewer/compare?primary=${file1.apsUrn}&diff=${file2.apsUrn}&type=${type}&project=${projectId}`,
       );
     } else {
       toast.error("Selected files must be processed (have URN) to compare.");

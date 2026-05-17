@@ -14,12 +14,7 @@ import {
   ValidationData,
 } from "@/components/validation/validation-uploader";
 import { ValidationViewer } from "@/components/validation/validation-viewer";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs-simple";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { Maximize2, Minimize2, ChevronLeft } from "lucide-react";
 

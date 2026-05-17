@@ -12,7 +12,6 @@ import {
   FileText,
   TableProperties,
   Box,
-  FileCheck,
   Shield,
   ClipboardCheck,
 } from "lucide-react";
@@ -57,7 +56,6 @@ const navGroups: NavGroup[] = [
   {
     title: "Compliance",
     items: [
-      { icon: FileCheck, label: "Validation", href: "/dashboard/validation" },
       {
         icon: ClipboardCheck,
         label: "Regulation Packs",

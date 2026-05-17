@@ -43,6 +43,11 @@ import type { EvaluateParams } from "@/lib/api/compliance-v3";
 import type { ProjectFileDetail } from "@/lib/api/types";
 import { showError } from "@/lib/error-handler";
 import { useUser } from "@/context/UserContext";
+import {
+  ValidationUploader,
+  type ValidationData,
+} from "@/components/validation/validation-uploader";
+import { ValidationViewer } from "@/components/validation/validation-viewer";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -59,7 +64,7 @@ const RUN_STATUS_VARIANT: Record<
   TIMEOUT: "destructive",
 };
 
-const TABS = ["Configuration", "Runs", "Results"] as const;
+const TABS = ["Configuration", "Runs", "Results", "Spec Analysis"] as const;
 type Tab = (typeof TABS)[number];
 
 // ---------------------------------------------------------------------------
@@ -101,6 +106,16 @@ export function ComplianceManager({
   // Delete confirmation dialog state
   const [runToDelete, setRunToDelete] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Spec Analysis (legacy validation uploader, now unified here)
+  const [specValidationData, setSpecValidationData] =
+    useState<ValidationData | null>(null);
+  const [specPdfFiles, setSpecPdfFiles] = useState<{
+    spec: File | null;
+    norm: File | null;
+    specUrl?: string | null;
+  }>({ spec: null, norm: null });
+  const [specSubTab, setSpecSubTab] = useState<"upload" | "viewer">("upload");
 
   // Files — provided by the parent or self-fetched
   const [files, setFiles] = useState<ProjectFileDetail[]>(initialFiles ?? []);
@@ -328,6 +343,42 @@ export function ComplianceManager({
         ) : (
           <p className="text-muted-foreground">No completed runs available.</p>
         ))}
+
+      {/* ── Spec Analysis (formerly standalone /validation route) ─────────── */}
+      {activeTab === "Spec Analysis" && (
+        <div className="space-y-4">
+          <div className="flex gap-1 border-b">
+            {(["upload", "viewer"] as const).map((sub) => (
+              <button
+                key={sub}
+                onClick={() => setSpecSubTab(sub)}
+                disabled={sub === "viewer" && specValidationData === null}
+                className={`px-4 py-2 text-sm font-medium border-b-2 capitalize transition-colors disabled:opacity-40 ${
+                  specSubTab === sub
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {sub === "upload" ? "New Audit" : "Compliance Report"}
+              </button>
+            ))}
+          </div>
+
+          {specSubTab === "upload" && (
+            <ValidationUploader
+              onUploadComplete={(data, files) => {
+                setSpecValidationData(data);
+                setSpecPdfFiles(files);
+                setSpecSubTab("viewer");
+              }}
+            />
+          )}
+
+          {specSubTab === "viewer" && specValidationData && (
+            <ValidationViewer data={specValidationData} files={specPdfFiles} />
+          )}
+        </div>
+      )}
 
       {/* ── New Evaluation dialog ──────────────────────────────────────────── */}
       <Dialog open={isEvalOpen} onOpenChange={closeEvalDialog}>

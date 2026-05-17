@@ -18,12 +18,7 @@ import {
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-config";
 import { logger } from "@/lib/logger";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs-simple";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSelector } from "@/components/validation/model-selector";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
