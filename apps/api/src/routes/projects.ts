@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Request } from "express";
 import prisma from "../lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { logger } from "../lib/logger";
@@ -17,6 +18,10 @@ import { auditService } from "../services/audit.service";
 const router = Router();
 
 // Validation Schemas
+// Helper to extract the project id from the URL segment for RBAC middleware.
+// Must use req.params.id — never req.body — to prevent body-injection IDOR.
+const getProjectIdFromParams = (req: Request) => req.params.id as string;
+
 const createProjectSchema = z.object({
   name: z
     .string()
@@ -28,8 +33,8 @@ const createProjectSchema = z.object({
       APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH,
       `Name must be at most ${APP_CONFIG.LIMITS.PROJECT_NAME_MAX_LENGTH} characters`,
     ),
-  description: z.string().optional(),
-  status: z.string().optional(),
+  description: z.string().max(1000, "Description too long").optional(),
+  status: z.enum(["Active", "Archived", "Draft"]).optional(),
   clientName: z.string().optional(),
   location: z.string().optional(),
   startDate: z.string().datetime().optional(),
@@ -454,7 +459,7 @@ router.get(
 // Update project - Requiere permiso de edición
 router.put(
   "/:id",
-  requirePermission("project:update"),
+  requirePermission("project:update", getProjectIdFromParams),
   asyncHandler(async (req, res) => {
     const validation = updateProjectSchema.safeParse(req.body);
     logger.debug("PUT /projects/:id validation", { valid: validation.success });
@@ -527,7 +532,7 @@ router.put(
 // Delete project - Requiere permiso de eliminación
 router.delete(
   "/:id",
-  requirePermission("project:delete"),
+  requirePermission("project:delete", getProjectIdFromParams),
   asyncHandler(async (req, res) => {
     await prisma.project.delete({
       where: { id: req.params.id as string },

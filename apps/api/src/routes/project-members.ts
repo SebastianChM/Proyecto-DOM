@@ -50,6 +50,7 @@ const getProjectIdFromId = (req: Request) => req.params.id as string;
  */
 router.get(
   "/:id/permissions",
+  requirePermission("project:read", getProjectIdFromId),
   asyncHandler(async (req, res) => {
     const projectId = req.params.id as string;
     const userId = req.session?.user?.id;
@@ -219,10 +220,10 @@ router.post(
       }
     }
 
-    // Verificar que no sea el owner
+    // Verify target is not the owner and fetch project name in one trip.
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { ownerId: true },
+      select: { ownerId: true, name: true },
     });
 
     if (project?.ownerId === targetUser.id) {
@@ -234,19 +235,13 @@ router.post(
     const baseUrl = env.FRONTEND_URL;
     const projectLink = `${baseUrl}${CONSTANTS.FRONTEND.DASHBOARD_PATH}/projects/${projectId}`;
 
-    // Get inviter name for the email
+    // Get inviter details for email and for the response (reused below, no extra query).
     const inviter = await prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true },
+      select: { id: true, name: true, email: true },
     });
     const inviterName = inviter?.name || "A user";
-
-    // Get project name
-    const projectInfo = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { name: true },
-    });
-    const projectName = projectInfo?.name || "Project";
+    const projectName = project?.name || "Project";
 
     // Send email
     await emailService.sendInvitationEmail(
@@ -277,7 +272,8 @@ router.post(
       },
     });
 
-    // Obtener miembro creado con información del invitador
+    // Fetch the upserted member with user details.
+    // Inviter info is already loaded above — no extra query needed.
     const member = await prisma.projectMember.findFirst({
       where: {
         projectId,
@@ -294,20 +290,13 @@ router.post(
       },
     });
 
-    // Obtener info del invitador por separado
-    let invitedBy = null;
-    if (member?.invitedBy) {
-      invitedBy = await prisma.user.findUnique({
-        where: { id: member.invitedBy },
-        select: { id: true, name: true, email: true },
-      });
-    }
-
     res.status(201).json({
       success: true,
       member: {
         ...member,
-        invitedByUser: invitedBy,
+        invitedByUser: inviter
+          ? { id: inviter.id, name: inviter.name, email: inviter.email }
+          : null,
       },
     });
   }),
