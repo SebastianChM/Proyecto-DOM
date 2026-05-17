@@ -1,8 +1,11 @@
 import puppeteer from "puppeteer";
+import type { Browser } from "puppeteer";
 import handlebars from "handlebars";
 import fs from "fs-extra";
 import path from "path";
 import { logger } from "../../lib/logger";
+
+const PDF_TIMEOUT_MS = 30_000; // explicit, auditable, matches Puppeteer default
 
 export interface ComplianceIssueRow {
   ruleName: string;
@@ -29,6 +32,13 @@ export class ReportService {
   private templatePath: string;
   private complianceTemplatePath: string;
 
+  // Lazy-loaded compiled template cache — compiled once on first use,
+  // then reused for every subsequent request (no disk I/O, no AST parse).
+  private readonly templateCache = new Map<
+    string,
+    ReturnType<typeof handlebars.compile>
+  >();
+
   constructor() {
     this.templatePath = path.join(
       __dirname,
@@ -40,6 +50,17 @@ export class ReportService {
     );
   }
 
+  /** Returns a compiled Handlebars template, reading from disk only once. */
+  private async getCompiledTemplate(
+    templatePath: string,
+  ): Promise<ReturnType<typeof handlebars.compile>> {
+    if (!this.templateCache.has(templatePath)) {
+      const source = await fs.readFile(templatePath, "utf-8");
+      this.templateCache.set(templatePath, handlebars.compile(source));
+    }
+    return this.templateCache.get(templatePath)!;
+  }
+
   /**
    * Generates a PDF buffer from the validation data.
    * @param data The data object to inject into the template
@@ -48,36 +69,28 @@ export class ReportService {
   async generateValidationReport(
     data: Record<string, unknown>,
   ): Promise<Buffer> {
-    try {
-      // 1. Compile Template
-      const templateHtml = await fs.readFile(this.templatePath, "utf-8");
-      const template = handlebars.compile(templateHtml);
-      const html = template(data);
+    const template = await this.getCompiledTemplate(this.templatePath);
+    const html = template(data);
 
-      // 2. Launch Browser (Headless)
-      // Note: In Docker/Production, you might need specific args like '--no-sandbox'
-      const browser = await puppeteer.launch({
+    let browser: Browser | null = null;
+    try {
+      browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
 
       const page = await browser.newPage();
-
-      // 3. Set Content and Render
-      await page.setContent(html, { waitUntil: "networkidle0" });
+      await page.setContent(html, {
+        waitUntil: "networkidle0",
+        timeout: PDF_TIMEOUT_MS,
+      });
 
       const pdfBuffer = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: {
-          top: "20mm",
-          bottom: "20mm",
-          left: "20mm",
-          right: "20mm",
-        },
+        margin: { top: "20mm", bottom: "20mm", left: "20mm", right: "20mm" },
+        timeout: PDF_TIMEOUT_MS,
       });
-
-      await browser.close();
 
       return Buffer.from(pdfBuffer);
     } catch (error) {
@@ -85,6 +98,19 @@ export class ReportService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw new Error("Report generation failed");
+    } finally {
+      // Always close the browser — prevents zombie Chrome processes on errors.
+      if (browser) {
+        await browser.close().catch((closeErr: unknown) => {
+          logger.warn(
+            "[REPORT] Failed to close browser after validation report",
+            {
+              error:
+                closeErr instanceof Error ? closeErr.message : String(closeErr),
+            },
+          );
+        });
+      }
     }
   }
 
@@ -105,29 +131,30 @@ export class ReportService {
       hasIssues,
     };
 
+    let browser: Browser | null = null;
     try {
-      const templateHtml = await fs.readFile(
+      const template = await this.getCompiledTemplate(
         this.complianceTemplatePath,
-        "utf-8",
       );
-      const template = handlebars.compile(templateHtml);
       const html = template(templateData);
 
-      const browser = await puppeteer.launch({
+      browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
 
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
+      await page.setContent(html, {
+        waitUntil: "networkidle0",
+        timeout: PDF_TIMEOUT_MS,
+      });
 
       const pdfBuffer = await page.pdf({
         format: "A4",
         printBackground: true,
         margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+        timeout: PDF_TIMEOUT_MS,
       });
-
-      await browser.close();
 
       return Buffer.from(pdfBuffer);
     } catch (error) {
@@ -136,6 +163,19 @@ export class ReportService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw new Error("Compliance report generation failed");
+    } finally {
+      // Always close the browser — prevents zombie Chrome processes on errors.
+      if (browser) {
+        await browser.close().catch((closeErr: unknown) => {
+          logger.warn(
+            "[REPORT] Failed to close browser after compliance report",
+            {
+              error:
+                closeErr instanceof Error ? closeErr.message : String(closeErr),
+            },
+          );
+        });
+      }
     }
   }
 }
