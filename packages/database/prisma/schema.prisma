@@ -55,6 +55,8 @@ model Project {
   members     ProjectMember[]
   
   @@index([ownerId])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model File {
@@ -94,6 +96,9 @@ model File {
   @@index([projectId])
   @@index([status])
   @@index([apsUrn])
+  @@index([type])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model FileVersion {
