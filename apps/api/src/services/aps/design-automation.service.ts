@@ -376,34 +376,33 @@ export class APSDesignAutomationService {
   async convertRevitToPdf(
     inputObjectId: string,
     outputObjectId: string,
-    bucketKey: string,
+    _bucketKey: string,
     webhookUrl?: string,
   ): Promise<string> {
     const headers = await this.getAuthHeader();
-    const token = await apsAuthService.getInternalToken();
     const activityId = await this.ensureRevitToPdfActivity();
 
-    const inputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${inputObjectId}`;
-    const outputUrl = `https://developer.api.autodesk.com/oss/v2/buckets/${bucketKey}/objects/${outputObjectId}`;
+    // Use signed URLs (same pattern as convertDwgToPdf) so no short-lived
+    // bearer token is embedded in the work item payload sent to Autodesk.
+    logger.debug("[DA] Getting signed URLs for Revit conversion", {
+      inputObjectId,
+    });
+    const inputSignedUrl = await apsOssService.getSignedUrl(inputObjectId);
+    const outputSignedUrl =
+      await apsOssService.getSignedWriteUrl(outputObjectId);
+    logger.debug("[DA] Got signed URLs");
 
     const workItem = {
-      activityId: activityId,
+      activityId,
       arguments: {
         inputFile: {
-          url: inputUrl,
-          headers: { Authorization: `Bearer ${token}` },
+          url: inputSignedUrl,
         },
         outputPdf: {
-          url: outputUrl,
+          url: outputSignedUrl,
           verb: "put",
-          headers: { Authorization: `Bearer ${token}` },
         },
-        onComplete: webhookUrl
-          ? {
-              verb: "post",
-              url: webhookUrl,
-            }
-          : undefined,
+        onComplete: webhookUrl ? { verb: "post", url: webhookUrl } : undefined,
       },
     };
 
@@ -468,12 +467,24 @@ export class APSDesignAutomationService {
     });
     formData.append("file", fs.createReadStream(zipFilePath));
 
-    await axios.post(uploadParams.endpointURL, formData, {
-      headers: {
-        ...formData.getHeaders(),
-      },
-    });
-    logger.info("[DA] ZIP Uploaded successfully");
+    try {
+      await axios.post(uploadParams.endpointURL, formData, {
+        headers: {
+          ...formData.getHeaders(),
+        },
+      });
+      logger.info("[DA] ZIP Uploaded successfully");
+    } finally {
+      // Always delete the local zip to prevent disk accumulation,
+      // regardless of whether the upload succeeded or failed.
+      await fs.promises.unlink(zipFilePath).catch((unlinkErr: unknown) => {
+        logger.warn("[DA] Could not delete temp AppBundle zip", {
+          zipFilePath,
+          error:
+            unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr),
+        });
+      });
+    }
 
     const version = uploadParams.version || 1;
     const aliasId = "prod";

@@ -22,7 +22,11 @@ function resolveInputObjectKey(file: {
   apsUrn: string | null;
   s3Key: string | null;
 }): string | null {
-  if (file.s3Key && file.s3Key !== "IMPORTED_FROM_APS" && file.s3Key !== "unknown_key") {
+  if (
+    file.s3Key &&
+    file.s3Key !== "IMPORTED_FROM_APS" &&
+    file.s3Key !== "unknown_key"
+  ) {
     return file.s3Key;
   }
 
@@ -46,8 +50,7 @@ function isRetryableError(error: unknown): boolean {
     return error.retryable;
   }
 
-  const message =
-    error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
 
   // Retryable: Rate limiting (429)
   if (message.includes("429") || message.toLowerCase().includes("rate limit")) {
@@ -127,10 +130,20 @@ const modelDerivativeWorker = new Worker<ConversionJobData>(
     }
 
     if (conversion.status === "PROCESSING") {
-      logger.warn("[CONVERSION_MD] Already PROCESSING by another worker", {
-        conversionId,
-      });
-      throw new Error("Already being processed by another worker");
+      if (job.attemptsMade === 0) {
+        // First attempt: a concurrent worker is genuinely processing this — back off.
+        logger.warn(
+          "[CONVERSION_MD] Already PROCESSING on first attempt — concurrent collision",
+          { conversionId },
+        );
+        throw new Error("Already being processed by another worker");
+      }
+      // BullMQ retry after an unexpected process crash — stale PROCESSING state.
+      // Allow re-processing: fall through to the PROCESSING update below.
+      logger.warn(
+        "[CONVERSION_MD] Stale PROCESSING detected on retry — allowing re-processing",
+        { conversionId, attempt: job.attemptsMade + 1 },
+      );
     }
 
     // Update status to PROCESSING
@@ -270,8 +283,20 @@ const designAutomationWorker = new Worker<ConversionJobData>(
     }
 
     if (conversion.status === "PROCESSING") {
-      logger.warn("[CONVERSION_DA] Already PROCESSING", { conversionId });
-      throw new Error("Already being processed by another worker");
+      if (job.attemptsMade === 0) {
+        // First attempt: a concurrent worker is genuinely processing this — back off.
+        logger.warn(
+          "[CONVERSION_DA] Already PROCESSING on first attempt — concurrent collision",
+          { conversionId },
+        );
+        throw new Error("Already being processed by another worker");
+      }
+      // BullMQ retry after an unexpected process crash — stale PROCESSING state.
+      // Allow re-processing: fall through to the PROCESSING update below.
+      logger.warn(
+        "[CONVERSION_DA] Stale PROCESSING detected on retry — allowing re-processing",
+        { conversionId, attempt: job.attemptsMade + 1 },
+      );
     }
 
     // Update to PROCESSING
@@ -296,7 +321,9 @@ const designAutomationWorker = new Worker<ConversionJobData>(
       });
 
       if (!inputObjectKey) {
-        throw new Error("Could not resolve input object key for Design Automation");
+        throw new Error(
+          "Could not resolve input object key for Design Automation",
+        );
       }
 
       if (!env.APS_BUCKET) {
@@ -311,13 +338,15 @@ const designAutomationWorker = new Worker<ConversionJobData>(
         inputObjectKey: inputObjectKey.substring(0, 80),
       });
 
-      const { workItemId, attemptsUsed } = await submitDesignAutomationWorkItem({
-        conversionId,
-        inputObjectKey,
-        outputObjectKey,
-        bucketKey: env.APS_BUCKET,
-        callbackUrl,
-      });
+      const { workItemId, attemptsUsed } = await submitDesignAutomationWorkItem(
+        {
+          conversionId,
+          inputObjectKey,
+          outputObjectKey,
+          bucketKey: env.APS_BUCKET,
+          callbackUrl,
+        },
+      );
 
       await prisma.conversion.update({
         where: { id: conversionId },
@@ -417,8 +446,47 @@ logger.info("[HITO 5] BullMQ-based conversion workers initialized", {
   daConcurrency: env.CONVERSION_DA_CONCURRENCY,
 });
 
+// ── Stale PROCESSING sweep ──────────────────────────────────────────────────
+// Conversions stuck in PROCESSING for > 2 hours have either lost their
+// callback (DA phantom) or belong to a crashed worker. Both are unrecoverable
+// without intervention, so we move them to FAILED so the UI is unblocked.
+const STALE_PROCESSING_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+const STALE_SWEEP_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes
+
+async function sweepStaleConversions(): Promise<void> {
+  const threshold = new Date(Date.now() - STALE_PROCESSING_TIMEOUT_MS);
+  try {
+    const result = await prisma.conversion.updateMany({
+      where: {
+        status: "PROCESSING",
+        startedAt: { lt: threshold },
+      },
+      data: {
+        status: "FAILED",
+        lastError: "Conversion timed out. Autodesk callback was not received.",
+        error: "Conversion timed out. Autodesk callback was not received.",
+        finishedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    if (result.count > 0) {
+      logger.warn("[SWEEP] Expired stale PROCESSING conversions", {
+        count: result.count,
+        thresholdAgeHours: 2,
+      });
+    }
+  } catch (error) {
+    logger.error("[SWEEP] Failed to sweep stale conversions", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+// Run immediately on startup, then every 15 minutes
+sweepStaleConversions();
+setInterval(sweepStaleConversions, STALE_SWEEP_INTERVAL_MS);
+
 export default {
   modelDerivativeWorker,
   designAutomationWorker,
 };
-
