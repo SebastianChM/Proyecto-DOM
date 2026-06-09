@@ -7,7 +7,7 @@
 [![Next.js 14](https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![APS](https://img.shields.io/badge/Autodesk-Platform%20Services-FF6B00?style=for-the-badge&logo=autodesk&logoColor=white)](https://aps.autodesk.com/)
-[![License Proprietary](https://img.shields.io/badge/license-proprietary-A8C95A?style=for-the-badge)](LICENSE)
+[![License MIT](https://img.shields.io/badge/license-MIT-A8C95A?style=for-the-badge)](LICENSE)
 
 ---
 
@@ -17,7 +17,7 @@ The DOM BIM Platform is an enterprise system that ingests Building Information M
 
 It is built as a TypeScript monorepo with three services running together: an Express API that handles authentication, file uploads, and APS integration; a background worker (Bull on Redis) that processes long-running model conversions and comparisons; and a Next.js 14 frontend with the APS Viewer embedded for interactive 3D model inspection.
 
-The platform was designed for Sebastian Chirino's BIM operations team to replace a fragmented stack of manual workflows with a single web-based system where every model conversion, comparison, and validation is traceable, auditable, and reproducible.
+The platform was designed to replace a fragmented stack of manual workflows with a single web-based system where every model conversion, comparison, and validation is traceable, auditable, and reproducible.
 
 ## Architecture
 
