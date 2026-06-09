@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Redaction & PII Masking Utility
  *
  * Sanitizes log metadata to prevent leaking secrets, tokens, and PII.
@@ -50,7 +50,7 @@ const ID_KEYS = new Set(["userid", "user", "ownerid", "owner"]);
 const REDACTED = "[REDACTED]";
 
 /**
- * Mask an email address: "sebastian@dom.com" → "se***@dom.com"
+ * Mask an email address: "chirinosebastianmn@gmail.com" → "ch\*\*\*@gmail.com"
  * Falls back to REDACTED if the format is unexpected.
  */
 export function maskEmail(email: string): string {

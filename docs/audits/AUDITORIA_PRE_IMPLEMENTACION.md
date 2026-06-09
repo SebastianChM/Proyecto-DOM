@@ -720,11 +720,11 @@ npx prisma db push
 ```bash
 # Opción recomendada: Docker
 docker pull redis:7-alpine
-docker run -d -p 6379:6379 --name dom-redis redis:7-alpine
+docker run -d -p 6379:6379 --name dom-bim-redis redis:7-alpine
 
 # Verificar
 docker ps
-# Debería mostrar contenedor "dom-redis" corriendo
+# Debería mostrar contenedor "dom-bim-redis" corriendo
 ```
 
 #### Paso 4: Validación de Environment Variables (20 min)
@@ -813,7 +813,7 @@ npm run dev
 # ✅ Debe mostrar: "✓ Ready in Xms"
 
 # 3. Redis está accesible
-docker exec dom-redis redis-cli ping
+docker exec dom-bim-redis redis-cli ping
 # ✅ Debe responder: PONG
 
 # 4. Database es accesible

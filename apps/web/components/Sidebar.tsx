@@ -146,7 +146,7 @@ export function Sidebar() {
           </div>
           <div className="leading-none">
             <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
-              DOM
+              DOM BIM
             </span>
             <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] ml-1.5">
               BIM

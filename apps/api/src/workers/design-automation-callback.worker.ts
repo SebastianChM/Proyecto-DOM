@@ -1,4 +1,4 @@
-import { Worker, Job } from "bullmq";
+﻿import { Worker, Job } from "bullmq";
 import { DesignAutomationCallbackJobData } from "../lib/queue";
 import { env } from "../config/env";
 import { CONSTANTS } from "../config/constants";
@@ -109,10 +109,13 @@ worker.on("failed", async (job, error) => {
     },
   });
 
-  logger.error("[DA_CALLBACK_WORKER] Conversion marked FAILED after retry exhaustion", {
-    conversionId: job.data.conversionId,
-    attempts: job.attemptsMade,
-  });
+  logger.error(
+    "[DA_CALLBACK_WORKER] Conversion marked FAILED after retry exhaustion",
+    {
+      conversionId: job.data.conversionId,
+      attempts: job.attemptsMade,
+    },
+  );
 });
 
 worker.on("error", (error) => {

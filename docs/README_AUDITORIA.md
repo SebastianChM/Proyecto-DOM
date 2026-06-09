@@ -7,9 +7,11 @@ Este sistema te ayuda a **monitorear, testear, documentar y trackear** todas las
 ## 📚 Documentos Principales
 
 ### 1. [AUDITORIA_FUNCIONALIDADES.md](./AUDITORIA_FUNCIONALIDADES.md)
+
 **Tu fuente única de verdad** - Documento maestro exhaustivo
 
 **Contiene:**
+
 - ✅ Inventario completo de 96 funcionalidades del sistema
 - 📊 Estado actual de cada funcionalidad (✅/⚠️/❌/🔍)
 - 📝 Descripción detallada de cada feature
@@ -18,6 +20,7 @@ Este sistema te ayuda a **monitorear, testear, documentar y trackear** todas las
 - 📖 Plantillas para documentar resultados
 
 **Cuándo usar:**
+
 - Para entender qué debe hacer cada funcionalidad
 - Para planificar sesiones de testing
 - Para documentar resultados de pruebas
@@ -26,47 +29,58 @@ Este sistema te ayuda a **monitorear, testear, documentar y trackear** todas las
 ---
 
 ### 2. [CHECKLIST_TESTING.md](./CHECKLIST_TESTING.md)
+
 **Tu tracking diario** - Checklist compacto
 
 **Contiene:**
+
 - ✅ Lista rápida de funcionalidades a testear
 - 📊 Progreso visual por módulo
 - 🐛 Lista de issues encontrados
 - 📅 Planning de próxima sesión de testing
 
 **Cuándo usar:**
+
 - Al inicio de cada día de testing
 - Para actualizar progreso rápidamente
 - Para reportar status a stakeholders
 
 **Cómo actualizar:**
+
 ```markdown
 # Marcar como completado
+
 - [x] **Subir archivos** - ✅ COMPLETADO (2026-04-14)
 
 # Agregar issue encontrado
+
 ### Críticos ❌
+
 - **Upload files > 100MB falla** (2026-04-14)
 ```
 
 ---
 
 ### 3. [REGISTRO_FIXES.md](./REGISTRO_FIXES.md)
+
 **Knowledge base de soluciones** - Registro de cambios
 
 **Contiene:**
+
 - 🔧 Historial de todos los fixes aplicados
 - 📝 Análisis de causa raíz de cada problema
 - 💡 Lecciones aprendidas
 - 🎯 Plantilla para documentar nuevos fixes
 
 **Cuándo usar:**
+
 - Después de resolver cualquier bug
 - Para documentar cambios importantes
 - Como referencia si el mismo error aparece de nuevo
 - Para onboarding de nuevos developers
 
 **Ejemplo de uso:**
+
 ```markdown
 ## Fix #002 - Subir Archivos Grandes Falla
 
@@ -75,18 +89,23 @@ Este sistema te ayuda a **monitorear, testear, documentar y trackear** todas las
 **Estado:** ✅ RESUELTO
 
 ### Descripción del Problema
+
 Archivos > 100MB fallan con timeout
 
 ### Causa Raíz
+
 Límite de bodyParser muy bajo
 
 ### Solución
+
 Aumentar limit en express.json()
 
 ### Archivos Modificados
+
 - apps/api/src/index.ts
 
 ### Testing Post-Fix
+
 - [x] Subir archivo de 150MB → Funciona
 ```
 
@@ -101,21 +120,25 @@ Script bash que ejecuta **smoke tests** automáticos de funcionalidades crítica
 #### ¿Qué testea?
 
 ✅ **Infraestructura:**
+
 - PostgreSQL corriendo
 - Redis corriendo
 - Tablas de base de datos existen
 - Conexión a Redis OK
 
 ✅ **Servicios Web:**
+
 - API health check
 - Frontend accesible
 - Procesos Node.js activos
 
 ✅ **Autenticación:**
+
 - Login redirect funciona
 - Endpoint `/api/auth/me` responde
 
 ✅ **Configuración:**
+
 - Archivos `.env` existen
 - Variables críticas configuradas
 
@@ -160,7 +183,7 @@ Script bash que ejecuta **smoke tests** automáticos de funcionalidades crítica
 
 #### Logs:
 
-Los logs se guardan en `/tmp/dom-test-TIMESTAMP.log` para revisión posterior.
+Los logs se guardan en `/tmp/dom-bim-test-TIMESTAMP.log` para revisión posterior.
 
 ---
 
@@ -191,10 +214,12 @@ Para cada funcionalidad:
 1. **Consultar** `AUDITORIA_FUNCIONALIDADES.md` para entender qué testear
 2. **Ejecutar** las pruebas manualmente siguiendo los casos de prueba
 3. **Documentar** resultados directamente en el documento:
+
    ```markdown
    **✅ Resultado de prueba:**
+
    - **Fecha:** 2026-04-15 10:30
-   - **Usuario testeado:** sebastian.chirino@dom.com
+   - **Usuario testeado:** chirinosebastianmn@gmail.com
    - **Resultado:** Exitoso
    - **Observaciones:** Subida de archivo RVT de 50MB funciona perfectamente
    ```
@@ -218,7 +243,7 @@ git add docs/
 git commit -m "docs: actualizar auditoría de funcionalidades - día 1"
 
 # 2. Hacer backup de logs
-cp /tmp/dom-test-*.log docs/logs/
+cp /tmp/dom-bim-test-*.log docs/logs/
 
 # 3. Actualizar resumen ejecutivo en AUDITORIA_FUNCIONALIDADES.md
 ```
@@ -270,6 +295,7 @@ Proyecto-DOM/
 ## 🔍 Tips de Testing
 
 ### 1. **Testing de Happy Path**
+
 Primero verifica el "camino feliz" - lo que debería funcionar sin problemas.
 
 ```
@@ -281,6 +307,7 @@ Ejemplo: Subir archivo
 ```
 
 ### 2. **Testing de Edge Cases**
+
 Después prueba casos límite y errores esperados.
 
 ```
@@ -292,6 +319,7 @@ Ejemplo: Subir archivo
 ```
 
 ### 3. **Testing de Integración**
+
 Verifica que componentes funcionan juntos.
 
 ```
@@ -305,6 +333,7 @@ Ejemplo: Flujo completo
 ```
 
 ### 4. **Testing de Performance**
+
 Verifica tiempos de respuesta aceptables.
 
 ```
@@ -319,11 +348,13 @@ Ejemplo: Tiempo aceptado
 ## 🆘 Troubleshooting
 
 ### "No puedo ejecutar el script"
+
 ```bash
 chmod +x tests/test-funcionalidades.sh
 ```
 
 ### "Docker no está corriendo"
+
 ```bash
 # Windows: Abrir Docker Desktop
 # Verificar:
@@ -331,10 +362,13 @@ docker ps
 ```
 
 ### "Tests fallan pero la app funciona"
-El script es sensible. Revisa los logs en `/tmp/dom-test-*.log` para ver el detalle.
+
+El script es sensible. Revisa los logs en `/tmp/dom-bim-test-*.log` para ver el detalle.
 
 ### "No sé por dónde empezar"
+
 Sigue el orden de prioridades en `AUDITORIA_FUNCIONALIDADES.md`:
+
 1. 🔴 CRÍTICO primero
 2. 🟡 ALTO después
 3. 🟢 MEDIO/BAJO al final
@@ -344,6 +378,7 @@ Sigue el orden de prioridades en `AUDITORIA_FUNCIONALIDADES.md`:
 ## 📞 Contacto y Soporte
 
 Si tienes dudas sobre cómo usar este sistema:
+
 1. Revisa este README completo
 2. Consulta los documentos de ejemplo
 3. Revisa el first fix documentado en `REGISTRO_FIXES.md`

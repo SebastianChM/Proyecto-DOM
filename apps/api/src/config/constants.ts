@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Application Constants
  *
  * This file centralizes all magic numbers and hardcoded values.
@@ -26,7 +26,7 @@ export const FRONTEND = {
 // =============================================================================
 export const SESSION = {
   /** Cookie name for session */
-  COOKIE_NAME: "dom-session",
+  COOKIE_NAME: "dom-bim-session",
   /** Session duration: 24 hours in milliseconds */
   DURATION_MS: 24 * 60 * 60 * 1000,
   /** Session duration: 1 hour in milliseconds (for token expiry) */
@@ -34,7 +34,7 @@ export const SESSION = {
   /** Maximum cookie size in bytes (browser limit ~4KB) */
   MAX_COOKIE_SIZE_BYTES: 4000,
   /** Redis key prefix for sessions */
-  REDIS_PREFIX: "dom:sess:",
+  REDIS_PREFIX: "dom-bim:sess:",
 } as const;
 
 // =============================================================================
@@ -66,7 +66,7 @@ export const APS = {
   /** APS API base URL */
   BASE_URL: "https://developer.api.autodesk.com",
   /** Default bucket name (fallback) */
-  DEFAULT_BUCKET: "aps-assembly-configurator-dom-demo",
+  DEFAULT_BUCKET: "aps-assembly-configurator-dom-bim-demo",
 } as const;
 
 // =============================================================================
@@ -149,7 +149,7 @@ export const OBSERVABILITY = {
   ] as readonly string[],
   /** Max recursion depth for redactMeta() */
   REDACT_MAX_DEPTH: 3,
-  /** Visible prefix chars when masking emails ("se***@dom.com") */
+  /** Visible prefix chars when masking emails ("ch\*\*\*@gmail.com") */
   EMAIL_VISIBLE_CHARS: 2,
   /** Chars to keep when truncating IDs ("550e8400…") */
   ID_TRUNCATE_LENGTH: 8,

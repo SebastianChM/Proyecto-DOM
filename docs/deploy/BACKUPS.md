@@ -84,12 +84,12 @@ If you prefer to run pg_dump directly against the Docker container:
 
 ```bash
 # Backup
-docker exec dom-bim-db pg_dump -U dom -d dom_bim \
+docker exec dom-bim-db pg_dump -U dom-bim -d dom_bim \
   --format=custom --compress=6 \
   > storage/backups/manual_backup.dump
 
 # Restore
-docker exec -i dom-bim-db pg_restore -U dom -d dom_bim \
+docker exec -i dom-bim-db pg_restore -U dom-bim -d dom_bim \
   --clean --if-exists \
   < storage/backups/manual_backup.dump
 ```

@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Test B: Rate Limiting Validation
 # Verifies that rate limiter blocks excessive requests
 
@@ -15,7 +15,7 @@ NUM_REQUESTS=50
 # Check if session cookie is provided
 if [ -z "$SESSION_COOKIE" ]; then
     echo "ERROR: SESSION_COOKIE environment variable not set"
-    echo "Usage: SESSION_COOKIE='dom-session=abc123...' $0"
+    echo "Usage: SESSION_COOKIE='dom-bim-session=abc123...' $0"
     exit 1
 fi
 

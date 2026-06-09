@@ -44,11 +44,12 @@
 
 ### Problema que resolvemos
 
-Las empresas de ingenieria (dom y similares) necesitan verificar que los modelos BIM 3D (Revit) cumplan con las especificaciones tecnicas de un proyecto y la normativa del pais. Hoy esto se hace manualmente revisando planos contra documentos PDF.
+Las empresas de ingenieria (dom-bim y similares) necesitan verificar que los modelos BIM 3D (Revit) cumplan con las especificaciones tecnicas de un proyecto y la normativa del pais. Hoy esto se hace manualmente revisando planos contra documentos PDF.
 
 ### Solucion
 
 Un motor de compliance que:
+
 - Recibe un modelo BIM (via APS/Autodesk)
 - Lo evalua contra un conjunto de requisitos verificados por humanos
 - Genera un reporte de cumplimiento con trazabilidad legal
@@ -74,6 +75,7 @@ Cada regla tiene un codigo. Si durante el desarrollo se detecta una violacion, s
 **Definicion:** No se permite escribir directamente en el codigo fuente valores que pertenecen al dominio del negocio.
 
 **Ejemplos de violacion:**
+
 ```typescript
 // PROHIBIDO: Categorias de Revit en el codigo
 const ELECTRICAL_CATEGORIES = ["Cable Trays", "Conduits", "Lighting Fixtures"];
@@ -82,22 +84,23 @@ const ELECTRICAL_CATEGORIES = ["Cable Trays", "Conduits", "Lighting Fixtures"];
 const aliases = { width: ["width", "ancho", "w"] };
 
 // PROHIBIDO: Umbrales de severidad en el codigo
-if (deviation > 0.20) severity = "CRITICAL";
+if (deviation > 0.2) severity = "CRITICAL";
 
 // PROHIBIDO: Disciplinas en el codigo
 type Discipline = "ELECTRICAL" | "STRUCTURAL" | "MEP";
 ```
 
 **Como debe hacerse:**
+
 ```typescript
 // CORRECTO: Los valores vienen de la base de datos
 const categories = await prisma.categoryDictionary.findMany({
-  where: { locale: project.locale }
+  where: { locale: project.locale },
 });
 
 // CORRECTO: Los aliases vienen de la base de datos
 const aliases = await prisma.propertyDictionary.findMany({
-  where: { canonicalName: "Width", locale: "es-CL" }
+  where: { canonicalName: "Width", locale: "es-CL" },
 });
 
 // CORRECTO: El umbral viene del requisito
@@ -111,6 +114,7 @@ if (deviation > requirement.criticalThreshold) severity = "CRITICAL";
 **Definicion:** No se permite codigo que simule funcionalidad sin implementarla.
 
 **Ejemplos de violacion:**
+
 ```typescript
 // PROHIBIDO
 async function evaluateRequirement(req: Requirement) {
@@ -128,6 +132,7 @@ const mockResult = { score: 85, issues: [] }; // "por ahora"
 ```
 
 **Regla:** Si una funcion no esta implementada, no debe existir. Si se necesita como interfaz futura, debe lanzar un error explicito:
+
 ```typescript
 function futureFeature(): never {
   throw new Error("Not implemented: futureFeature is scheduled for Phase 7");
@@ -139,6 +144,7 @@ function futureFeature(): never {
 **Definicion:** No se permite codigo que no sea alcanzable ni ejecutable.
 
 **Incluye:**
+
 - Funciones que nadie llama
 - Imports que nadie usa
 - Variables asignadas pero nunca leidas
@@ -152,11 +158,13 @@ function futureFeature(): never {
 **Definicion:** Toda funcion publica de un servicio debe tener al menos un test unitario que verifique su comportamiento.
 
 **Cobertura minima por servicio:**
+
 - Servicios de logica de negocio: 80% de cobertura de lineas
 - Servicios de infraestructura (DB, API externa): 60% de cobertura
 - Utilidades puras: 90% de cobertura
 
 **Cada test debe:**
+
 - Tener un nombre descriptivo que explique QUE verifica
 - Usar datos reales o realistas (no `"test"`, `"foo"`, `"bar"`)
 - Verificar tanto el camino feliz como los errores esperados
@@ -166,24 +174,26 @@ function futureFeature(): never {
 **Definicion:** No se permite codigo que haga operaciones innecesarias cuando el impacto es medible.
 
 **Ejemplos de violacion:**
+
 ```typescript
 // PROHIBIDO: N+1 queries
 for (const req of requirements) {
   const conditions = await prisma.requirementCondition.findMany({
-    where: { requirementId: req.id }
+    where: { requirementId: req.id },
   });
 }
 
 // PROHIBIDO: Iterar todo cuando se puede filtrar en DB
 const allElements = await getModelElements(urn);
-const walls = allElements.filter(e => e.category === "Walls");
+const walls = allElements.filter((e) => e.category === "Walls");
 ```
 
 **Como debe hacerse:**
+
 ```typescript
 // CORRECTO: Eager loading
 const requirements = await prisma.requirement.findMany({
-  include: { conditions: true }
+  include: { conditions: true },
 });
 
 // CORRECTO: Filtrar en la fuente
@@ -195,6 +205,7 @@ const walls = await getModelElements(urn, { category: "Walls" });
 **Definicion:** Toda funcion que reciba input externo (API request, archivo, parametro de usuario) debe validar la entrada antes de procesarla.
 
 **Fronteras del sistema donde se valida:**
+
 - Controllers/Routes: Validar request body con Zod schemas
 - Servicios que reciben archivos: Validar tipo, tamano, formato
 - Servicios que reciben IDs: Verificar existencia en DB antes de operar
@@ -206,6 +217,7 @@ const walls = await getModelElements(urn, { category: "Walls" });
 **Definicion:** El codigo debe parecer escrito por un ingeniero profesional, no generado por IA.
 
 **Prohibido en codigo fuente:**
+
 - Emojis en cualquier parte del codigo, comentarios o logs
 - Comentarios tipo "This function does X" al inicio de funciones obvias
 - Bloques de comentarios decorativos con asteriscos o guiones
@@ -213,6 +225,7 @@ const walls = await getModelElements(urn, { category: "Walls" });
 - Docstrings automaticos en funciones privadas o internas
 
 **Permitido:**
+
 - Comentarios cuando la logica NO es obvia y explican el POR QUE, no el QUE
 - JSDoc en funciones publicas de servicios que forman parte de la API interna
 - Nombres de variables claros y concisos: `deviation`, `threshold`, `elements`
@@ -222,6 +235,7 @@ const walls = await getModelElements(urn, { category: "Walls" });
 **Definicion:** Ningun modulo puede importar directa o indirectamente a si mismo.
 
 **Estructura de dependencia permitida:**
+
 ```
 Routes -> Controllers -> Services -> Repositories -> Prisma
                                   -> External APIs (APS)
@@ -235,6 +249,7 @@ Un servicio puede depender de otro servicio, pero no puede haber ciclos (A->B->A
 **Definicion:** Ningun servicio core del motor de compliance puede depender directamente de un proveedor de LLM (OpenAI, Anthropic, etc.).
 
 **Estructura correcta:**
+
 ```typescript
 // La interfaz del servicio de sugerencias
 interface RequirementSuggester {
@@ -412,7 +427,7 @@ La logica de evaluacion, normalizacion, comparacion y mapeo debe ser funciones p
 // PURA: Solo recibe datos, retorna resultado
 function evaluateCondition(
   condition: ResolvedCondition,
-  actualValue: NormalizedValue
+  actualValue: NormalizedValue,
 ): ConditionResult {
   // logica pura, sin DB, sin API
 }
@@ -423,7 +438,7 @@ class ComplianceEngineService {
     const requirements = await this.resolveRequirements(config);
     const elements = await this.extractElements(config.modelUrn);
     // Llama funciones puras para evaluar
-    return requirements.map(req => evaluateRequirement(req, elements));
+    return requirements.map((req) => evaluateRequirement(req, elements));
   }
 }
 ```
@@ -434,29 +449,29 @@ class ComplianceEngineService {
 
 ### 4.1 Archivos a RECICLAR (modificar y conservar)
 
-| Archivo | Lineas | Que conservar | Que cambiar | Fase |
-|---------|--------|---------------|-------------|------|
-| `compliance-runner.service.ts` | 427 | Logica de orquestacion, creacion de runs en DB | Extraer operadores a config, usar nueva tabla de Requirements en vez de Rules | FASE 5 |
-| `compliance-kernel.service.ts` | 295 | Logica de evaluacion y deduplicacion | Eliminar ELECTRICAL_CATEGORIES hardcoded, eliminar PROPERTY_ALIASES hardcoded, usar PropertyDictionary | FASE 5 |
-| `bim-query.service.ts` | 358 | Logica de extraccion de propiedades de APS, 4-level fallback strategy | Eliminar 14 NAME_CATEGORY_PATTERNS hardcoded, usar CategoryDictionary | FASE 2 |
-| `unit-normalizer.service.ts` | 68 | Estructura del servicio | Mover unitMap a tabla UnitConversion en DB | FASE 2 |
-| `data-extractor.service.ts` | 362 | Lectura de Excel (ExcelJS) | Mejorar deteccion de tablas PDF, eliminar header patterns hardcoded | FASE 7 |
-| `hierarchical-parser.service.ts` | 160 | Estructura de arbol de secciones | Sin cambios mayores, refinar regex | FASE 7 |
-| `spec-compiler/lexer.service.ts` | 278 | Estructura del tokenizador | El lexer se usara solo en el LLM-assisted path, no en el core engine | FASE 7 |
-| `spec-compiler/parser.service.ts` | 102 | Pattern matching | Igual que lexer: solo en LLM-assisted path | FASE 7 |
-| `rules.routes.ts` | 506 | CRUD de reglas (sigue sirviendo para V2 legacy) | No se modifica. Las nuevas rutas V3 se crean en carpeta aparte | N/A |
-| `runs.routes.ts` | 428 | Ejecucion de runs V2 (sigue sirviendo para legacy) | No se modifica. Las nuevas rutas V3 se crean en carpeta aparte | N/A |
-| `export.routes.ts` | 225 | Generacion PDF/CSV | Agregar referencia legal en exports | FASE 9 |
+| Archivo                           | Lineas | Que conservar                                                         | Que cambiar                                                                                            | Fase   |
+| --------------------------------- | ------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------ |
+| `compliance-runner.service.ts`    | 427    | Logica de orquestacion, creacion de runs en DB                        | Extraer operadores a config, usar nueva tabla de Requirements en vez de Rules                          | FASE 5 |
+| `compliance-kernel.service.ts`    | 295    | Logica de evaluacion y deduplicacion                                  | Eliminar ELECTRICAL_CATEGORIES hardcoded, eliminar PROPERTY_ALIASES hardcoded, usar PropertyDictionary | FASE 5 |
+| `bim-query.service.ts`            | 358    | Logica de extraccion de propiedades de APS, 4-level fallback strategy | Eliminar 14 NAME_CATEGORY_PATTERNS hardcoded, usar CategoryDictionary                                  | FASE 2 |
+| `unit-normalizer.service.ts`      | 68     | Estructura del servicio                                               | Mover unitMap a tabla UnitConversion en DB                                                             | FASE 2 |
+| `data-extractor.service.ts`       | 362    | Lectura de Excel (ExcelJS)                                            | Mejorar deteccion de tablas PDF, eliminar header patterns hardcoded                                    | FASE 7 |
+| `hierarchical-parser.service.ts`  | 160    | Estructura de arbol de secciones                                      | Sin cambios mayores, refinar regex                                                                     | FASE 7 |
+| `spec-compiler/lexer.service.ts`  | 278    | Estructura del tokenizador                                            | El lexer se usara solo en el LLM-assisted path, no en el core engine                                   | FASE 7 |
+| `spec-compiler/parser.service.ts` | 102    | Pattern matching                                                      | Igual que lexer: solo en LLM-assisted path                                                             | FASE 7 |
+| `rules.routes.ts`                 | 506    | CRUD de reglas (sigue sirviendo para V2 legacy)                       | No se modifica. Las nuevas rutas V3 se crean en carpeta aparte                                         | N/A    |
+| `runs.routes.ts`                  | 428    | Ejecucion de runs V2 (sigue sirviendo para legacy)                    | No se modifica. Las nuevas rutas V3 se crean en carpeta aparte                                         | N/A    |
+| `export.routes.ts`                | 225    | Generacion PDF/CSV                                                    | Agregar referencia legal en exports                                                                    | FASE 9 |
 
 ### 4.2 Archivos a ELIMINAR
 
-| Archivo | Razon | Cuando |
-|---------|-------|--------|
-| `routes/compliance/v1.routes.ts` (400 lineas) | Endpoints legacy. Toda funcionalidad ya existe en V2 routes | FASE 10 |
-| `services/validation/parser.service.ts` (235 lineas) | Duplica funcionalidad de spec-compiler. Consolidar en uno solo | FASE 10 |
+| Archivo                                                                       | Razon                                                                         | Cuando  |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------- |
+| `routes/compliance/v1.routes.ts` (400 lineas)                                 | Endpoints legacy. Toda funcionalidad ya existe en V2 routes                   | FASE 10 |
+| `services/validation/parser.service.ts` (235 lineas)                          | Duplica funcionalidad de spec-compiler. Consolidar en uno solo                | FASE 10 |
 | `services/validation/validation.service.ts` - funcion `generateDemoResults()` | Genera datos demo hardcoded. Solo eliminar la funcion, no el archivo completo | FASE 10 |
-| `services/hierarchical-spec-processor.ts` (215 lineas) | Se reemplaza por el LLM-assisted path que no necesita compilador custom | FASE 10 |
-| `services/mop-parser.service.ts` | Parser hardcoded para MOP. Se reemplaza por LLM-assisted extraction | FASE 10 |
+| `services/hierarchical-spec-processor.ts` (215 lineas)                        | Se reemplaza por el LLM-assisted path que no necesita compilador custom       | FASE 10 |
+| `services/mop-parser.service.ts`                                              | Parser hardcoded para MOP. Se reemplaza por LLM-assisted extraction           | FASE 10 |
 
 **IMPORTANTE:** Ningun archivo se elimina hasta FASE 10. Durante las fases 0-9, los archivos legacy siguen funcionando en paralelo.
 
@@ -464,31 +479,32 @@ class ComplianceEngineService {
 
 Estos servicios existentes NO forman parte del scope de V3 y no deben modificarse:
 
-| Archivo | Razon para conservar |
-|---------|---------------------|
-| `services/discipline-detector.service.ts` | Detecta disciplina de documentos. Util para futuro auto-assign de discipline al subir docs. No interfiere con V3. |
-| `services/supremacy-engine.service.ts` | Resuelve conflictos ET vs Normativa (regla: la mas estricta gana). Concepto valido, se podria integrar post-V3 como middleware entre packs. |
-| `services/aps/*.ts` (14 archivos) | Servicios de APS. V3 los CONSUME pero no los modifica. |
-| `services/reporting/report.service.ts` | Generacion de reportes. Se extiende en FASE 9 pero no se refactoriza. |
-| `services/validation/notification.service.ts` | Notificaciones de validacion. Sistema separado. |
-| `services/validation/change-detection.service.ts` | Deteccion de cambios. Sistema separado. |
+| Archivo                                               | Razon para conservar                                                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `services/discipline-detector.service.ts`             | Detecta disciplina de documentos. Util para futuro auto-assign de discipline al subir docs. No interfiere con V3.                                                 |
+| `services/supremacy-engine.service.ts`                | Resuelve conflictos ET vs Normativa (regla: la mas estricta gana). Concepto valido, se podria integrar post-V3 como middleware entre packs.                       |
+| `services/aps/*.ts` (14 archivos)                     | Servicios de APS. V3 los CONSUME pero no los modifica.                                                                                                            |
+| `services/reporting/report.service.ts`                | Generacion de reportes. Se extiende en FASE 9 pero no se refactoriza.                                                                                             |
+| `services/validation/notification.service.ts`         | Notificaciones de validacion. Sistema separado.                                                                                                                   |
+| `services/validation/change-detection.service.ts`     | Deteccion de cambios. Sistema separado.                                                                                                                           |
 | `domain/unified-validation-compliance/*` (5 archivos) | Capa de dominio que unifica Validation y Compliance para el dashboard. V3 debera agregar un adapter aqui en FASE 9 para que el dashboard muestre runs V3 tambien. |
-| `services/viewer/*` | Visor BIM. No se toca. |
-| `services/webhooks/*` | Webhooks de APS. No se toca. |
+| `services/viewer/*`                                   | Visor BIM. No se toca.                                                                                                                                            |
+| `services/webhooks/*`                                 | Webhooks de APS. No se toca.                                                                                                                                      |
 
 ### 4.3 Modelos de Prisma — Que cambia
 
-| Modelo actual | Accion |
-|---------------|--------|
-| `Ruleset` | CONSERVAR INTACTO. NO renombrar. Las nuevas tablas RegulationPack/Requirement son modelos separados. Se migran datos via script. |
-| `Rule` | CONSERVAR INTACTO. NO renombrar. Los datos se copian a Requirement via script de migracion. |
-| `ComplianceRun` | CONSERVAR sin cambios |
-| `ComplianceIssue` | CONSERVAR. Agregar campo `legalReference` |
-| `DataSource` | CONSERVAR sin cambios |
-| `ValidationRun` | CONSERVAR (sistema legacy separado) |
-| `ValidationIssue` | CONSERVAR (sistema legacy separado) |
+| Modelo actual     | Accion                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `Ruleset`         | CONSERVAR INTACTO. NO renombrar. Las nuevas tablas RegulationPack/Requirement son modelos separados. Se migran datos via script. |
+| `Rule`            | CONSERVAR INTACTO. NO renombrar. Los datos se copian a Requirement via script de migracion.                                      |
+| `ComplianceRun`   | CONSERVAR sin cambios                                                                                                            |
+| `ComplianceIssue` | CONSERVAR. Agregar campo `legalReference`                                                                                        |
+| `DataSource`      | CONSERVAR sin cambios                                                                                                            |
+| `ValidationRun`   | CONSERVAR (sistema legacy separado)                                                                                              |
+| `ValidationIssue` | CONSERVAR (sistema legacy separado)                                                                                              |
 
 **Modelos NUEVOS a crear:**
+
 - `Organization`
 - `RegulationPack` (extiende el concepto de Ruleset)
 - `Requirement` (extiende el concepto de Rule)
@@ -550,10 +566,10 @@ model RegulationPack {
   version        String       // "2024.1"
   status         String       @default("DRAFT") // DRAFT, PUBLISHED, DEPRECATED
   scope          String[]     // ["STRUCTURAL", "ARCHITECTURAL"]
-  
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   publishedAt    DateTime?
@@ -575,7 +591,7 @@ model PackDocument {
   fileId   String? // Referencia a File si se subio
   url      String? // Link externo
   docType  String  // LAW, STANDARD, GUIDELINE, SPEC
-  
+
   createdAt DateTime @default(now())
 }
 
@@ -588,18 +604,18 @@ model Requirement {
   code            String   // "CL-MOP-V3-4.1.2-R001"
   packId          String
   pack            RegulationPack @relation(fields: [packId], references: [id], onDelete: Cascade)
-  
+
   description     String   // "El hormigon estructural debe tener resistencia minima f'c = 30 MPa"
   legalReference  String   // "MOP Vol.3 Art.4.1.2"
   discipline      String   // "STRUCTURAL"
   severity        String   @default("MANDATORY") // MANDATORY, RECOMMENDED, INFO
   tags            String[] // ["hormigon", "resistencia", "estructura"]
-  
+
   // Verificacion humana
   status          String   @default("DRAFT") // DRAFT, VERIFIED, ACTIVE, RETIRED
   verifiedBy      String?  // userId del verificador
   verifiedAt      DateTime?
-  
+
   // Metadata
   notes           String?
   createdAt       DateTime @default(now())
@@ -618,20 +634,20 @@ model RequirementCondition {
   id            String @id @default(uuid())
   requirementId String
   requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  
+
   // Que propiedad evaluar
   propertyRef   String // Referencia al PropertyDictionary.canonicalName: "Width", "FireRating"
-  
+
   // Como evaluar
   operator      String // ">=", "<=", "==", ">", "<", "!=", "range", "exists", "contains", "one_of"
   value         String // "30" o "F-120" o "REI30,REI60,REI90" (para one_of)
   unit          String? // "MPa", "mm", "m"
   tolerance     Float?  // 0.05 = 5%
-  
+
   // Agrupacion logica
   logicGroup    String  @default("AND") // "AND", "OR"
   sortOrder     Int     @default(0)
-  
+
   createdAt     DateTime @default(now())
 }
 
@@ -639,14 +655,14 @@ model ApplicabilityRule {
   id              String @id @default(uuid())
   requirementId   String @unique
   requirement     Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  
+
   // A que elementos aplica
   targetCategories  String[]   // ["Walls", "Structural Columns"]
   excludeCategories String[]   // ["Curtain Walls"]
-  
+
   // Filtros adicionales sobre propiedades
   propertyFilters   Json?      // {"Level": "Basement", "Function": "Exterior"}
-  
+
   scope             String     @default("FILTERED") // ALL, FILTERED
 }
 
@@ -664,7 +680,7 @@ model PropertyDictionary {
   ifcPropertyPath   String?  // "Pset_WallCommon.Width"
   unit              String?  // "mm", "MPa"
   dataType          String   @default("NUMBER") // NUMBER, STRING, BOOLEAN, ENUM
-  
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -681,7 +697,7 @@ model CategoryDictionary {
   revitCategory     String   // Nombre exacto en Revit API
   ifcEntity         String?  // "IfcWall", "IfcColumn"
   discipline        String?  // "STRUCTURAL", "ARCHITECTURAL"
-  
+
   createdAt         DateTime @default(now())
 
   @@unique([canonicalName, locale])
@@ -694,7 +710,7 @@ model UnitConversion {
   toUnit     String // "m"
   factor     Float  // 0.001
   category   String // "length", "pressure", "electrical", "area"
-  
+
   @@unique([fromUnit, toUnit])
 }
 
@@ -705,7 +721,7 @@ model UnitConversion {
 model ProjectComplianceConfig {
   id        String @id @default(uuid())
   projectId String @unique
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -719,13 +735,13 @@ model RequirementOverride {
   config        ProjectComplianceConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   requirementId String
   requirement   Requirement @relation(fields: [requirementId], references: [id])
-  
+
   action        String // SKIP, MODIFY_VALUE, CHANGE_SEVERITY
   newValue      String?
   newSeverity   String?
   reason        String
   approvedBy    String // userId
-  
+
   createdAt     DateTime @default(now())
 
   @@unique([configId, requirementId])
@@ -735,6 +751,7 @@ model RequirementOverride {
 ### 5.2 Relaciones con modelos existentes
 
 Cambios en modelos existentes de Prisma:
+
 - `Project`: Agregar campo `organizationId` (String?) con relacion a Organization
 - `ComplianceIssue`: Agregar campo `legalReference` (String?)
 - `ComplianceRun`: Agregar campo `configId` (String?) referenciando ProjectComplianceConfig
@@ -743,11 +760,13 @@ Cambios en modelos existentes de Prisma:
 
 **Registro de rutas en Express (apps/api/src/index.ts):**
 Las nuevas rutas V3 se registran en el archivo principal `apps/api/src/index.ts` siguiendo el patron existente:
+
 ```typescript
 // Agregar en apps/api/src/index.ts:
 import { complianceV3Router } from "./routes/compliance-v3";
 app.use("/api/compliance-v3", rateLimiter.apiLimiter(), complianceV3Router);
 ```
+
 Esto sigue la convencion existente donde V1 esta en `/api/compliance` y V2 en `/api/compliance-v2`.
 
 ### 5.3 Ciclo de vida de un Requirement (Estado)
@@ -765,6 +784,7 @@ DRAFT ──────────> VERIFIED ──────────> A
 ```
 
 **Reglas de transicion:**
+
 - `DRAFT -> VERIFIED`: Requiere `verifiedBy` (userId) y `verifiedAt`. Solo un usuario diferente al creador puede verificar.
 - `VERIFIED -> ACTIVE`: Requiere que el pack padre tenga status `PUBLISHED`.
 - `ACTIVE -> RETIRED`: Siempre permitido. Se registra motivo en `notes`. Los issues historicos conservan la referencia.
@@ -776,18 +796,18 @@ DRAFT ──────────> VERIFIED ──────────> A
 
 Las disciplinas validas del sistema. Se almacenan como `String` (no enum Prisma) para permitir extension sin migracion.
 
-| Codigo | Nombre ES | Nombre EN | Descripcion |
-|--------|-----------|-----------|-------------|
-| `STRUCTURAL` | Estructura | Structural | Elementos estructurales: columnas, vigas, fundaciones, losas |
-| `ARCHITECTURAL` | Arquitectura | Architectural | Muros, puertas, ventanas, cielos, pisos |
-| `MEP` | Mecanica General | MEP General | Categoria padre para disciplinas mecanicas |
-| `ELECTRICAL` | Electrico | Electrical | Tableros, canalizaciones, luminarias, circuitos |
-| `PLUMBING` | Sanitario | Plumbing | Redes de agua potable, alcantarillado, artefactos |
-| `FIRE_PROTECTION` | Extincion | Fire Protection | Redes de incendio, sprinklers, muros cortafuego |
-| `LOW_CURRENT` | Corrientes Debiles (CCDD) | Low Current / Data | Redes de datos, CCTV, control de acceso, deteccion |
-| `HVAC` | Climatizacion | HVAC | Aire acondicionado, ventilacion, ductos, equipos |
-| `CIVIL` | Obras Civiles | Civil | Movimiento de tierras, pavimentos, urbanizacion |
-| `REAS` | REAS | Building Services | Instalaciones generales del edificio |
+| Codigo            | Nombre ES                 | Nombre EN          | Descripcion                                                  |
+| ----------------- | ------------------------- | ------------------ | ------------------------------------------------------------ |
+| `STRUCTURAL`      | Estructura                | Structural         | Elementos estructurales: columnas, vigas, fundaciones, losas |
+| `ARCHITECTURAL`   | Arquitectura              | Architectural      | Muros, puertas, ventanas, cielos, pisos                      |
+| `MEP`             | Mecanica General          | MEP General        | Categoria padre para disciplinas mecanicas                   |
+| `ELECTRICAL`      | Electrico                 | Electrical         | Tableros, canalizaciones, luminarias, circuitos              |
+| `PLUMBING`        | Sanitario                 | Plumbing           | Redes de agua potable, alcantarillado, artefactos            |
+| `FIRE_PROTECTION` | Extincion                 | Fire Protection    | Redes de incendio, sprinklers, muros cortafuego              |
+| `LOW_CURRENT`     | Corrientes Debiles (CCDD) | Low Current / Data | Redes de datos, CCTV, control de acceso, deteccion           |
+| `HVAC`            | Climatizacion             | HVAC               | Aire acondicionado, ventilacion, ductos, equipos             |
+| `CIVIL`           | Obras Civiles             | Civil              | Movimiento de tierras, pavimentos, urbanizacion              |
+| `REAS`            | REAS                      | Building Services  | Instalaciones generales del edificio                         |
 
 **Regla:** El campo `discipline` en `Requirement`, `RegulationPack.scope[]`, y `CategoryDictionary.discipline` usa estos codigos exactos. El seed del PropertyDictionary y CategoryDictionary debe incluir mapeos para todas las disciplinas.
 
@@ -797,30 +817,30 @@ La migracion desde el modelo actual (Ruleset/Rule) al nuevo (RegulationPack/Requ
 
 **Mapeo de modelos:**
 
-| Campo actual (Rule) | Campo nuevo (Requirement) | Transformacion |
-|---------------------|---------------------------|----------------|
-| `name` | `description` | Directo |
-| `targetCategory` | `ApplicabilityRule.targetCategories[]` | Wrappear en array |
-| `propertyName` | `RequirementCondition.propertyRef` | Usar valor directo (ya esta en ingles canonico: "Width", "Voltage", etc.). NO depende de PropertyDictionary — ese lookup se hace en runtime, no en migracion. |
-| `operator` | `RequirementCondition.operator` | Directo |
-| `expectedValue` | `RequirementCondition.value` | Directo |
-| `unit` | `RequirementCondition.unit` | Directo |
-| `tolerance` | `RequirementCondition.tolerance` | Convertir a decimal (5 -> 0.05) |
-| `severity` | `severity` | Mapear: CRITICAL->MANDATORY, WARNING->RECOMMENDED |
-| `sourceDocument` | `legalReference` | Directo |
-| `rulesetId` | `packId` | Crear RegulationPack desde Ruleset |
+| Campo actual (Rule) | Campo nuevo (Requirement)              | Transformacion                                                                                                                                                |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | `description`                          | Directo                                                                                                                                                       |
+| `targetCategory`    | `ApplicabilityRule.targetCategories[]` | Wrappear en array                                                                                                                                             |
+| `propertyName`      | `RequirementCondition.propertyRef`     | Usar valor directo (ya esta en ingles canonico: "Width", "Voltage", etc.). NO depende de PropertyDictionary — ese lookup se hace en runtime, no en migracion. |
+| `operator`          | `RequirementCondition.operator`        | Directo                                                                                                                                                       |
+| `expectedValue`     | `RequirementCondition.value`           | Directo                                                                                                                                                       |
+| `unit`              | `RequirementCondition.unit`            | Directo                                                                                                                                                       |
+| `tolerance`         | `RequirementCondition.tolerance`       | Convertir a decimal (5 -> 0.05)                                                                                                                               |
+| `severity`          | `severity`                             | Mapear: CRITICAL->MANDATORY, WARNING->RECOMMENDED                                                                                                             |
+| `sourceDocument`    | `legalReference`                       | Directo                                                                                                                                                       |
+| `rulesetId`         | `packId`                               | Crear RegulationPack desde Ruleset                                                                                                                            |
 
 **Mapeo de Ruleset -> RegulationPack:**
 
-| Campo actual (Ruleset) | Campo nuevo (RegulationPack) | Transformacion |
-|------------------------|------------------------------|----------------|
-| `name` | `name` | Directo |
-| `description` | `description` | Directo |
-| `discipline` | `scope[]` | Wrappear en array |
-| N/A | `code` | Generar: "LEGACY-{discipline}-V1" |
-| N/A | `country` | "CL" (default) |
-| N/A | `version` | "1.0-legacy" |
-| N/A | `status` | "PUBLISHED" |
+| Campo actual (Ruleset) | Campo nuevo (RegulationPack) | Transformacion                    |
+| ---------------------- | ---------------------------- | --------------------------------- |
+| `name`                 | `name`                       | Directo                           |
+| `description`          | `description`                | Directo                           |
+| `discipline`           | `scope[]`                    | Wrappear en array                 |
+| N/A                    | `code`                       | Generar: "LEGACY-{discipline}-V1" |
+| N/A                    | `country`                    | "CL" (default)                    |
+| N/A                    | `version`                    | "1.0-legacy"                      |
+| N/A                    | `status`                     | "PUBLISHED"                       |
 
 **Script:** `packages/database/prisma/migrate-legacy-compliance.ts`
 
@@ -875,7 +895,7 @@ interface EvaluationConfig {
   projectId: string;
   modelUrn: string;
   discipline?: string; // Filtro opcional
-  dryRun?: boolean;    // Si true, no persiste en DB
+  dryRun?: boolean; // Si true, no persiste en DB
 }
 
 interface ResolvedRequirement {
@@ -908,17 +928,17 @@ interface ResolvedCondition {
 }
 
 interface NormalizedElement {
-  elementId: string;     // Revit DBID
+  elementId: string; // Revit DBID
   name: string;
-  category: string;      // Canonico del CategoryDictionary
+  category: string; // Canonico del CategoryDictionary
   properties: Map<string, NormalizedValue>;
 }
 
 interface NormalizedValue {
-  raw: string;           // Valor original del modelo
+  raw: string; // Valor original del modelo
   numeric: number | null;
   unit: string | null;
-  text: string;          // Valor como texto limpio
+  text: string; // Valor como texto limpio
 }
 
 interface ElementEvaluation {
@@ -966,39 +986,34 @@ Estas funciones son el corazon del motor y deben tener 100% test coverage:
 // engine/evaluate-condition.ts
 function evaluateCondition(
   condition: ResolvedCondition,
-  actualValue: NormalizedValue | null
+  actualValue: NormalizedValue | null,
 ): ConditionResult;
 
-// engine/evaluate-requirement.ts  
+// engine/evaluate-requirement.ts
 function evaluateRequirement(
   requirement: ResolvedRequirement,
   element: NormalizedElement,
-  propertyResolver: PropertyResolver
+  propertyResolver: PropertyResolver,
 ): ElementEvaluation;
 
 // engine/match-elements.ts
 function matchElementsForRequirement(
   requirement: ResolvedRequirement,
-  elements: NormalizedElement[]
+  elements: NormalizedElement[],
 ): NormalizedElement[];
 
 // engine/normalize-value.ts
 function normalizeValue(
   raw: string,
   unit: string | null,
-  conversions: UnitConversionMap
+  conversions: UnitConversionMap,
 ): NormalizedValue;
 
 // engine/calculate-deviation.ts
-function calculateDeviation(
-  expected: number,
-  actual: number
-): number; // Porcentaje: 0.15 = 15% de desviacion
+function calculateDeviation(expected: number, actual: number): number; // Porcentaje: 0.15 = 15% de desviacion
 
 // engine/calculate-score.ts
-function calculateComplianceScore(
-  evaluations: ElementEvaluation[]
-): number; // 0-100
+function calculateComplianceScore(evaluations: ElementEvaluation[]): number; // 0-100
 ```
 
 ### 6.4 Estrategia de cache (Redis)
@@ -1007,15 +1022,16 @@ El motor usa Redis para cachear datos costosos de obtener (propiedades del model
 
 **Caches definidos:**
 
-| Key Pattern | Datos | TTL | Invalidacion |
-|-------------|-------|-----|-------------|
-| `model:{modelUrn}:{versionId}` | NormalizedElement[] serializados | 24h | Manual al re-subir modelo |
-| `dict:property:{locale}` | PropertyDictionary completo por locale | 1h | Al modificar PropertyDictionary |
-| `dict:category:{locale}` | CategoryDictionary completo por locale | 1h | Al modificar CategoryDictionary |
-| `dict:units` | UnitConversion completo | 6h | Al modificar UnitConversion |
-| `config:{projectId}` | ProjectComplianceConfig resuelto | 30min | Al modificar config del proyecto |
+| Key Pattern                    | Datos                                  | TTL   | Invalidacion                     |
+| ------------------------------ | -------------------------------------- | ----- | -------------------------------- |
+| `model:{modelUrn}:{versionId}` | NormalizedElement[] serializados       | 24h   | Manual al re-subir modelo        |
+| `dict:property:{locale}`       | PropertyDictionary completo por locale | 1h    | Al modificar PropertyDictionary  |
+| `dict:category:{locale}`       | CategoryDictionary completo por locale | 1h    | Al modificar CategoryDictionary  |
+| `dict:units`                   | UnitConversion completo                | 6h    | Al modificar UnitConversion      |
+| `config:{projectId}`           | ProjectComplianceConfig resuelto       | 30min | Al modificar config del proyecto |
 
 **Reglas de cache:**
+
 1. Los diccionarios se cargan completos en cache (son tablas pequenas, < 500 rows).
 2. Los datos del modelo BIM se cachean por `modelUrn + versionId`. Si cambia la version, se invalida.
 3. El cache de config se invalida al agregar/remover packs o overrides.
@@ -1023,6 +1039,7 @@ El motor usa Redis para cachear datos costosos de obtener (propiedades del model
 5. Si Redis no esta disponible, los servicios funcionan sin cache (consultan DB directamente). No se lanza error.
 
 **Implementacion:**
+
 ```typescript
 // REUTILIZAR el CacheService existente en apps/api/src/lib/redis.ts
 // Ya tiene: get, set, del, invalidatePattern, getOrSet, exists, increment
@@ -1044,27 +1061,27 @@ const ComplianceKeys = {
 
 **APS Model Properties API:**
 
-| Escenario | Accion | Resultado para el usuario |
-|-----------|--------|--------------------------|
-| APS timeout (> 30s) | Reintentar 1 vez. Si falla, abortar run. | ComplianceRun con status `ERROR`, mensaje descriptivo |
-| APS 401 (token expirado) | Refrescar token automaticamente, reintentar | Transparente |
-| APS 404 (modelo no existe) | Abortar inmediatamente | ComplianceRun con status `ERROR`: "Modelo no encontrado en APS" |
-| APS 429 (rate limit) | Esperar el `Retry-After` header, reintentar (max 2 veces) | Transparente si se recupera; ERROR si no |
-| Modelo no traducido (translation pending) | Abortar con mensaje claro | ComplianceRun con status `ERROR`: "Modelo aun en procesamiento" |
+| Escenario                                 | Accion                                                    | Resultado para el usuario                                       |
+| ----------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- |
+| APS timeout (> 30s)                       | Reintentar 1 vez. Si falla, abortar run.                  | ComplianceRun con status `ERROR`, mensaje descriptivo           |
+| APS 401 (token expirado)                  | Refrescar token automaticamente, reintentar               | Transparente                                                    |
+| APS 404 (modelo no existe)                | Abortar inmediatamente                                    | ComplianceRun con status `ERROR`: "Modelo no encontrado en APS" |
+| APS 429 (rate limit)                      | Esperar el `Retry-After` header, reintentar (max 2 veces) | Transparente si se recupera; ERROR si no                        |
+| Modelo no traducido (translation pending) | Abortar con mensaje claro                                 | ComplianceRun con status `ERROR`: "Modelo aun en procesamiento" |
 
 **OpenAI API (para LLM-Assisted path):**
 
-| Escenario | Accion |
-|-----------|--------|
-| Timeout / Error de red | Retornar `{ suggestions: [], error: "LLM service unavailable" }` |
-| JSON invalido del LLM | Reintentar 1 vez con prompt corregido. Si falla, retornar array vacio con warning. |
-| Rate limit | Retornar error descriptivo al usuario, no bloquear el core engine |
+| Escenario              | Accion                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| Timeout / Error de red | Retornar `{ suggestions: [], error: "LLM service unavailable" }`                   |
+| JSON invalido del LLM  | Reintentar 1 vez con prompt corregido. Si falla, retornar array vacio con warning. |
+| Rate limit             | Retornar error descriptivo al usuario, no bloquear el core engine                  |
 
 **Regla critica:** Ningun fallo del LLM o de servicios externos debe impedir el funcionamiento del core engine de evaluacion. La evaluacion contra requirements ya cargados en DB funciona offline.
 
 ### 6.6 Rendimiento: modelos grandes (100K+ elementos)
 
-**Problema:** Un modelo BIM de hospital o industrial puede tener 50K-200K elementos. Evaluar cada elemento contra cada requirement puede ser O(N*M) costoso.
+**Problema:** Un modelo BIM de hospital o industrial puede tener 50K-200K elementos. Evaluar cada elemento contra cada requirement puede ser O(N\*M) costoso.
 
 **Estrategias:**
 
@@ -1095,12 +1112,14 @@ interface RunProgress {
 **Regla:** Solo se permite UN ComplianceRun activo por proyecto a la vez.
 
 **Implementacion:**
+
 1. Al iniciar un run, verificar que no exista otro run con status `RUNNING` para el mismo `projectId`.
 2. Si existe, retornar `409 Conflict` con el ID del run activo.
 3. El status del run transiciona: `PENDING -> RUNNING -> COMPLETED | ERROR | TIMEOUT`.
 4. Se usa un lock simple via campo `status` en DB (no distributed lock, para evitar complejidad).
 
 **ComplianceRun status extendido (valores reales actuales + nuevos):**
+
 ```
 // Valores actuales en DB: "PENDING", "RUNNING", "COMPLETED", "FAILED"
 // V3 agrega: "TIMEOUT" (para runs que exceden el limite de 5 minutos)
@@ -1117,6 +1136,7 @@ interface RunProgress {
 **Ruta:** `POST /api/compliance-v3/packs/:packId/requirements`
 
 **Flujo:**
+
 1. Usuario abre el editor de requisitos en la UI
 2. Selecciona la disciplina (dropdown, valores de CategoryDictionary)
 3. Escribe descripcion y referencia legal
@@ -1134,6 +1154,7 @@ interface RunProgress {
 **Ruta:** `POST /api/compliance-v3/suggestions/analyze`
 
 **Flujo:**
+
 1. Usuario sube texto (pega texto o sube PDF)
 2. Backend envia texto al LLM con prompt estructurado
 3. LLM retorna array de SuggestedRequirement en formato JSON
@@ -1143,6 +1164,7 @@ interface RunProgress {
 7. Un humano las revisa y marca VERIFIED
 
 **Contrato del LLM (prompt output schema):**
+
 ```typescript
 interface SuggestedRequirement {
   description: string;
@@ -1150,7 +1172,7 @@ interface SuggestedRequirement {
   discipline: string;
   severity: "MANDATORY" | "RECOMMENDED" | "INFO";
   conditions: {
-    property: string;    // Debe matchear PropertyDictionary.canonicalName
+    property: string; // Debe matchear PropertyDictionary.canonicalName
     operator: string;
     value: string;
     unit: string | null;
@@ -1158,7 +1180,7 @@ interface SuggestedRequirement {
   applicability: {
     categories: string[]; // Debe matchear CategoryDictionary.canonicalName
   };
-  confidence: number;    // 0-1, auto-reportada por el LLM
+  confidence: number; // 0-1, auto-reportada por el LLM
 }
 ```
 
@@ -1169,6 +1191,7 @@ interface SuggestedRequirement {
 **Ruta:** `POST /api/compliance-v3/packs/:packId/import/ids`
 
 **Flujo:**
+
 1. Usuario sube archivo .ids (XML)
 2. Parser XML convierte specifications a Requirements
 3. Se crean como DRAFT (necesitan verificacion humana)
@@ -1178,6 +1201,7 @@ interface SuggestedRequirement {
 **Ruta:** `POST /api/compliance-v3/packs/:packId/requirements/bulk`
 
 **Flujo:**
+
 1. Sistema externo envia array de Requirements en JSON
 2. Se validan contra schema Zod
 3. Se crean como DRAFT
@@ -1187,29 +1211,35 @@ interface SuggestedRequirement {
 
 Cada operador de `RequirementCondition` tiene semantica precisa:
 
-| Operador | Tipo valor | Descripcion | Ejemplo |
-|----------|-----------|-------------|---------|
-| `>=` | Numerico | Mayor o igual que. Aplica tolerancia si existe. | `Width >= 200 mm` |
-| `<=` | Numerico | Menor o igual que. Aplica tolerancia si existe. | `Height <= 3600 mm` |
-| `>` | Numerico | Estrictamente mayor | `Voltage > 0 V` |
-| `<` | Numerico | Estrictamente menor | `Load < 5000 kg` |
-| `==` | Numerico o String | Igualdad exacta. Para numeros, aplica tolerancia. Para strings, case-insensitive. | `Phase == "A"` |
-| `!=` | Numerico o String | Diferencia. | `Material != "Madera"` |
-| `range` | Numerico | Valor entre min y max inclusive. El campo `value` usa formato `"min,max"`. | `value: "18,25"` = entre 18 y 25 |
-| `exists` | N/A | La propiedad existe y no es null/vacia. `value` se ignora. | `FireRating exists` |
-| `contains` | String | El valor de la propiedad contiene el substring (case-insensitive). | `Material contains "hormigon"` |
-| `one_of` | String | El valor esta en una lista. `value` usa formato `"opcion1,opcion2,opcion3"`. | `value: "F-60,F-90,F-120"` |
+| Operador   | Tipo valor        | Descripcion                                                                       | Ejemplo                          |
+| ---------- | ----------------- | --------------------------------------------------------------------------------- | -------------------------------- |
+| `>=`       | Numerico          | Mayor o igual que. Aplica tolerancia si existe.                                   | `Width >= 200 mm`                |
+| `<=`       | Numerico          | Menor o igual que. Aplica tolerancia si existe.                                   | `Height <= 3600 mm`              |
+| `>`        | Numerico          | Estrictamente mayor                                                               | `Voltage > 0 V`                  |
+| `<`        | Numerico          | Estrictamente menor                                                               | `Load < 5000 kg`                 |
+| `==`       | Numerico o String | Igualdad exacta. Para numeros, aplica tolerancia. Para strings, case-insensitive. | `Phase == "A"`                   |
+| `!=`       | Numerico o String | Diferencia.                                                                       | `Material != "Madera"`           |
+| `range`    | Numerico          | Valor entre min y max inclusive. El campo `value` usa formato `"min,max"`.        | `value: "18,25"` = entre 18 y 25 |
+| `exists`   | N/A               | La propiedad existe y no es null/vacia. `value` se ignora.                        | `FireRating exists`              |
+| `contains` | String            | El valor de la propiedad contiene el substring (case-insensitive).                | `Material contains "hormigon"`   |
+| `one_of`   | String            | El valor esta en una lista. `value` usa formato `"opcion1,opcion2,opcion3"`.      | `value: "F-60,F-90,F-120"`       |
 
 **Tolerancia:**
+
 - Solo aplica a operadores numericos (`>=`, `<=`, `>`, `<`, `==`, `range`).
 - Se expresa como fraccion decimal: `0.05` = 5%.
 - Ejemplo: `Width >= 200mm` con tolerance `0.05` pasa si Width >= 190mm (200 - 5%).
 - Para `range`: tolerance se aplica al limite inferior (resta) y al superior (suma).
 
 **Parsing del operador `range`:**
+
 ```typescript
 // Ejemplo de evaluacion de range
-function evaluateRange(value: number, rangeStr: string, tolerance: number | null): boolean {
+function evaluateRange(
+  value: number,
+  rangeStr: string,
+  tolerance: number | null,
+): boolean {
   const [min, max] = rangeStr.split(",").map(Number);
   const tol = tolerance ?? 0;
   return value >= min * (1 - tol) && value <= max * (1 + tol);
@@ -1218,6 +1248,7 @@ function evaluateRange(value: number, rangeStr: string, tolerance: number | null
 
 **PropertyDictionary fallback chain:**
 Cuando el motor busca una propiedad en un elemento BIM, sigue esta cadena:
+
 1. Buscar por `canonicalName` exacto en las propiedades del elemento
 2. Buscar por cada `alias` del PropertyDictionary (case-insensitive)
 3. Buscar por `revitPropertyPath` (e.g., `"Dimensions.Width"`)
@@ -1232,16 +1263,19 @@ Cuando el motor busca una propiedad en un elemento BIM, sigue esta cadena:
 **Objetivo:** Crear las nuevas tablas sin romper nada existente. Migrar datos legacy.
 
 **Archivos a crear:**
+
 ```
 packages/database/prisma/migrate-legacy-compliance.ts
 ```
 
 **Archivos a modificar:**
+
 ```
 packages/database/prisma/schema.prisma     (agregar todos los nuevos modelos + organizationId a Project)
 ```
 
 **Tareas:**
+
 1. Agregar todos los modelos nuevos al schema de Prisma (ver seccion 5.1)
 2. Agregar campo `organizationId` opcional a `Project`
 3. Agregar campo `legalReference` opcional a `ComplianceIssue`
@@ -1258,6 +1292,7 @@ packages/database/prisma/schema.prisma     (agregar todos los nuevos modelos + o
 **Rollback:** Si la migracion de schema falla, revertir con `prisma migrate resolve --rolled-back add_compliance_v3_models`. Si la migracion de datos falla, los datos nuevos se eliminan sin afectar los originales (son tablas separadas).
 
 **Tests:**
+
 - Verificar que `prisma migrate deploy` funciona limpio
 - Verificar que las queries existentes siguen funcionando (correr test suite completo)
 - Verificar que los Rulesets/Rules originales siguen intactos
@@ -1271,6 +1306,7 @@ packages/database/prisma/schema.prisma     (agregar todos los nuevos modelos + o
 **Objetivo:** Poblar los diccionarios con datos reales y crear los servicios de consulta.
 
 **Archivos a crear:**
+
 ```
 apps/api/src/services/dictionary/property-dictionary.service.ts
 apps/api/src/services/dictionary/category-dictionary.service.ts
@@ -1284,6 +1320,7 @@ apps/api/tests/unit/services/dictionary/unit-conversion.service.test.ts
 ```
 
 **Tareas:**
+
 1. Crear `PropertyDictionaryService` con metodos:
    - `resolve(rawName: string, locale: string): Promise<PropertyEntry | null>` — busca por nombre exacto o alias
    - `getByCanonical(canonicalName: string, locale: string): Promise<PropertyEntry>`
@@ -1300,6 +1337,7 @@ apps/api/tests/unit/services/dictionary/unit-conversion.service.test.ts
    - 50+ conversiones de unidades (length, pressure, electrical, area, volume)
 
 **Tests por servicio:**
+
 - `PropertyDictionaryService`:
   - should resolve exact canonical name match
   - should resolve alias match (case-insensitive)
@@ -1325,24 +1363,28 @@ apps/api/tests/unit/services/dictionary/unit-conversion.service.test.ts
 **Objetivo:** Eliminar todo el hardcoding de los servicios existentes.
 
 **Archivos a modificar:**
+
 ```
 apps/api/src/services/bim-query.service.ts
 apps/api/src/services/unit-normalizer.service.ts
 ```
 
 **Archivos a crear:**
+
 ```
 apps/api/tests/unit/services/bim-query.service.test.ts
 apps/api/tests/unit/services/unit-normalizer.service.test.ts
 ```
 
 **Tareas:**
+
 1. `BimQueryService`: Reemplazar los 14 `NAME_CATEGORY_PATTERNS` hardcoded por consultas a `CategoryDictionaryService.resolve()`
 2. `BimQueryService`: Reemplazar los 6 `CATEGORY_PATHS` hardcoded por consulta configurable
 3. `UnitNormalizerService`: Reemplazar el `unitMap` hardcoded por `UnitConversionService.normalize()`
 4. Asegurar retrocompatibilidad: el output de ambos servicios no cambia de estructura
 
 **Tests:**
+
 - `BimQueryService`:
   - should resolve category from object tree (preferred path)
   - should resolve category from property path (fallback 1)
@@ -1364,6 +1406,7 @@ apps/api/tests/unit/services/unit-normalizer.service.test.ts
 **Objetivo:** API completa para crear y gestionar packs y requirements.
 
 **Archivos a crear:**
+
 ```
 apps/api/src/services/regulation-pack.service.ts
 apps/api/src/services/requirement.service.ts
@@ -1380,6 +1423,7 @@ apps/api/tests/integration/compliance-v3/requirements.test.ts
 **Endpoints:**
 
 **Packs:**
+
 - `GET /api/compliance-v3/packs` — Listar packs (filtro por country, status, scope)
 - `GET /api/compliance-v3/packs/:id` — Obtener pack con count de requirements
 - `POST /api/compliance-v3/packs` — Crear pack
@@ -1388,6 +1432,7 @@ apps/api/tests/integration/compliance-v3/requirements.test.ts
 - `POST /api/compliance-v3/packs/:id/deprecate` — Cambiar status a DEPRECATED
 
 **Requirements:**
+
 - `GET /api/compliance-v3/packs/:packId/requirements` — Listar requirements del pack (filtro por discipline, status, severity)
 - `GET /api/compliance-v3/requirements/:id` — Obtener requirement con conditions y applicability
 - `POST /api/compliance-v3/packs/:packId/requirements` — Crear requirement
@@ -1397,6 +1442,7 @@ apps/api/tests/integration/compliance-v3/requirements.test.ts
 - `POST /api/compliance-v3/packs/:packId/requirements/bulk` — Crear multiples
 
 **Schemas Zod para cada endpoint.** Validacion estricta de:
+
 - `code`: pattern `/^[A-Z]{2}-[A-Z0-9-]+-R\d{3}$/` o similar
 - `discipline`: debe existir en el catalogo de disciplinas (seccion 5.4)
 - `conditions`: al menos una condition por requirement
@@ -1404,6 +1450,7 @@ apps/api/tests/integration/compliance-v3/requirements.test.ts
 - `bulk`: maximo 100 requirements por request
 
 **Patron de paginacion para todos los endpoints GET de listado:**
+
 ```typescript
 // Schema Zod reutilizable
 const paginationSchema = z.object({
@@ -1426,6 +1473,7 @@ interface PaginatedResponse<T> {
 ```
 
 **Reglas de estado al crear/editar:**
+
 - `POST /requirements` crea siempre con status `DRAFT`
 - `PATCH /requirements/:id` solo permitido en status `DRAFT` o `VERIFIED` (ver seccion 5.3)
 - `POST /requirements/:id/verify` solo permitido en status `DRAFT`
@@ -1435,6 +1483,7 @@ interface PaginatedResponse<T> {
 **AuditLog:** Todas las operaciones de escritura (create, update, verify, retire, publish, deprecate) se registran en `AuditLog` con el patron existente del sistema.
 
 **Tests:**
+
 - Unitarios: logica de servicios
 - Integracion: endpoints completos con DB real (usando test DB)
 
@@ -1447,6 +1496,7 @@ interface PaginatedResponse<T> {
 **Objetivo:** Permitir que un proyecto seleccione packs y configure overrides.
 
 **Archivos a crear:**
+
 ```
 apps/api/src/services/project-compliance-config.service.ts
 apps/api/src/routes/compliance-v3/project-config.routes.ts
@@ -1455,6 +1505,7 @@ apps/api/tests/integration/compliance-v3/project-config.test.ts
 ```
 
 **Endpoints:**
+
 - `GET /api/compliance-v3/projects/:projectId/compliance-config` — Obtener config actual
 - `PUT /api/compliance-v3/projects/:projectId/compliance-config` — Crear/actualizar config (seleccionar packs)
 - `POST /api/compliance-v3/projects/:projectId/compliance-config/overrides` — Agregar override
@@ -1470,6 +1521,7 @@ apps/api/tests/integration/compliance-v3/project-config.test.ts
 **Objetivo:** El motor que ejecuta la evaluacion de compliance.
 
 **Archivos a crear:**
+
 ```
 apps/api/src/services/compliance-engine-v3/types.ts
 apps/api/src/services/compliance-engine-v3/compliance-engine.service.ts
@@ -1498,6 +1550,7 @@ apps/api/tests/integration/compliance-v3/evaluation.test.ts
 Cada una debe tener tests exhaustivos:
 
 `evaluateCondition`:
+
 - should pass when numeric value meets >= threshold
 - should fail when numeric value is below >= threshold
 - should pass when string value matches exactly
@@ -1510,6 +1563,7 @@ Cada una debe tener tests exhaustivos:
 - should calculate deviation percentage for numeric failures
 
 `matchElements`:
+
 - should return only elements matching target categories
 - should exclude elements in excludeCategories
 - should apply property filters correctly
@@ -1517,12 +1571,14 @@ Cada una debe tener tests exhaustivos:
 - should return empty array when no elements match
 
 `calculateScore`:
+
 - should return 100 when all evaluations pass
 - should return 0 when all evaluations fail
 - should calculate weighted score correctly
 - should ignore NOT_APPLICABLE in score calculation
 
 **Endpoints:**
+
 - `POST /api/compliance-v3/projects/:projectId/compliance/evaluate` — Ejecutar evaluacion (retorna 202 Accepted con runId)
 - `GET /api/compliance-v3/compliance/runs/:runId` — Obtener resultado de un run (incluye progreso si RUNNING)
 - `GET /api/compliance-v3/projects/:projectId/compliance/runs` — Listar runs de un proyecto (paginado)
@@ -1530,6 +1586,7 @@ Cada una debe tener tests exhaustivos:
 
 **Integracion con notificaciones:**
 Al completar un ComplianceRun (COMPLETED o ERROR), se crea una `Notification` para todos los miembros del proyecto con:
+
 - Tipo: `COMPLIANCE_RUN_COMPLETED` o `COMPLIANCE_RUN_ERROR`
 - Contenido: score global, cantidad de issues criticos, link al run
 - Se usa el sistema de notificaciones existente (modelo `Notification`)
@@ -1543,6 +1600,7 @@ Al completar un ComplianceRun (COMPLETED o ERROR), se crea una `Notification` pa
 **Objetivo:** Crear el primer pack de regulacion real para Chile.
 
 **Archivos a crear:**
+
 ```
 packages/database/prisma/seeds/cl-oguc-pack.ts
 packages/database/prisma/seeds/cl-nch433-pack.ts
@@ -1550,6 +1608,7 @@ packages/database/prisma/seeds/cl-electrical-pack.ts
 ```
 
 **Tareas:**
+
 1. Crear pack "CL-OGUC" con 20-30 requisitos de la OGUC (Ordenanza General de Urbanismo y Construccion)
 2. Crear pack "CL-NCH433" con 10-15 requisitos sismicos
 3. Crear pack "CL-ELECTRICAL" con 15-20 requisitos electricos
@@ -1566,6 +1625,7 @@ packages/database/prisma/seeds/cl-electrical-pack.ts
 **Objetivo:** Acelerador que sugiere requirements desde texto.
 
 **Archivos a crear:**
+
 ```
 apps/api/src/services/requirement-suggester/types.ts
 apps/api/src/services/requirement-suggester/requirement-suggester.interface.ts
@@ -1578,28 +1638,37 @@ apps/api/tests/integration/compliance-v3/suggestions.test.ts
 ```
 
 **La interfaz del suggester:**
+
 ```typescript
 interface RequirementSuggester {
-  suggest(text: string, locale: string, discipline?: string): Promise<SuggestedRequirement[]>;
+  suggest(
+    text: string,
+    locale: string,
+    discipline?: string,
+  ): Promise<SuggestedRequirement[]>;
 }
 ```
 
 **Implementaciones:**
+
 - `OpenAISuggester`: Usa GPT-4 con prompt estructurado
 - `ManualOnlySuggester`: Retorna array vacio (para entornos sin LLM)
 
 **El prompt al LLM incluira:**
+
 - El schema exacto de SuggestedRequirement
 - Lista de canonicalNames validos del PropertyDictionary
 - Lista de categorias validas del CategoryDictionary
 - Instruccion de retornar JSON valido, sin texto adicional
 
 **Endpoints:**
+
 - `POST /api/compliance-v3/suggestions/analyze` — Recibe texto, retorna sugerencias
 - `POST /api/compliance-v3/suggestions/:suggestionId/approve` — Aprueba y crea Requirement
 - `POST /api/compliance-v3/suggestions/:suggestionId/reject` — Rechaza
 
 **Tests:**
+
 - Mock del LLM response para tests unitarios
 - Verificar que el JSON parseado matchea el schema
 - Verificar que las sugerencias aprobadas crean Requirements validos
@@ -1613,6 +1682,7 @@ interface RequirementSuggester {
 **Objetivo:** UI para gestionar packs, crear requirements, configurar proyectos.
 
 **Archivos a crear:**
+
 ```
 # API hooks layer (React Query / SWR)
 apps/web/hooks/use-packs.ts
@@ -1653,6 +1723,7 @@ export async function createPack(data: CreatePackInput): Promise<Pack> { ... }
 **Hooks layer:** Cada hook wrappea el API client con React Query (o el patron de fetching que use el proyecto). Manejan loading, error, y cache del lado cliente.
 
 **Componentes clave:**
+
 - `ConditionBuilder`: Visual builder de condiciones con dropdowns de PropertyDictionary (se obtiene via `useDictionaries` hook)
 - `RequirementEditor`: Form completo para crear/editar requirements. Usa Zod para validacion client-side (los mismos schemas que el backend si es posible, o derivados)
 - `SuggestionReviewer`: Vista de sugerencias del LLM con Approve/Edit/Reject
@@ -1667,6 +1738,7 @@ export async function createPack(data: CreatePackInput): Promise<Pack> { ... }
 **Objetivo:** Visualizacion de resultados de compliance.
 
 **Archivos a crear:**
+
 ```
 apps/web/components/compliance-v3/ComplianceDashboardV3.tsx
 apps/web/components/compliance-v3/DisciplineScoreCard.tsx
@@ -1676,6 +1748,7 @@ apps/web/components/compliance-v3/ComplianceExport.tsx
 ```
 
 **Archivos a modificar:**
+
 ```
 apps/api/src/domain/unified-validation-compliance/read-adapters.ts  (agregar adapter para ComplianceRun V3)
 apps/api/src/domain/unified-validation-compliance/mappers.ts        (agregar mapeo para V3 runs/issues)
@@ -1685,11 +1758,12 @@ apps/api/src/domain/unified-validation-compliance/contract.ts       (agregar sou
 **Nota importante:** El proyecto tiene una capa de dominio en `domain/unified-validation-compliance/` que unifica los datos de Validation y Compliance V2 para el dashboard general. En FASE 9 se debe agregar un adapter que mapee los ComplianceRun/ComplianceIssue de V3 al formato unificado, para que el dashboard existente muestre ambos sistemas.
 
 **Vistas:**
+
 - Score global y por disciplina
 - Lista de issues con referencia legal
 - Traceability matrix (requirement -> element -> resultado)
 - Comparacion entre runs (mejora temporal)
-- Export PDF/Excel con branding dom
+- Export PDF/Excel con branding dom-bim
 
 **Criterio de completitud:** Dashboard funcional con datos reales de un run de compliance.
 
@@ -1700,10 +1774,11 @@ apps/api/src/domain/unified-validation-compliance/contract.ts       (agregar sou
 **Objetivo:** Interoperabilidad con buildingSMART IDS y limpieza del codigo legacy.
 
 **Tareas:**
+
 1. Parser de XML IDS -> Requirements
 2. Export de Requirements -> IDS XML
 3. Eliminar archivos marcados para DELETE (v1.routes.ts, validation/parser.service.ts, etc.)
-4. Mover archivos obsoletos a _quarantine
+4. Mover archivos obsoletos a \_quarantine
 5. Actualizar documentacion
 
 **Criterio de completitud:** Se puede importar un archivo IDS y exportar requirements como IDS. El codigo legacy esta limpio.
@@ -1729,34 +1804,34 @@ apps/api/src/domain/unified-validation-compliance/contract.ts       (agregar sou
 
 ### Tests unitarios obligatorios por fase
 
-| Fase | Servicio | Tests minimos |
-|------|----------|---------------|
-| 1 | PropertyDictionaryService | 5 |
-| 1 | CategoryDictionaryService | 4 |
-| 1 | UnitConversionService | 6 |
-| 2 | BimQueryService (refactorizado) | 5 |
-| 2 | UnitNormalizerService (refactorizado) | 4 |
-| 3 | RegulationPackService | 6 |
-| 3 | RequirementService | 8 |
-| 4 | ProjectComplianceConfigService | 5 |
-| 5 | evaluateCondition | 10 |
-| 5 | evaluateRequirement | 8 |
-| 5 | matchElements | 5 |
-| 5 | normalizeValue | 6 |
-| 5 | calculateDeviation | 4 |
-| 5 | calculateScore | 4 |
-| 5 | requirementResolver | 5 |
-| 7 | OpenAISuggester (mocked) | 4 |
+| Fase | Servicio                              | Tests minimos |
+| ---- | ------------------------------------- | ------------- |
+| 1    | PropertyDictionaryService             | 5             |
+| 1    | CategoryDictionaryService             | 4             |
+| 1    | UnitConversionService                 | 6             |
+| 2    | BimQueryService (refactorizado)       | 5             |
+| 2    | UnitNormalizerService (refactorizado) | 4             |
+| 3    | RegulationPackService                 | 6             |
+| 3    | RequirementService                    | 8             |
+| 4    | ProjectComplianceConfigService        | 5             |
+| 5    | evaluateCondition                     | 10            |
+| 5    | evaluateRequirement                   | 8             |
+| 5    | matchElements                         | 5             |
+| 5    | normalizeValue                        | 6             |
+| 5    | calculateDeviation                    | 4             |
+| 5    | calculateScore                        | 4             |
+| 5    | requirementResolver                   | 5             |
+| 7    | OpenAISuggester (mocked)              | 4             |
 
 ### Tests de integracion obligatorios
 
-| Fase | Endpoint | Tests minimos |
-|------|----------|---------------|
-| 3 | Packs CRUD | 6 |
-| 3 | Requirements CRUD | 8 |
-| 4 | Project config | 4 |
-| 5 | Evaluation pipeline | 5 |
-| 7 | Suggestions | 3 |
+| Fase | Endpoint            | Tests minimos |
+| ---- | ------------------- | ------------- |
+| 3    | Packs CRUD          | 6             |
+| 3    | Requirements CRUD   | 8             |
+| 4    | Project config      | 4             |
+| 5    | Evaluation pipeline | 5             |
+| 7    | Suggestions         | 3             |
 
 ### Datos de test
 
@@ -1770,12 +1845,14 @@ export const FIXTURE_REQUIREMENT_FIRE_RATING = {
   legalReference: "OGUC Art. 4.1.2",
   discipline: "FIRE_PROTECTION",
   severity: "MANDATORY",
-  conditions: [{
-    propertyRef: "FireRating",
-    operator: ">=",
-    value: "120",
-    unit: "min",
-  }],
+  conditions: [
+    {
+      propertyRef: "FireRating",
+      operator: ">=",
+      value: "120",
+      unit: "min",
+    },
+  ],
   applicability: {
     targetCategories: ["Walls"],
     excludeCategories: [],
@@ -1791,6 +1868,7 @@ export const FIXTURE_REQUIREMENT_FIRE_RATING = {
 Antes de hacer merge de cualquier PR de compliance V3, verificar:
 
 **Codigo:**
+
 - [ ] Zero hardcoding de valores de dominio (P-001)
 - [ ] Ningun placeholder o pseudo-codigo (P-002)
 - [ ] Ningun codigo muerto o imports sin usar (P-003)
@@ -1804,17 +1882,20 @@ Antes de hacer merge de cualquier PR de compliance V3, verificar:
 - [ ] Transacciones para operaciones multi-tabla (O-005)
 
 **Tests:**
+
 - [ ] Todo servicio nuevo tiene tests unitarios (P-004)
 - [ ] Tests nombrados con patron "should [behavior] when [condition]" (O-006)
 - [ ] Datos de test realistas, no "foo"/"bar"/"test" (O-009)
 - [ ] Cobertura minima cumplida (80% negocio, 60% infra, 90% utils)
 
 **Funcionalidad:**
+
 - [ ] La funcionalidad fue verificada con datos reales (no solo mocks)
 - [ ] No hay N+1 queries ni iteraciones innecesarias (P-005)
 - [ ] Los endpoints retornan respuestas consistentes con el API contract
 
 **Arquitectura:**
+
 - [ ] Interfaces definidas para servicios nuevos (O-001)
 - [ ] Funciones puras separadas de orquestadores (O-010)
 - [ ] La migracion de Prisma tiene nombre descriptivo (O-007)
@@ -1823,22 +1904,22 @@ Antes de hacer merge de cualquier PR de compliance V3, verificar:
 
 ## 11. GLOSARIO TECNICO
 
-| Termino | Definicion |
-|---------|------------|
-| **RegulationPack** | Coleccion versionada de requisitos de una normativa especifica de un pais |
-| **Requirement** | Requisito individual verificado por un humano, con referencia legal y condiciones evaluables |
-| **RequirementCondition** | Condicion atomica dentro de un requirement (propiedad + operador + valor) |
-| **ApplicabilityRule** | Define a que elementos del modelo BIM aplica un requirement |
-| **PropertyDictionary** | Tabla de mapeo entre nombres de propiedades en diferentes idiomas y sus paths en Revit/IFC |
-| **CategoryDictionary** | Tabla de mapeo entre categorias de elementos BIM en diferentes idiomas |
-| **UnitConversion** | Tabla de factores de conversion entre unidades de medida |
-| **ProjectComplianceConfig** | Configuracion de un proyecto que indica que packs aplican y que overrides tiene |
-| **RequirementOverride** | Modificacion de un requirement para un proyecto especifico (saltar, cambiar valor, cambiar severidad) |
-| **ComplianceRun** | Ejecucion de una evaluacion de compliance contra un modelo |
-| **Evaluation** | Resultado de evaluar un requirement contra un elemento especifico |
-| **NormalizedElement** | Elemento BIM con propiedades normalizadas (nombres canonicos, unidades SI) |
-| **SuggestedRequirement** | Requirement propuesto por el LLM que aun no ha sido verificado por un humano |
-| **IDS** | Information Delivery Specification — estandar de buildingSMART para definir requisitos de informacion BIM |
+| Termino                     | Definicion                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **RegulationPack**          | Coleccion versionada de requisitos de una normativa especifica de un pais                                 |
+| **Requirement**             | Requisito individual verificado por un humano, con referencia legal y condiciones evaluables              |
+| **RequirementCondition**    | Condicion atomica dentro de un requirement (propiedad + operador + valor)                                 |
+| **ApplicabilityRule**       | Define a que elementos del modelo BIM aplica un requirement                                               |
+| **PropertyDictionary**      | Tabla de mapeo entre nombres de propiedades en diferentes idiomas y sus paths en Revit/IFC                |
+| **CategoryDictionary**      | Tabla de mapeo entre categorias de elementos BIM en diferentes idiomas                                    |
+| **UnitConversion**          | Tabla de factores de conversion entre unidades de medida                                                  |
+| **ProjectComplianceConfig** | Configuracion de un proyecto que indica que packs aplican y que overrides tiene                           |
+| **RequirementOverride**     | Modificacion de un requirement para un proyecto especifico (saltar, cambiar valor, cambiar severidad)     |
+| **ComplianceRun**           | Ejecucion de una evaluacion de compliance contra un modelo                                                |
+| **Evaluation**              | Resultado de evaluar un requirement contra un elemento especifico                                         |
+| **NormalizedElement**       | Elemento BIM con propiedades normalizadas (nombres canonicos, unidades SI)                                |
+| **SuggestedRequirement**    | Requirement propuesto por el LLM que aun no ha sido verificado por un humano                              |
+| **IDS**                     | Information Delivery Specification — estandar de buildingSMART para definir requisitos de informacion BIM |
 
 ---
 
@@ -1847,6 +1928,7 @@ Antes de hacer merge de cualquier PR de compliance V3, verificar:
 Este documento es la fuente de verdad para todo el desarrollo del Compliance Engine V3. Si durante la implementacion de cualquier fase hay ambiguedad, se debe consultar este documento, no inventar soluciones.
 
 **Reglas criticas para mantener contexto:**
+
 1. Los requisitos son DATOS EN LA BASE DE DATOS, no codigo hardcoded
 2. El LLM es un ACELERADOR que sugiere, no el que decide
 3. Todo valor de dominio (categorias, propiedades, unidades, disciplinas) viene de tablas de diccionario
@@ -1864,25 +1946,25 @@ Este documento es la fuente de verdad para todo el desarrollo del Compliance Eng
 
 ### Hallazgos criticos corregidos en v2.0
 
-| # | Hallazgo | Severidad | Seccion afectada | Correccion |
-|---|----------|-----------|------------------|------------|
-| A1 | No habia estrategia de migracion de datos legacy (Ruleset/Rule -> RegulationPack/Requirement) | CRITICO | 5.5, FASE 0 | Agregada seccion 5.5 con mapeo campo-a-campo y script de migracion |
-| A2 | No habia catalogo completo de disciplinas. El plan mencionaba FIRE_PROTECTION pero el schema actual solo tenia 4 disciplinas | CRITICO | 5.4 | Agregada seccion 5.4 con 10 disciplinas documentadas |
-| A3 | No habia ciclo de vida definido para Requirements — transiciones de estado ambiguas | CRITICO | 5.3 | Agregada seccion 5.3 con maquina de estados y reglas de transicion |
-| A4 | No habia estrategia de cache Redis — solo una mencion en el pipeline | ALTO | 6.4 | Agregada seccion 6.4 con keys, TTLs, invalidacion, fallback |
-| A5 | No habia error handling para fallos de APS API durante evaluacion | ALTO | 6.5 | Agregada seccion 6.5 con tabla de escenarios APS + OpenAI |
-| A6 | No habia consideraciones de rendimiento para modelos grandes (100K+ elementos) | ALTO | 6.6 | Agregada seccion 6.6 con batching, pre-filtrado, timeout, streaming |
-| A7 | No habia manejo de concurrencia para evaluaciones simultaneas | ALTO | 6.7 | Agregada seccion 6.7 con lock por proyecto y status extendido |
-| A8 | Operador `range` no tenia especificacion de formato | MEDIO | 7.5 | Agregada seccion 7.5 con tabla completa de operadores |
-| A9 | No habia PropertyDictionary fallback chain documentada | MEDIO | 7.5 | Agregado al final de seccion 7.5 |
-| A10 | No habia patron de paginacion para endpoints GET | MEDIO | FASE 3 | Agregado PaginatedResponse schema a FASE 3 |
-| A11 | Faltaba limite de batch para import bulk | BAJO | 7.4 | Agregado limite de 100 requirements por request |
-| A12 | No habia integracion con sistema de notificaciones existente | MEDIO | FASE 5 | Agregada integracion con modelo Notification |
-| A13 | Faltaba capa de API hooks para frontend | MEDIO | FASE 8 | Agregados hooks y API client layer |
-| A14 | Faltaba `configId` en ComplianceRun | BAJO | FASE 0 | Agregado a tareas de FASE 0 |
-| A15 | No habia rollback strategy para migraciones fallidas | MEDIO | FASE 0 | Agregada instruccion de rollback |
-| A16 | Reglas de estado para CRUD de requirements no estaban claras | MEDIO | FASE 3 | Agregadas reglas de estado por endpoint |
-| A17 | No se mencionaba AuditLog para operaciones de compliance | BAJO | FASE 3 | Agregada integracion con AuditLog existente |
+| #   | Hallazgo                                                                                                                     | Severidad | Seccion afectada | Correccion                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------- | ------------------------------------------------------------------- |
+| A1  | No habia estrategia de migracion de datos legacy (Ruleset/Rule -> RegulationPack/Requirement)                                | CRITICO   | 5.5, FASE 0      | Agregada seccion 5.5 con mapeo campo-a-campo y script de migracion  |
+| A2  | No habia catalogo completo de disciplinas. El plan mencionaba FIRE_PROTECTION pero el schema actual solo tenia 4 disciplinas | CRITICO   | 5.4              | Agregada seccion 5.4 con 10 disciplinas documentadas                |
+| A3  | No habia ciclo de vida definido para Requirements — transiciones de estado ambiguas                                          | CRITICO   | 5.3              | Agregada seccion 5.3 con maquina de estados y reglas de transicion  |
+| A4  | No habia estrategia de cache Redis — solo una mencion en el pipeline                                                         | ALTO      | 6.4              | Agregada seccion 6.4 con keys, TTLs, invalidacion, fallback         |
+| A5  | No habia error handling para fallos de APS API durante evaluacion                                                            | ALTO      | 6.5              | Agregada seccion 6.5 con tabla de escenarios APS + OpenAI           |
+| A6  | No habia consideraciones de rendimiento para modelos grandes (100K+ elementos)                                               | ALTO      | 6.6              | Agregada seccion 6.6 con batching, pre-filtrado, timeout, streaming |
+| A7  | No habia manejo de concurrencia para evaluaciones simultaneas                                                                | ALTO      | 6.7              | Agregada seccion 6.7 con lock por proyecto y status extendido       |
+| A8  | Operador `range` no tenia especificacion de formato                                                                          | MEDIO     | 7.5              | Agregada seccion 7.5 con tabla completa de operadores               |
+| A9  | No habia PropertyDictionary fallback chain documentada                                                                       | MEDIO     | 7.5              | Agregado al final de seccion 7.5                                    |
+| A10 | No habia patron de paginacion para endpoints GET                                                                             | MEDIO     | FASE 3           | Agregado PaginatedResponse schema a FASE 3                          |
+| A11 | Faltaba limite de batch para import bulk                                                                                     | BAJO      | 7.4              | Agregado limite de 100 requirements por request                     |
+| A12 | No habia integracion con sistema de notificaciones existente                                                                 | MEDIO     | FASE 5           | Agregada integracion con modelo Notification                        |
+| A13 | Faltaba capa de API hooks para frontend                                                                                      | MEDIO     | FASE 8           | Agregados hooks y API client layer                                  |
+| A14 | Faltaba `configId` en ComplianceRun                                                                                          | BAJO      | FASE 0           | Agregado a tareas de FASE 0                                         |
+| A15 | No habia rollback strategy para migraciones fallidas                                                                         | MEDIO     | FASE 0           | Agregada instruccion de rollback                                    |
+| A16 | Reglas de estado para CRUD de requirements no estaban claras                                                                 | MEDIO     | FASE 3           | Agregadas reglas de estado por endpoint                             |
+| A17 | No se mencionaba AuditLog para operaciones de compliance                                                                     | BAJO      | FASE 3           | Agregada integracion con AuditLog existente                         |
 
 ### Elementos validados como correctos en v1.0
 
@@ -1899,28 +1981,28 @@ Este documento es la fuente de verdad para todo el desarrollo del Compliance Eng
 
 ### Riesgos pendientes (no bloqueantes para iniciar)
 
-| Riesgo | Impacto | Mitigacion |
-|--------|---------|------------|
-| Zod v4 (workspace usa 4.2.1) puede tener breaking changes vs v3 | Medio | Verificar compatibilidad al implementar schemas en FASE 3 |
-| OrgMember.userId es String suelto, no FK a User | Bajo | Agregar relacion explicita si se necesita join directo. Por ahora suficiente para queries manuales |
-| Seed data de diccionarios (FASE 1) puede ser incompleta para todas las disciplinas | Medio | Iterar sobre seeds conforme se implementan packs reales. No bloquea el motor. |
-| Performance del M:N implicito en Prisma para ProjectComplianceConfig <-> RegulationPack | Bajo | Si se detecta lentitud, migrar a tabla explicita _ProjectPacks |
+| Riesgo                                                                                  | Impacto | Mitigacion                                                                                         |
+| --------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| Zod v4 (workspace usa 4.2.1) puede tener breaking changes vs v3                         | Medio   | Verificar compatibilidad al implementar schemas en FASE 3                                          |
+| OrgMember.userId es String suelto, no FK a User                                         | Bajo    | Agregar relacion explicita si se necesita join directo. Por ahora suficiente para queries manuales |
+| Seed data de diccionarios (FASE 1) puede ser incompleta para todas las disciplinas      | Medio   | Iterar sobre seeds conforme se implementan packs reales. No bloquea el motor.                      |
+| Performance del M:N implicito en Prisma para ProjectComplianceConfig <-> RegulationPack | Bajo    | Si se detecta lentitud, migrar a tabla explicita \_ProjectPacks                                    |
 
 ### Hallazgos adicionales de auditoria v2.1 (codebase real)
 
-| # | Hallazgo | Severidad | Correccion |
-|---|----------|-----------|------------|
-| B1 | ComplianceRun.status usa "RUNNING" no "IN_PROGRESS". Plan v2.0 usaba IN_PROGRESS. | CRITICO | Corregido en todo el documento. Nuevos status: TIMEOUT, ERROR se agregan, no se renombra nada. |
-| B2 | Ruta prefix del proyecto es `/api/compliance-v2` no `/api/compliance/v2`. Plan usaba `/api/v3/`. | CRITICO | Corregido a `/api/compliance-v3` en todo el documento (26 ocurrencias). |
-| B3 | CacheService profesional ya existe en `lib/redis.ts` con getOrSet, invalidatePattern, TTL. Plan proponia crear uno nuevo. | ALTO | Corregido: se reutiliza el existente. Solo se agregan keys nuevas al helper RedisKeys. |
-| B4 | Logger centralizado ya existe en `lib/logger.ts` con niveles, redaccion, y transport hook. | MEDIO | Documentado en O-003. |
-| B5 | 6 servicios existentes no aparecian en la auditoria: discipline-detector, supremacy-engine, mop-parser, domain layer (5 archivos), webhooks (2), viewer (1). | ALTO | Agregados a seccion 4.2b "Archivos que NO se tocan". |
-| B6 | Plan v2.0 proponia renombrar Ruleset -> RegulationPack. Pero Ruleset tiene FK desde ComplianceRun. Renombrar romperia todo. | CRITICO | Corregido: Ruleset/Rule se CONSERVAN intactos. RegulationPack/Requirement son modelos nuevos separados. Se migran datos via script. |
-| B7 | Notification model tiene `validationRunId` FK pero no `complianceRunId`. Para notificar runs V3 se necesita agregar. | MEDIO | Agregado `complianceRunId` a FASE 0 y seccion 5.2. |
-| B8 | Plan no indicaba como registrar nuevas rutas en Express main app. | MEDIO | Agregada instruccion de registro con `app.use("/api/compliance-v3", ...)` en seccion 5.2. |
-| B9 | Plan indicaba que `rules.routes.ts` y `runs.routes.ts` se reciclarian. Pero modificar los archivos V2 es riesgoso. | ALTO | Corregido: V2 routes se conservan intactas. V3 crea archivos nuevos en carpeta `routes/compliance-v3/`. |
-| B10 | `unified-validation-compliance` domain layer no aparecia en el plan. Dashboard unificado necesitara adapter V3. | MEDIO | Agregado a FASE 9 como archivos a modificar. |
-| B11 | `validation.service.ts` tiene funcion `generateDemoResults()` que genera datos hardcoded demo. | BAJO | Agregada a lista de eliminacion en FASE 10 (solo la funcion, no el archivo). |
+| #   | Hallazgo                                                                                                                                                     | Severidad | Correccion                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | ComplianceRun.status usa "RUNNING" no "IN_PROGRESS". Plan v2.0 usaba IN_PROGRESS.                                                                            | CRITICO   | Corregido en todo el documento. Nuevos status: TIMEOUT, ERROR se agregan, no se renombra nada.                                      |
+| B2  | Ruta prefix del proyecto es `/api/compliance-v2` no `/api/compliance/v2`. Plan usaba `/api/v3/`.                                                             | CRITICO   | Corregido a `/api/compliance-v3` en todo el documento (26 ocurrencias).                                                             |
+| B3  | CacheService profesional ya existe en `lib/redis.ts` con getOrSet, invalidatePattern, TTL. Plan proponia crear uno nuevo.                                    | ALTO      | Corregido: se reutiliza el existente. Solo se agregan keys nuevas al helper RedisKeys.                                              |
+| B4  | Logger centralizado ya existe en `lib/logger.ts` con niveles, redaccion, y transport hook.                                                                   | MEDIO     | Documentado en O-003.                                                                                                               |
+| B5  | 6 servicios existentes no aparecian en la auditoria: discipline-detector, supremacy-engine, mop-parser, domain layer (5 archivos), webhooks (2), viewer (1). | ALTO      | Agregados a seccion 4.2b "Archivos que NO se tocan".                                                                                |
+| B6  | Plan v2.0 proponia renombrar Ruleset -> RegulationPack. Pero Ruleset tiene FK desde ComplianceRun. Renombrar romperia todo.                                  | CRITICO   | Corregido: Ruleset/Rule se CONSERVAN intactos. RegulationPack/Requirement son modelos nuevos separados. Se migran datos via script. |
+| B7  | Notification model tiene `validationRunId` FK pero no `complianceRunId`. Para notificar runs V3 se necesita agregar.                                         | MEDIO     | Agregado `complianceRunId` a FASE 0 y seccion 5.2.                                                                                  |
+| B8  | Plan no indicaba como registrar nuevas rutas en Express main app.                                                                                            | MEDIO     | Agregada instruccion de registro con `app.use("/api/compliance-v3", ...)` en seccion 5.2.                                           |
+| B9  | Plan indicaba que `rules.routes.ts` y `runs.routes.ts` se reciclarian. Pero modificar los archivos V2 es riesgoso.                                           | ALTO      | Corregido: V2 routes se conservan intactas. V3 crea archivos nuevos en carpeta `routes/compliance-v3/`.                             |
+| B10 | `unified-validation-compliance` domain layer no aparecia en el plan. Dashboard unificado necesitara adapter V3.                                              | MEDIO     | Agregado a FASE 9 como archivos a modificar.                                                                                        |
+| B11 | `validation.service.ts` tiene funcion `generateDemoResults()` que genera datos hardcoded demo.                                                               | BAJO      | Agregada a lista de eliminacion en FASE 10 (solo la funcion, no el archivo).                                                        |
 
 ### Inventario final del codebase (snapshot pre-implementacion)
 

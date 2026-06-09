@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Test C: Redis Down - Fail Closed Validation
 # Verifies that service returns 503 when Redis is unavailable
 
@@ -14,13 +14,13 @@ ENDPOINT="/api/aps/hubs"
 # Check if session cookie is provided
 if [ -z "$SESSION_COOKIE" ]; then
     echo "ERROR: SESSION_COOKIE environment variable not set"
-    echo "Usage: SESSION_COOKIE='dom-session=abc123...' $0"
+    echo "Usage: SESSION_COOKIE='dom-bim-session=abc123...' $0"
     exit 1
 fi
 
 echo "Step 1: Verify Redis is running"
 echo "-------------------------------------------"
-docker ps | grep dom-redis
+docker ps | grep dom-bim-redis
 if [ $? -ne 0 ]; then
     echo "WARNING: Redis container not found running"
 fi
@@ -28,7 +28,7 @@ echo ""
 
 echo "Step 2: Stop Redis"
 echo "-------------------------------------------"
-docker stop dom-redis
+docker stop dom-bim-redis
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to stop Redis container"
     exit 1
@@ -73,7 +73,7 @@ fi
 echo ""
 echo "Step 4: Restart Redis"
 echo "-------------------------------------------"
-docker start dom-redis
+docker start dom-bim-redis
 if [ $? -eq 0 ]; then
     echo "✓ Redis restarted"
 else

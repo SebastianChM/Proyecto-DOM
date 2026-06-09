@@ -1,4 +1,4 @@
-import { Queue, QueueOptions } from "bullmq";
+﻿import { Queue, QueueOptions } from "bullmq";
 import { env } from "../config/env";
 import { CONSTANTS } from "../config/constants";
 
@@ -97,7 +97,10 @@ export const Queues = {
   apsWebhooks: createQueue("aps-webhooks"),
 
   // Design Automation callback processing queue
-  designAutomationCallback: new Queue("design-automation-callback", designAutomationCallbackOptions),
+  designAutomationCallback: new Queue(
+    "design-automation-callback",
+    designAutomationCallbackOptions,
+  ),
 };
 
 // Types for Job Payloads

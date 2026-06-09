@@ -1,9 +1,9 @@
-import { redis } from "../src/lib/redis";
+﻿import { redis } from "../src/lib/redis";
 import { env } from "../src/config/env";
 
 async function main() {
   // List all session keys
-  const keys = await redis.keys("dom:sess:*");
+  const keys = await redis.keys("dom-bim:sess:*");
   console.log("SESSION_COUNT:", keys.length);
 
   for (const key of keys.slice(-3)) {
@@ -24,10 +24,10 @@ async function main() {
   const cookieSig = require("cookie-signature");
   if (keys.length > 0) {
     const lastKey = keys[keys.length - 1];
-    const sessionId = lastKey.replace("dom:sess:", "");
+    const sessionId = lastKey.replace("dom-bim:sess:", "");
     const signed = cookieSig.sign("s:" + sessionId, env.SESSION_SECRET);
     const encoded = encodeURIComponent(signed);
-    console.log("VALID_COOKIE=dom-session=" + encoded);
+    console.log("VALID_COOKIE=dom-bim-session=" + encoded);
   }
 
   await redis.quit();

@@ -65,7 +65,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <h1 className="text-4xl font-bold tracking-tight text-white">
-                  DOM
+                  DOM BIM
                 </h1>
                 <p className="text-xs text-[#818cf8] font-medium tracking-[0.2em] uppercase">
                   BIM Platform

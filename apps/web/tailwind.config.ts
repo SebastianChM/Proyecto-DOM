@@ -52,7 +52,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        /* --- DOM Brand (Indigo scale) --- */
+        /* --- DOM BIM Brand (Indigo scale) --- */
         brand: {
           DEFAULT: "#4f46e5",
           hover: "#4338ca",
@@ -94,10 +94,10 @@ const config: Config = {
           fg: "hsl(var(--violet-fg))",
         },
         /* --- Legacy compat (referenced in existing components) --- */
-        "dom-blue": "#4f46e5",
-        "dom-blue-dark": "#4338ca",
-        "dom-blue-light": "#6366f1",
-        "dom-black": "#0c0c0d",
+        "dom-bim-blue": "#4f46e5",
+        "dom-bim-blue-dark": "#4338ca",
+        "dom-bim-blue-light": "#6366f1",
+        "dom-bim-black": "#0c0c0d",
       },
       borderRadius: {
         lg: "var(--radius)",

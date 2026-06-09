@@ -1,4 +1,4 @@
-import swaggerJsdoc from "swagger-jsdoc";
+﻿import swaggerJsdoc from "swagger-jsdoc";
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -9,7 +9,7 @@ const options: swaggerJsdoc.Options = {
       description:
         "API documentation for the DOM BIM Platform, including authentication, file management, project management, and APS integration.",
       contact: {
-        name: "DOM Support",
+        name: "DOM BIM Support",
         email: "support@example.com",
       },
     },
@@ -24,7 +24,7 @@ const options: swaggerJsdoc.Options = {
         cookieAuth: {
           type: "apiKey",
           in: "cookie",
-          name: "dom-session",
+          name: "dom-bim-session",
         },
       },
     },

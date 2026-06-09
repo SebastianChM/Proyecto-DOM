@@ -163,8 +163,16 @@ describe("SuggestionService", () => {
         "some regulation text longer than ten chars",
       );
 
-      expect(setSpy).toHaveBeenCalledTimes(1);
-      const [, , ttl] = setSpy.mock.calls[0] as [string, unknown, number];
+      expect(setSpy).toHaveBeenCalledTimes(2);
+      // First call: content-hash dedup cache (1h TTL)
+      const [, , contentTtl] = setSpy.mock.calls[0] as [
+        string,
+        unknown,
+        number,
+      ];
+      expect(contentTtl).toBe(3600); // 1h
+      // Second call: analysisId workflow cache (24h TTL)
+      const [, , ttl] = setSpy.mock.calls[1] as [string, unknown, number];
       expect(ttl).toBe(86400); // 24h in seconds
     });
   });

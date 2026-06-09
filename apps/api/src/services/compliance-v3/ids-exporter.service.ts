@@ -1,4 +1,4 @@
-import prisma from "../../lib/prisma";
+﻿import prisma from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { notFound } from "../../lib/errors";
 
@@ -55,7 +55,7 @@ export class IdsExporterService implements IIdsExporterService {
             : "";
 
           return `        <property dataType="IfcLabel">
-          <propertySet><simpleValue>Custom_DOM</simpleValue></propertySet>
+          <propertySet><simpleValue>Custom_DOM BIM</simpleValue></propertySet>
           <baseName><simpleValue>${escapeXml(condition.propertyRef)}</simpleValue></baseName>
 ${valueBlock}
         </property>`;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * APS Mock Services
  *
  * Provides mock implementations of all Autodesk Platform Services (APS) for
@@ -69,7 +69,7 @@ export class MockAPSAuthService {
     return {
       userId: "mock-user-001",
       userName: "Mock Developer",
-      emailId: "dev@dom.mock",
+      emailId: "dev@dom-bim.mock",
       firstName: "Mock",
       lastName: "Developer",
       profileImages: {},
@@ -104,7 +104,7 @@ export class MockApsDataManagementService {
     return [
       {
         id: "b.mock-hub-001",
-        name: "DOM Mock Hub",
+        name: "DOM BIM Mock Hub",
         region: "US",
       },
     ];
@@ -371,7 +371,7 @@ export class MockApsIntegrationService {
     return [
       {
         id: "b.mock-hub-001",
-        name: "DOM Mock Hub",
+        name: "DOM BIM Mock Hub",
         region: "US",
       },
     ];

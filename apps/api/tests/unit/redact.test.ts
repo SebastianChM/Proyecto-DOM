@@ -1,12 +1,12 @@
-import { redactMeta, maskEmail, truncateId } from "../../src/lib/redact";
+﻿import { redactMeta, maskEmail, truncateId } from "../../src/lib/redact";
 
 describe("maskEmail", () => {
   it("masks a normal email", () => {
-    expect(maskEmail("sebastian@dom.com")).toBe("se***@dom.com");
+    expect(maskEmail("chirinosebastianmn@gmail.com")).toBe("ch***@gmail.com");
   });
 
   it("masks a short-prefix email", () => {
-    expect(maskEmail("a@dom.com")).toBe("a***@dom.com");
+    expect(maskEmail("a@example.com")).toBe("a***@example.com");
   });
 
   it("returns [REDACTED] for invalid email (no @)", () => {

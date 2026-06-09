@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import app from "../../src/index";
 import { redis } from "../../src/lib/redis";
 
@@ -12,7 +12,7 @@ const cookieSig = require("cookie-signature") as {
 // Helpers — inject a fake session into Redis (bypasses real OAuth login)
 // ---------------------------------------------------------------------------
 
-const SESSION_PREFIX = "dom:sess:";
+const SESSION_PREFIX = "dom-bim:sess:";
 const SESSION_SECRET = "mock_session_secret_at_least_32_chars_long_enough";
 
 interface FakeSession {
@@ -32,7 +32,7 @@ interface FakeSession {
 const MOCK_USER = {
   id: "test-user-001",
   name: "Test User",
-  email: "test@dom.com",
+  email: "test@example.com",
   role: "USER",
   picture: "",
 };
@@ -56,7 +56,7 @@ async function plantSession(
   await redis.set(`${SESSION_PREFIX}${sessionId}`, JSON.stringify(data));
   // Sign the session ID using the same secret as express-session
   const signed = cookieSig.sign(sessionId, SESSION_SECRET);
-  return `dom-session=s%3A${signed}`;
+  return `dom-bim-session=s%3A${signed}`;
 }
 
 // ---------------------------------------------------------------------------

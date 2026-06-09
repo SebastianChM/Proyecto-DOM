@@ -81,7 +81,7 @@ Proyecto DOM/
 │   └── ...volúmenes normativos
 │
 ├── Plan GPT/                         # Planificación del proyecto
-│   └── Plan de Desarrollo – Plataforma BIM DOM.pdf
+│   └── Plan de Desarrollo – Plataforma BIM DOM BIM.pdf
 │
 ├── prisma/                           # Base de datos (SQLite/PostgreSQL)
 │   ├── migrations/                   # Migraciones de BD

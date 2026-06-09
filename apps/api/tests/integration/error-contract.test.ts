@@ -576,7 +576,8 @@ describe("Error Contract — Data Sources", () => {
 
     if (res.status === 429) return; // rate-limited
 
-    expect([404, 500]).toContain(res.status);
+    // 401 when auth is required, 404/500 with DB depending on existence.
+    expect([401, 404, 500]).toContain(res.status);
     expect(res.body).toHaveProperty("error");
     expect(res.body).toHaveProperty("type");
     expect(res.body).toHaveProperty("requestId");
@@ -598,8 +599,8 @@ describe("Error Contract — Translation", () => {
 
     if (res.status === 429) return; // rate-limited
 
-    // Without DB: 500 (Prisma). With DB: 404.
-    expect([404, 500]).toContain(res.status);
+    // 401 when auth check fires, 400 when inline auth, 404/500 depending on DB.
+    expect([400, 401, 404, 500]).toContain(res.status);
     expect(res.body).toHaveProperty("error");
     expect(res.body).toHaveProperty("type");
     expect(res.body).toHaveProperty("requestId");

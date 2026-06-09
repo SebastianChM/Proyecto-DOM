@@ -1,4 +1,4 @@
-import { redis } from "../src/lib/redis";
+﻿import { redis } from "../src/lib/redis";
 import { env } from "../src/config/env";
 import crypto from "crypto";
 import { createHmac } from "crypto";
@@ -15,7 +15,7 @@ function signSession(sessionId: string, secret: string): string {
 
 async function main() {
   const sessionId = crypto.randomUUID();
-  const key = "dom:sess:" + sessionId;
+  const key = "dom-bim:sess:" + sessionId;
   const data = JSON.stringify({
     cookie: {
       originalMaxAge: 86400000,
@@ -30,7 +30,7 @@ async function main() {
     expiresAt: Date.now() + 3600000,
     user: {
       id: "2f467308-c529-4603-af16-222d72441b5b",
-      email: "sebastian@dom.com",
+      email: "chirinosebastianmn@gmail.com",
       role: "ADMIN",
       displayName: "Sebastian QA",
       apsUserId: "qa-user",
@@ -42,7 +42,7 @@ async function main() {
   const signedCookie = signSession(sessionId, env.SESSION_SECRET);
   const encoded = encodeURIComponent(signedCookie);
 
-  console.log("COOKIE=dom-session=" + encoded);
+  console.log("COOKIE=dom-bim-session=" + encoded);
 
   await redis.quit();
 }

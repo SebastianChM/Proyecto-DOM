@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import dashboardRouter from "./routes/dashboard";
 import cors from "cors";
 import helmet from "helmet";
@@ -117,9 +117,9 @@ import RedisStore from "connect-redis";
 const sessionMiddleware = session({
   store: new RedisStore({
     client: redisClient,
-    prefix: "dom:sess:",
+    prefix: "dom-bim:sess:",
   }),
-  name: "dom-session",
+  name: "dom-bim-session",
   secret: env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,

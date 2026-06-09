@@ -1,4 +1,4 @@
-# Hito 3 - Test Scripts
+﻿# Hito 3 - Test Scripts
 
 Acceptance tests for Hito 3 (Viewer Stable and Cheap)
 
@@ -50,7 +50,7 @@ Acceptance tests for Hito 3 (Viewer Stable and Cheap)
 ./test-5-user-token-auth.sh
 
 # With session
-export SESSION_COOKIE="dom-session=YOUR_COOKIE"
+export SESSION_COOKIE="dom-bim-session=YOUR_COOKIE"
 ./test-5-user-token-auth.sh
 ```
 

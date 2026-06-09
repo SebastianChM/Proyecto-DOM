@@ -68,7 +68,7 @@ npm run dev:infra
 
 This runs `docker compose up -d` from `infra/docker/`. Services:
 
-- **PostgreSQL** on port 5432 (user: `dom`, db: `dom_bim`)
+- **PostgreSQL** on port 5432 (user: `dom-bim`, db: `dom_bim`)
 - **Redis** on port 6379
 
 Verify they're running:
@@ -85,20 +85,20 @@ cp .env.example apps/api/.env
 
 Edit `apps/api/.env` with your values. Key variables:
 
-| Variable            | Required         | Example                                              |
-| ------------------- | ---------------- | ---------------------------------------------------- |
-| `DATABASE_URL`      | Yes              | `postgresql://dom:yourpass@localhost:5432/dom_bim` |
-| `REDIS_HOST`        | Yes              | `localhost`                                          |
-| `REDIS_PORT`        | Yes              | `6379`                                               |
-| `REDIS_PASSWORD`    | If set in Docker | (empty for default dev)                              |
-| `APS_CLIENT_ID`     | Yes              | Your Autodesk app client ID                          |
-| `APS_CLIENT_SECRET` | Yes              | Your Autodesk app client secret                      |
-| `APS_CALLBACK_URL`  | Yes              | `http://localhost:3000/auth/callback`                |
-| `APS_BUCKET`        | Yes              | Globally unique bucket name                          |
-| `SESSION_SECRET`    | Yes              | Min 32 random characters                             |
-| `WEBHOOK_SECRET`    | Yes              | Min 16 random characters                             |
-| `CORS_ORIGINS`      | Yes              | `http://localhost:3000`                              |
-| `ADMIN_EMAILS`      | Yes              | `admin@example.com`                                  |
+| Variable            | Required         | Example                                                |
+| ------------------- | ---------------- | ------------------------------------------------------ |
+| `DATABASE_URL`      | Yes              | `postgresql://dom_bim:yourpass@localhost:5432/dom_bim` |
+| `REDIS_HOST`        | Yes              | `localhost`                                            |
+| `REDIS_PORT`        | Yes              | `6379`                                                 |
+| `REDIS_PASSWORD`    | If set in Docker | (empty for default dev)                                |
+| `APS_CLIENT_ID`     | Yes              | Your Autodesk app client ID                            |
+| `APS_CLIENT_SECRET` | Yes              | Your Autodesk app client secret                        |
+| `APS_CALLBACK_URL`  | Yes              | `http://localhost:3000/auth/callback`                  |
+| `APS_BUCKET`        | Yes              | Globally unique bucket name                            |
+| `SESSION_SECRET`    | Yes              | Min 32 random characters                               |
+| `WEBHOOK_SECRET`    | Yes              | Min 16 random characters                               |
+| `CORS_ORIGINS`      | Yes              | `http://localhost:3000`                                |
+| `ADMIN_EMAILS`      | Yes              | `admin@example.com`                                    |
 
 Generate secure secrets:
 

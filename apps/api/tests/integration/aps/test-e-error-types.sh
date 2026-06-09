@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Test E: Error Type Mapping Validation
 # Verifies that APS errors are correctly mapped to normalized codes
 
@@ -14,7 +14,7 @@ ENDPOINT="/api/aps/hubs"
 echo "Test E.1: Invalid Session (401 → APS_REFRESH_REQUIRED)"
 echo "-------------------------------------------"
 RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$API_BASE$ENDPOINT" \
-    -H "Cookie: dom-session=invalid-session-cookie" \
+    -H "Cookie: dom-bim-session=invalid-session-cookie" \
     -H "x-request-id: test-error-401")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)

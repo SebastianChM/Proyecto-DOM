@@ -14,6 +14,7 @@ import { apsWebhooksService } from "../services/aps/webhooks.service";
 import { asyncHandler } from "../lib/async-handler";
 import { badRequest, unauthorized, notFound } from "../lib/errors";
 import { auditService } from "../services/audit.service";
+import { unifiedReadAdapters } from "../domain/unified-validation-compliance";
 
 const router = Router();
 
@@ -716,6 +717,69 @@ router.get(
       `attachment; filename="export_${safeName}.json"`,
     );
     res.json(exportData);
+  }),
+);
+
+/**
+ * GET /projects/:id/runs
+ *
+ * Returns ALL validation and compliance runs for a project in a unified format.
+ * Aggregates ValidationRun, ComplianceRun (V2), and ComplianceRun V3 via the
+ * domain layer so consumers never need to query multiple endpoints.
+ *
+ * Query params:
+ *   source  — filter by source: "validation" | "compliance" | "compliance_v3"
+ *   status  — filter by status
+ *   limit   — max results per source (default 50 each)
+ */
+router.get(
+  "/:id/runs",
+  requireProjectAccess,
+  asyncHandler(async (req, res) => {
+    const projectId = req.params.id as string;
+    const { source, status, limit } = req.query;
+    const parsedLimit = limit
+      ? Math.min(200, parseInt(limit as string, 10) || 50)
+      : 50;
+
+    const filters = {
+      projectId,
+      status: status as string | undefined,
+      limit: parsedLimit,
+    };
+
+    // Fan-out to all three sources in parallel, skip sources the caller filtered out
+    const [validationRuns, complianceRuns, complianceV3Runs] =
+      await Promise.all([
+        !source || source === "validation"
+          ? unifiedReadAdapters.listValidationRuns(filters)
+          : Promise.resolve([]),
+        !source || source === "compliance"
+          ? unifiedReadAdapters.listComplianceRuns(filters)
+          : Promise.resolve([]),
+        !source || source === "compliance_v3"
+          ? unifiedReadAdapters.listComplianceV3Runs(filters)
+          : Promise.resolve([]),
+      ]);
+
+    const all = [...validationRuns, ...complianceRuns, ...complianceV3Runs]
+      .sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      )
+      .slice(0, parsedLimit);
+
+    res.json({
+      data: all,
+      meta: {
+        total: all.length,
+        sources: {
+          validation: validationRuns.length,
+          compliance: complianceRuns.length,
+          compliance_v3: complianceV3Runs.length,
+        },
+      },
+    });
   }),
 );
 

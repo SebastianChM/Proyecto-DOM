@@ -4,7 +4,7 @@
     container_name: dom-bim-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dom_bim}
-      POSTGRES_USER: ${POSTGRES_USER:-dom}
+      POSTGRES_USER: ${POSTGRES_USER:-dom-bim}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-dom} -d ${POSTGRES_DB:-dom_bim}",
+          "pg_isready -U ${POSTGRES_USER:-dom-bim} -d ${POSTGRES_DB:-dom_bim}",
         ]
       interval: 10s
       timeout: 5s
@@ -31,7 +31,7 @@
     #     reservations:
     #       memory: 256M
     networks:
-      - dom-network
+      - dom-bim-network
 
   redis:
     image: redis:7-alpine
@@ -56,7 +56,7 @@
     #     reservations:
     #       memory: 128M
     networks:
-      - dom-network
+      - dom-bim-network
 
   api:
     build:
@@ -100,7 +100,7 @@
     #     reservations:
     #       memory: 512M
     networks:
-      - dom-network
+      - dom-bim-network
 
   worker:
     build:
@@ -136,12 +136,12 @@
     #     reservations:
     #       memory: 256M
     networks:
-      - dom-network
+      - dom-bim-network
 
 volumes:
   postgres_data:
   redis_data:
 
 networks:
-  dom-network:
+  dom-bim-network:
     driver: bridge

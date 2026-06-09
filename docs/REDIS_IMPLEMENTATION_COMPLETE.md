@@ -12,11 +12,13 @@ Se ha implementado **Redis (Memurai)** con lo ESENCIAL para el proyecto, SIN car
 - ✅ 9 tests automatizados (TODOS PASARON)
 
 **Archivos creados (SOLO 3):**
+
 1. `api/src/lib/redis.ts` - Cliente + servicios
 2. `api/src/services/rate-limiter.service.ts` - Rate limiting
 3. `api/scripts/verify-redis.ts` - Tests
 
 **Archivos modificados (SOLO 3):**
+
 1. `api/src/index.ts` - Integración
 2. `api/src/middleware/auth.ts` - Cache de sesiones
 3. `api/src/routes/projects.ts` - Cache de queries
@@ -30,19 +32,22 @@ Se ha implementado **Redis (Memurai)** con lo ESENCIAL para el proyecto, SIN car
 ### 1. **Cliente Redis Singleton** (`api/src/lib/redis.ts`)
 
 **Características:**
+
 - Singleton pattern para una única instancia
 - Reconexión automática con backoff exponencial
 - Event listeners para monitoreo en tiempo real
 - Graceful shutdown en SIGTERM/SIGINT
 
 **Servicios disponibles:**
+
 ```typescript
-import { redis, cacheService, lockService, RedisKeys } from './lib/redis';
+import { redis, cacheService, lockService, RedisKeys } from "./lib/redis";
 ```
 
 ### 2. **Cache Service**
 
 **Métodos principales:**
+
 - `get<T>(key)` - Obtener valor del cache
 - `set<T>(key, value, ttl)` - Guardar con expiración
 - `del(key)` - Eliminar key
@@ -52,6 +57,7 @@ import { redis, cacheService, lockService, RedisKeys } from './lib/redis';
 - `increment(key, ttl)` - Contadores atómicos
 
 **Uso profesional:**
+
 ```typescript
 // Cache-aside pattern (recomendado)
 const projects = await cacheService.getOrSet(
@@ -70,12 +76,14 @@ await cacheService.invalidatePattern(`cache:projects:*:${userId}`);
 **Algoritmo:** Sliding Window (más preciso que fixed window)
 
 **Limiters predefinidos:**
+
 - `authLimiter()` - 5 requests / 15 min (anti brute-force)
 - `apiLimiter()` - 100 requests / 1 min (general)
 - `uploadLimiter()` - 10 uploads / 1 hora
 - `heavyOperationLimiter()` - 5 operations / 1 hora
 
 **Headers RFC 6585:**
+
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 87
@@ -86,29 +94,32 @@ Retry-After: 42
 ### 4. **Lock Service**
 
 **Prevención de race conditions:**
+
 ```typescript
 // Adquirir lock antes de procesar
-const locked = await lockService.acquire('file', fileId, 30);
+const locked = await lockService.acquire("file", fileId, 30);
 if (!locked) {
-  return res.status(409).json({ error: 'File is being processed' });
+  return res.status(409).json({ error: "File is being processed" });
 }
 
 try {
   await processFile(fileId);
 } finally {
-  await lockService.release('file', fileId);
+  await lockService.release("file", fileId);
 }
 
 // O usar el patrón with lock
-await lockService.withLock('file', fileId, async () => {
+await lockService.withLock("file", fileId, async () => {
   await processFile(fileId);
 });
 ```
 
 ### 5. **RedisKeys Helper**
+
 ## ✅ **RESULTADO REAL - Performance Medido**
 
 **Test de cache en producción:**
+
 ```
 1. Lista proyectos (sin cache): 78ms
 2. Lista proyectos (con cache): 6ms
@@ -117,13 +128,15 @@ Mejora: 13x más rápido ✅
 ```
 
 ## 🧪 Tests Ejecutados (9/9 PASADOS)
+
 **Naming convention centralizado:**
+
 ```typescript
-RedisKeys.userPermissions(userId, projectId)  // cache:permissions:user123:proj456
-RedisKeys.projectsList(userId)                 // cache:projects:list:user123
-RedisKeys.session(sessionId)                   // session:abc123
-RedisKeys.rateLimit(ip, endpoint)             // ratelimit:/api/projects:192.168.1.1
-RedisKeys.lock('file', fileId)                // lock:file:xyz789
+RedisKeys.userPermissions(userId, projectId); // cache:permissions:user123:proj456
+RedisKeys.projectsList(userId); // cache:projects:list:user123
+RedisKeys.session(sessionId); // session:abc123
+RedisKeys.rateLimit(ip, endpoint); // ratelimit:/api/projects:192.168.1.1
+RedisKeys.lock("file", fileId); // lock:file:xyz789
 ```
 
 ---
@@ -138,9 +151,10 @@ RedisKeys.lock('file', fileId)                // lock:file:xyz789
 ✅ Test 6: Rate Limiter (sliding window)  
 ✅ Test 7: Operaciones múltiples (mget/mset)  
 ✅ Test 8: Increment atómico  
-✅ Test 9: TTL y expiración automática  
+✅ Test 9: TTL y expiración automática
 
 **Ejecutar tests:**
+
 ```bash
 cd api
 npx ts-node scripts/verify-redis.ts
@@ -151,6 +165,7 @@ npx ts-node scripts/verify-redis.ts
 ## 🚀 Servidor Integrado
 
 **Estado actual:**
+
 ```
 🚀 DOM BIM API running on port 8080
 📊 Environment: development
@@ -159,11 +174,13 @@ npx ts-node scripts/verify-redis.ts
 ```
 
 **Health check:**
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 **Respuesta:**
+
 ```json
 {
   "status": "ok",
@@ -176,25 +193,28 @@ curl http://localhost:8080/health
 
 ## 📊 Performance Esperado
 
-| Operación | Sin Redis | Con Redis | Mejora |
-|-----------|-----------|-----------|--------|
-| Permisos de usuario | 50-100ms | <1ms | **50-100x** |
-| Lista de proyectos | 200-500ms | <1ms | **200-500x** |
-| Verificar sesión | 20-50ms | <1ms | **20-50x** |
-| Rate limit check | 10-30ms | <1ms | **10-30x** |
+| Operación           | Sin Redis | Con Redis | Mejora       |
+| ------------------- | --------- | --------- | ------------ |
+| Permisos de usuario | 50-100ms  | <1ms      | **50-100x**  |
+| Lista de proyectos  | 200-500ms | <1ms      | **200-500x** |
+| Verificar sesión    | 20-50ms   | <1ms      | **20-50x**   |
+| Rate limit check    | 10-30ms   | <1ms      | **10-30x**   |
 
 ---
 
 ## 🔐 Seguridad Implementada
 
 ### Rate Limiting Diferenciado
+
 - **Auth endpoints:** 5 intentos / 15 min (anti brute-force)
 - **Upload endpoints:** 10 archivos / hora (prevenir abuso)
 - **Heavy operations:** 5 operaciones / hora (proteger recursos)
 - **General API:** 100 requests / minuto (balanceado)
 
 ### Fail-Open Strategy
+
 En caso de fallo de Redis:
+
 - Rate limiter permite requests (no bloquea servicio)
 - Cache retorna `null` (fallback a DB)
 - Logs de error para diagnóstico
@@ -204,6 +224,7 @@ En caso de fallo de Redis:
 ## 📝 Configuración
 
 ### Variables de Entorno (.env)
+
 ```env
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -211,6 +232,7 @@ REDIS_URL=redis://localhost:6379
 ```
 
 ### Memurai Service
+
 ```powershell
 # Estado
 Get-Service Memurai
@@ -221,6 +243,7 @@ net stop Memurai
 ```
 
 ### Monitoreo en Tiempo Real
+
 ```bash
 # CLI de Memurai
 "C:\Program Files\Memurai\memurai-cli.exe"
@@ -246,10 +269,10 @@ KEYS *
 
 ### 📊 Estado Final Hito 1
 
-**Completado:** 40% (lo esencial)  
-**Tiempo invertido:** 2 horas  
-**Performance ganada:** 13x  
-**Archivos creados:** 3  
+**Completado:** 40% (lo esencial)
+**Tiempo invertido:** 2 horas
+**Performance ganada:** 13x
+**Archivos creados:** 3
 **Carpetas creadas:** 0 ✅
 
 **Decisión profesional:** Redis está listo, seguimos con otros Hitos más importantes
@@ -268,13 +291,13 @@ KEYS *
 
 ## 🏆 Logros Profesionales
 
-✅ **Arquitectura robusta** - Reconexión automática, error handling  
-✅ **Patrones profesionales** - Singleton, cache-aside, sliding window  
-✅ **Testing completo** - 9 tests automatizados  
-✅ **Fail-safe** - Sistema continúa sin Redis si falla  
-✅ **Monitoreo** - Logs detallados, health checks  
-✅ **Producción ready** - Graceful shutdown, event listeners  
-✅ **Documentación** - Código autodocumentado, ejemplos claros  
+✅ **Arquitectura robusta** - Reconexión automática, error handling
+✅ **Patrones profesionales** - Singleton, cache-aside, sliding window
+✅ **Testing completo** - 9 tests automatizados
+✅ **Fail-safe** - Sistema continúa sin Redis si falla
+✅ **Monitoreo** - Logs detallados, health checks
+✅ **Producción ready** - Graceful shutdown, event listeners
+✅ **Documentación** - Código autodocumentado, ejemplos claros
 
 ---
 
@@ -295,7 +318,7 @@ KEYS *
 
 ## ✨ Conclusión
 
-**Redis está completamente operacional** en la plataforma DOM BIM con:
+**Redis está completamente operacional** en la plataforma DOM BIM BIM con:
 
 - 🚀 **Performance:** 50-500x más rápido en operaciones críticas
 - 🔐 **Seguridad:** Rate limiting profesional anti-abuse
@@ -306,7 +329,8 @@ KEYS *
 
 ---
 
-**Fecha:** 2025-12-03  
-**Status:** ✅ IMPLEMENTACIÓN EXITOSA  
-**Tests:** 9/9 PASADOS  
-**Server:** ✅ OPERACIONAL CON REDIS  
+**Fecha:** 2025-12-03
+**Status:** ✅ IMPLEMENTACIÓN EXITOSA
+**Tests:** 9/9 PASADOS
+**Server:** ✅ OPERACIONAL CON REDIS
+```

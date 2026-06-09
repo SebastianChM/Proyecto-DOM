@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Smoke test: end-to-end compliance run without OAuth or HTTP.
  *
  * Usage:  npx tsx apps/api/scripts/smoke-compliance.ts
@@ -20,7 +20,7 @@ import { projectComplianceConfigService } from "../src/services/compliance-v3/pr
 const FILE_TRANSLATED_STATUS = "READY";
 
 async function main(): Promise<void> {
-  console.log("=== DOM Compliance V3 Smoke Test ===\n");
+  console.log("=== DOM BIM Compliance V3 Smoke Test ===\n");
 
   // 1. Find a project that has at least one READY (translated) file
   const translatedFile = await prisma.file.findFirst({

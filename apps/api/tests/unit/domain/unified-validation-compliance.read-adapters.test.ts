@@ -13,7 +13,9 @@ import {
   mapValidationRunsToUnified,
 } from "../../../src/domain/unified-validation-compliance";
 
-function buildValidationRun(overrides: Partial<ValidationRun> = {}): ValidationRun {
+function buildValidationRun(
+  overrides: Partial<ValidationRun> = {},
+): ValidationRun {
   return {
     id: "val-run-1",
     fileId: "file-1",
@@ -60,7 +62,9 @@ function buildValidationIssue(
   };
 }
 
-function buildComplianceRun(overrides: Partial<ComplianceRun> = {}): ComplianceRun {
+function buildComplianceRun(
+  overrides: Partial<ComplianceRun> = {},
+): ComplianceRun {
   return {
     id: "cmp-run-1",
     name: null,
@@ -82,6 +86,7 @@ function buildComplianceRun(overrides: Partial<ComplianceRun> = {}): ComplianceR
     createdBy: null,
     configId: null,
     metadata: null,
+    origin: "compliance",
     ...overrides,
   };
 }

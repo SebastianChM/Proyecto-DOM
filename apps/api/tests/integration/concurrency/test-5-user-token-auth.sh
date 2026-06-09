@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Hito 3 - Test 5: User Token Protection
 # Verifies strict validation for user tokens
 
@@ -39,7 +39,7 @@ if [ -z "$SESSION_COOKIE" ]; then
   echo "⏭️  SKIPPED: Set SESSION_COOKIE environment variable to test"
   echo ""
   echo "Example:"
-  echo "  export SESSION_COOKIE='dom-session=abc123...'"
+  echo "  export SESSION_COOKIE='dom-bim-session=abc123...'"
   echo "  ./test-5-user-token-auth.sh"
   exit 0
 fi

@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import crypto from "crypto";
 import { apsAuthService } from "../../services/aps/auth.service";
 import prisma from "../../lib/prisma";
@@ -327,7 +327,7 @@ router.post("/logout", (req, res) => {
       logger.error("[AUTH] Logout error", { error: String(err) });
       return res.status(500).json({ error: "Logout failed" });
     }
-    res.clearCookie("dom-session"); // Clear the cookie explicitly
+    res.clearCookie("dom-bim-session"); // Clear the cookie explicitly
     res.json({ success: true });
   });
 });

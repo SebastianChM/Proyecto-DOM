@@ -25,7 +25,9 @@ import {
   toUnifiedRunFromValidation,
 } from "../../../src/domain/unified-validation-compliance";
 
-function buildValidationRun(overrides: Partial<ValidationRun> = {}): ValidationRun {
+function buildValidationRun(
+  overrides: Partial<ValidationRun> = {},
+): ValidationRun {
   return {
     id: "val-run-1",
     fileId: "file-1",
@@ -46,7 +48,9 @@ function buildValidationRun(overrides: Partial<ValidationRun> = {}): ValidationR
   };
 }
 
-function buildComplianceRun(overrides: Partial<ComplianceRun> = {}): ComplianceRun {
+function buildComplianceRun(
+  overrides: Partial<ComplianceRun> = {},
+): ComplianceRun {
   return {
     id: "cmp-run-1",
     name: "Run 1",
@@ -68,6 +72,7 @@ function buildComplianceRun(overrides: Partial<ComplianceRun> = {}): ComplianceR
     createdBy: "user-2",
     configId: null,
     metadata: null,
+    origin: "compliance",
     ...overrides,
   };
 }
@@ -142,9 +147,7 @@ describe("unified validation/compliance mappings", () => {
       "MISMATCH",
     );
     expect(VALIDATION_ISSUE_SEVERITY_TO_UNIFIED.HIGH).toBe("HIGH");
-    expect(VALIDATION_ISSUE_STATUS_TO_UNIFIED.ACKNOWLEDGED).toBe(
-      "IN_PROGRESS",
-    );
+    expect(VALIDATION_ISSUE_STATUS_TO_UNIFIED.ACKNOWLEDGED).toBe("IN_PROGRESS");
 
     expect(mapValidationIssueCategoryToUnified("PROPERTY_MISMATCH")).toBe(
       "MISMATCH",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { projectsService } from "@/lib/api/services";
@@ -46,7 +46,7 @@ interface Project {
   };
 }
 
-export default function ProjectsPage() {
+function ProjectsPageContent() {
   const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -591,5 +591,13 @@ export default function ProjectsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsPageContent />
+    </Suspense>
   );
 }

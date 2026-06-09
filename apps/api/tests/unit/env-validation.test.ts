@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tests for env.ts schema validation and runtime hardening.
  *
  * Covers:
@@ -238,8 +238,8 @@ describe("parseAdminEmails", () => {
   });
 
   it("parses comma-separated emails, lowercased and trimmed", () => {
-    expect(parseAdminEmails(" Alice@DOM.com , bob@test.com ")).toEqual([
-      "alice@dom.com",
+    expect(parseAdminEmails(" Alice@example.com , bob@test.com ")).toEqual([
+      "alice@example.com",
       "bob@test.com",
     ]);
   });

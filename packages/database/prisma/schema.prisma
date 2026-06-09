@@ -571,7 +571,7 @@ model WorkflowHistory {
 // Collection of validation rules, grouped by discipline
 model Ruleset {
   id          String   @id @default(uuid())
-  name        String   // "Validación Eléctrica DOM"
+  name        String   // "Validación Eléctrica DOM BIM"
   description String?
   discipline  String   // "ELECTRICAL", "STRUCTURAL", "MEP", "ARCHITECTURAL"
   isDefault   Boolean  @default(false) // Template rulesets
@@ -691,9 +691,14 @@ model ComplianceRun {
   projectId   String
   createdBy   String?  // User who initiated the run
   
+  // Discriminator: "compliance" (rule-based engine) | "validation" (BIM structure check)
+  // Allows both subsystems to write to this single table — ValidationRun is legacy.
+  origin      String   @default("compliance")
+  
   @@index([projectId])
   @@index([status])
   @@index([rulesetId])
+  @@index([origin])
 }
 
 // Individual compliance issue (violation found)

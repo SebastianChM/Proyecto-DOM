@@ -25,7 +25,7 @@ describe("FileService predictive conversion queue dispatch", () => {
     } as never);
     jest.spyOn(prisma.file, "update").mockResolvedValue({} as never);
 
-    jest.spyOn(apsOssService, "uploadBuffer").mockResolvedValue({
+    jest.spyOn(apsOssService, "uploadFile").mockResolvedValue({
       objectId: "urn:adsk.objects:os.object:bucket/sample.dwg",
     } as never);
 
@@ -44,8 +44,6 @@ describe("FileService predictive conversion queue dispatch", () => {
     const queueAddSpy = jest
       .spyOn(Queues.conversionMd, "add")
       .mockResolvedValue({ id: "job-1" } as never);
-
-    jest.spyOn(fs, "readFileSync").mockReturnValue(Buffer.from("dwg-binary"));
 
     await fileService.handleFileUpload(
       {

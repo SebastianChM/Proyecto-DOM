@@ -1,4 +1,4 @@
-import { logger, setTransport, LogLevel } from "../../src/lib/logger";
+﻿import { logger, setTransport, LogLevel } from "../../src/lib/logger";
 
 describe("logger", () => {
   // Capture console output
@@ -62,9 +62,9 @@ describe("logger", () => {
   });
 
   it("masks email in meta automatically", () => {
-    logger.info("user action", { email: "sebastian@dom.com" });
-    expect(captured[0].msg).toContain("se***@dom.com");
-    expect(captured[0].msg).not.toContain("sebastian@dom.com");
+    logger.info("user action", { email: "chirinosebastianmn@gmail.com" });
+    expect(captured[0].msg).toContain("ch***@gmail.com");
+    expect(captured[0].msg).not.toContain("chirinosebastianmn@gmail.com");
   });
 
   it("truncates userId in meta automatically", () => {

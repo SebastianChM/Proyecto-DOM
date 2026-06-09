@@ -1,3 +1,10 @@
+// Bypass basicAuth for contract-only tests — this file tests response shapes, not auth.
+jest.mock("../../src/middleware/auth", () => ({
+  basicAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
+  sessionRefresh: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 import request from "supertest";
 import app from "../../src/index";
 import { redis } from "../../src/lib/redis";
@@ -66,10 +73,12 @@ describe("Conversion API contracts", () => {
       errors: [{ fileId: "file-3", error: "Unsupported conversion" }],
     });
 
-    const response = await request(app).post("/api/conversion/batch").send({
-      fileIds: ["file-1", "file-2", "file-3"],
-      format: "pdf",
-    });
+    const response = await request(app)
+      .post("/api/conversion/batch")
+      .send({
+        fileIds: ["file-1", "file-2", "file-3"],
+        format: "pdf",
+      });
 
     expect(response.status).toBe(202);
     expect(response.body).toEqual({
@@ -168,5 +177,4 @@ describe("Conversion API contracts", () => {
       }),
     );
   });
-
 });

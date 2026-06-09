@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Structured Logger
  *
  * Professional logging utility that respects LOG_LEVEL environment variable.
@@ -6,7 +6,7 @@
  *
  * All metadata is automatically redacted before serialization:
  * - Sensitive keys (tokens, secrets, passwords) → "[REDACTED]"
- * - Emails → masked ("se***@dom.com")
+ * - Emails → masked ("ch\*\*\*@gmail.com")
  * - User IDs → truncated ("550e8400…")
  *
  * Levels (in order of severity):

@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Configuración
 API_URL="http://localhost:8080"
 FRONTEND_URL="http://localhost:3001"
-LOG_FILE="/tmp/dom-test-$(date +%s).log"
+LOG_FILE="/tmp/dom-bim-test-$(date +%s).log"
 
 # Contadores
 TOTAL_TESTS=0
@@ -175,7 +175,7 @@ test_cors_headers() {
 test_database_connection() {
     test_start "Conexión a PostgreSQL"
     
-    if docker exec dom-bim-db psql -U dom_admin -d dom_bim_platform -c "SELECT 1;" > /dev/null 2>&1; then
+    if docker exec dom-bim-db psql -U dom_bim -d dom_bim_platform -c "SELECT 1;" > /dev/null 2>&1; then
         success "Conexión a PostgreSQL: OK"
     else
         error "No se puede conectar a PostgreSQL"
@@ -185,7 +185,7 @@ test_database_connection() {
 test_database_tables() {
     test_start "Tablas de Prisma existen"
     
-    tables=$(docker exec dom-bim-db psql -U dom_admin -d dom_bim_platform -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';")
+    tables=$(docker exec dom-bim-db psql -U dom_bim -d dom_bim_platform -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';")
     
     if [ "$tables" -gt 0 ]; then
         success "Base de datos tiene $tables tablas"
@@ -211,7 +211,7 @@ test_redis_connection() {
 test_redis_sessions() {
     test_start "Redis tiene prefijo de sesiones"
     
-    keys=$(docker exec dom-bim-redis redis-cli KEYS "dom:sess:*" | wc -l)
+    keys=$(docker exec dom-bim-redis redis-cli KEYS "dom-bim:sess:*" | wc -l)
     log "Redis tiene $keys sesiones activas"
     success "Prefijo de sesiones configurado correctamente"
 }

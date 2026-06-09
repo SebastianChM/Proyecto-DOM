@@ -209,7 +209,7 @@ SESSION_SECRET="..."
 WEBHOOK_SECRET="..."
 
 # Database (auto-configured when running infra via Docker)
-DATABASE_URL="postgresql://dom:<password>@localhost:5432/dom_bim"
+DATABASE_URL="postgresql://dom_bim:your_password@localhost:5432/dom_bim"
 REDIS_HOST="localhost"
 REDIS_PORT="6379"
 ```
@@ -263,5 +263,5 @@ npm run dev
 
 ## License
 
-Proprietary. Built for Sebastian Chirino
-Copyright (c) 2025–2026 DOM. All rights reserved.
+Proprietary. Built for DOM BIM.
+Copyright (c) 2025–2026 DOM BIM. All rights reserved.

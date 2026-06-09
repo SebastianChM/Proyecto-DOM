@@ -1,4 +1,4 @@
-import { env } from "./config/env";
+﻿import { env } from "./config/env";
 import prisma from "./lib/prisma";
 import { redis } from "./lib/redis";
 import { Queues } from "./lib/queue";

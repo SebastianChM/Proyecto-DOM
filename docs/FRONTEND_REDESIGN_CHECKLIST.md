@@ -74,12 +74,12 @@
 
 ## Notas de Progreso
 
-| Fecha | Fase | Detalle |
-|-------|------|---------|
-| 2025-07-25 | Fase 0 | ✅ Completada — globals.css reescrito con tokens v4 (light+dark), tailwind.config.ts actualizado (brand, sidebar, semantic, radius 0.625rem, animaciones limpiadas), defaultTheme="dark", build OK. Fix bug preexistente en files/page.tsx (fragment faltante). |
-| 2025-07-25 | Fase 1 | ✅ TopBar.tsx creado (breadcrumbs + search ⌘K + bell + avatar), dashboard/layout.tsx limpiado (sin ambient glows, sin bell/menu flotante). |
-| 2025-07-25 | Fase 2 | ✅ Sidebar reescrita: 4 grupos (Main/Analysis/Compliance/System), header compacto h-12, active state con bg-brand-subtle + left indicator, bg-sidebar token. |
-| 2025-07-25 | Fase 3 | ✅ Login: 2-column layout, left panel gradient #0c0a1a + radial glows + grid, gradient text "Future", gradient brand button. |
-| 2025-07-25 | Fase 4 | ✅ Dashboard: StatCards compactos (icon+label, 22px value, trend pill), título text-xl, spacing gap-2.5, activity cards con border+hover. |
-| 2025-07-25 | Fase 5 | ✅ Projects: header compacto, cards con border+shadow-xs. Bulk sed: glass-panel/glass-card/glass-button/dom-blue eliminados en ~30 archivos. rounded-2xl→lg, shadow reducidos. |
-| 2025-07-25 | Fase 6-7 | ✅ Settings: header text-xl. UI components: button (sizes h-9, outline=border), card (shadow-xs), badge (+success/warning/info variants), input (h-9), select (semantic tokens). |
+| Fecha      | Fase     | Detalle                                                                                                                                                                                                                                                         |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2025-07-25 | Fase 0   | ✅ Completada — globals.css reescrito con tokens v4 (light+dark), tailwind.config.ts actualizado (brand, sidebar, semantic, radius 0.625rem, animaciones limpiadas), defaultTheme="dark", build OK. Fix bug preexistente en files/page.tsx (fragment faltante). |
+| 2025-07-25 | Fase 1   | ✅ TopBar.tsx creado (breadcrumbs + search ⌘K + bell + avatar), dashboard/layout.tsx limpiado (sin ambient glows, sin bell/menu flotante).                                                                                                                      |
+| 2025-07-25 | Fase 2   | ✅ Sidebar reescrita: 4 grupos (Main/Analysis/Compliance/System), header compacto h-12, active state con bg-brand-subtle + left indicator, bg-sidebar token.                                                                                                    |
+| 2025-07-25 | Fase 3   | ✅ Login: 2-column layout, left panel gradient #0c0a1a + radial glows + grid, gradient text "Future", gradient brand button.                                                                                                                                    |
+| 2025-07-25 | Fase 4   | ✅ Dashboard: StatCards compactos (icon+label, 22px value, trend pill), título text-xl, spacing gap-2.5, activity cards con border+hover.                                                                                                                       |
+| 2025-07-25 | Fase 5   | ✅ Projects: header compacto, cards con border+shadow-xs. Bulk sed: glass-panel/glass-card/glass-button/dom-bim-blue eliminados en ~30 archivos. rounded-2xl→lg, shadow reducidos.                                                                              |
+| 2025-07-25 | Fase 6-7 | ✅ Settings: header text-xl. UI components: button (sizes h-9, outline=border), card (shadow-xs), badge (+success/warning/info variants), input (h-9), select (semantic tokens).                                                                                |

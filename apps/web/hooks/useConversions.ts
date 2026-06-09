@@ -32,8 +32,10 @@ export interface DownloadModal {
 interface UseConversionsDeps {
   project: { files: ProjectFileDetail[] } | null;
   selectedFiles: string[];
-  setSelectedFiles: (ids: string[]) => void;
-  fetchProject: () => void;
+  /** Called with an empty array after a bulk conversion is initiated — clears the selection. */
+  onClearSelection: () => void;
+  /** Called after a conversion or save-to-project completes to trigger a project refresh. */
+  onConversionComplete: () => void;
   userRole?: string;
 }
 
@@ -45,7 +47,9 @@ export interface UseConversionsReturn {
   handleConvert: (fileId: string, format: "pdf" | "ifc") => Promise<void>;
   handleBulkConvert: (format: "pdf" | "ifc") => Promise<void>;
   activeConversions: ActiveConversion[];
-  setActiveConversions: React.Dispatch<React.SetStateAction<ActiveConversion[]>>;
+  setActiveConversions: React.Dispatch<
+    React.SetStateAction<ActiveConversion[]>
+  >;
   downloadModal: DownloadModal | null;
   setDownloadModal: React.Dispatch<React.SetStateAction<DownloadModal | null>>;
   handleSaveToProject: () => Promise<void>;
@@ -99,7 +103,10 @@ const getBatchDownloadUrl = (payload: unknown): string | null => {
     zipUrl?: unknown;
   };
 
-  if (typeof candidate.downloadUrl === "string" && candidate.downloadUrl.length > 0) {
+  if (
+    typeof candidate.downloadUrl === "string" &&
+    candidate.downloadUrl.length > 0
+  ) {
     return candidate.downloadUrl;
   }
 
@@ -117,21 +124,34 @@ const getBatchDownloadUrl = (payload: unknown): string | null => {
 export function useConversions({
   project,
   selectedFiles,
-  setSelectedFiles,
-  fetchProject,
+  onClearSelection,
+  onConversionComplete,
   userRole,
 }: UseConversionsDeps): UseConversionsReturn {
-  const [supportedFormats, setSupportedFormats] = useState<Record<string, string[]> | null>(null);
-  const [convertingFiles, setConvertingFiles] = useState<Set<string>>(new Set());
-  const [activeConversions, setActiveConversions] = useState<ActiveConversion[]>([]);
-  const [downloadModal, setDownloadModal] = useState<DownloadModal | null>(null);
+  const [supportedFormats, setSupportedFormats] = useState<Record<
+    string,
+    string[]
+  > | null>(null);
+  const [convertingFiles, setConvertingFiles] = useState<Set<string>>(
+    new Set(),
+  );
+  const [activeConversions, setActiveConversions] = useState<
+    ActiveConversion[]
+  >([]);
+  const [downloadModal, setDownloadModal] = useState<DownloadModal | null>(
+    null,
+  );
 
   useEffect(() => {
     (async () => {
       try {
         const response = await conversionService.formats();
         const normalized = normalizeSupportedFormats(response);
-        setSupportedFormats(Object.keys(normalized).length > 0 ? normalized : FALLBACK_SUPPORTED_FORMATS);
+        setSupportedFormats(
+          Object.keys(normalized).length > 0
+            ? normalized
+            : FALLBACK_SUPPORTED_FORMATS,
+        );
       } catch (error) {
         logger.warn("Failed to fetch supported formats, using fallback map", {
           error: error instanceof Error ? error.message : String(error),
@@ -141,7 +161,10 @@ export function useConversions({
     })();
   }, []);
 
-  const isConversionSupported = (fileType: string, targetFormat: string): boolean => {
+  const isConversionSupported = (
+    fileType: string,
+    targetFormat: string,
+  ): boolean => {
     const map = supportedFormats ?? FALLBACK_SUPPORTED_FORMATS;
     return isConversionSupportedByFormats(map, fileType, targetFormat);
   };
@@ -155,7 +178,10 @@ export function useConversions({
     return selected.every((file) => isConversionSupported(file.type, format));
   };
 
-  const handleConvert = async (fileId: string, format: "pdf" | "ifc"): Promise<void> => {
+  const handleConvert = async (
+    fileId: string,
+    format: "pdf" | "ifc",
+  ): Promise<void> => {
     const file = project?.files.find((entry) => entry.id === fileId);
     if (!file) return;
 
@@ -184,7 +210,9 @@ export function useConversions({
 
       const response = await conversionService.start(fileId, format);
       const conversionId = response.conversion?.id;
-      const immediateStatus = normalizeTrackerStatus(response.conversion?.status);
+      const immediateStatus = normalizeTrackerStatus(
+        response.conversion?.status,
+      );
 
       if (!conversionId) {
         throw new Error("No conversion ID returned");
@@ -195,7 +223,8 @@ export function useConversions({
         patchConversion(setActiveConversions, trackingId, {
           status: "completed",
           conversionId,
-          downloadUrl: response.downloadUrl || `/api/conversion/${conversionId}/download`,
+          downloadUrl:
+            response.downloadUrl || `/api/conversion/${conversionId}/download`,
         });
         return;
       }
@@ -203,7 +232,10 @@ export function useConversions({
       patchConversion(setActiveConversions, trackingId, {
         status: immediateStatus === "failed" ? "failed" : "processing",
         conversionId,
-        error: immediateStatus === "failed" ? "Conversion failed to start" : undefined,
+        error:
+          immediateStatus === "failed"
+            ? "Conversion failed to start"
+            : undefined,
       });
 
       if (immediateStatus === "failed") {
@@ -260,7 +292,8 @@ export function useConversions({
       removeConverting(setConvertingFiles, fileId);
       patchConversion(setActiveConversions, trackingId, {
         status: "failed",
-        error: error instanceof Error ? error.message : "Failed to start conversion",
+        error:
+          error instanceof Error ? error.message : "Failed to start conversion",
       });
       showError(error, userRole, "Failed to start conversion");
     }
@@ -275,7 +308,9 @@ export function useConversions({
     });
 
     if (validFiles.length === 0) {
-      toast.error(`None of the selected files support conversion to ${format.toUpperCase()}`);
+      toast.error(
+        `None of the selected files support conversion to ${format.toUpperCase()}`,
+      );
       return;
     }
 
@@ -295,7 +330,10 @@ export function useConversions({
 
       addConverting(setConvertingFiles, validFiles);
 
-      const response = await conversionService.batch({ fileIds: validFiles, format });
+      const response = await conversionService.batch({
+        fileIds: validFiles,
+        format,
+      });
       const batchId = response.batchId;
       const started = Number(response.started ?? response.enqueued ?? 0);
       const failed = Number(response.failed ?? 0);
@@ -312,7 +350,9 @@ export function useConversions({
         return;
       }
 
-      toast.success(`Batch started: ${started} conversions running in parallel`);
+      toast.success(
+        `Batch started: ${started} conversions running in parallel`,
+      );
 
       pollWithBackoff({
         fn: async () => {
@@ -327,13 +367,16 @@ export function useConversions({
           const total = summary.total;
 
           if (status === "processing") {
-            toast.info(`Batch progress: ${summary.completed}/${total} completed`, {
-              id: `batch-${batchId}`,
-              description:
-                summary.processing > 0
-                  ? `${summary.processing} still processing...`
-                  : "Finishing up...",
-            });
+            toast.info(
+              `Batch progress: ${summary.completed}/${total} completed`,
+              {
+                id: `batch-${batchId}`,
+                description:
+                  summary.processing > 0
+                    ? `${summary.processing} still processing...`
+                    : "Finishing up...",
+              },
+            );
           }
 
           if (status === "completed" || status === "failed") {
@@ -366,7 +409,7 @@ export function useConversions({
               toast.error("All conversions failed", { id: `batch-${batchId}` });
             }
 
-            fetchProject();
+            onConversionComplete();
             return true;
           }
         },
@@ -385,7 +428,7 @@ export function useConversions({
       showError(error, userRole, "Failed to start batch conversion");
     }
 
-    setSelectedFiles([]);
+    onClearSelection();
   };
 
   const handleSaveToProject = async (): Promise<void> => {
@@ -396,7 +439,7 @@ export function useConversions({
       await conversionService.saveToProject(downloadModal.conversionId);
       toast.success("File saved to project successfully!");
       setDownloadModal(null);
-      fetchProject();
+      onConversionComplete();
     } catch (error: unknown) {
       const axiosError = error as {
         response?: { data?: { details?: unknown } };

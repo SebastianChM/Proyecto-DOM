@@ -216,7 +216,7 @@ docker compose logs postgres --tail 20
 docker compose restart postgres
 
 # Wait for healthy
-docker compose exec postgres pg_isready -U dom -d dom_bim
+docker compose exec postgres pg_isready -U dom-bim -d dom_bim
 ```
 
 ### Redis is down

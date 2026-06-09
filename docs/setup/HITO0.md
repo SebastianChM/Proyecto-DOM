@@ -82,7 +82,7 @@ curl http://localhost:8080/health
 
 Run these commands to verify the Gold Master status:
 
-- [ ] **Infrastructure Up**: `npm run dev:infra` -> Docker containers `dom-dev-db` and `dom-dev-redis` running.
+- [ ] **Infrastructure Up**: `npm run dev:infra` -> Docker containers `dom-bim-dev-db` and `dom-bim-dev-redis` running.
 - [ ] **Full Stack Up**: `npm run dev` -> API (8080), Worker, and Frontend start without error.
 - [ ] **Health Check**: `curl http://localhost:8080/health` -> Returns `200 OK` with DB/Redis status.
 - [ ] **Quality Gates**: `npm run lint` and `npm run typecheck` -> Pass with 0 errors.

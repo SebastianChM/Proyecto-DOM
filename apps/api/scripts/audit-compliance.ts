@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Full compliance audit — runs after a real architectural model is uploaded.
  *
  * Usage:  npx tsx apps/api/scripts/audit-compliance.ts
@@ -48,7 +48,7 @@ function section(title: string) {
 
 async function main() {
   console.log("╔══════════════════════════════════════════════════════╗");
-  console.log("║   DOM BIM — Compliance V3 Full Audit                ║");
+  console.log("║   DOM BIM BIM — Compliance V3 Full Audit                ║");
   console.log(`╚══════════════════════════════════════════════════════╝`);
 
   // ── 0. System prerequisites ───────────────────────────────────────────────

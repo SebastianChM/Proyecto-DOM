@@ -1,4 +1,4 @@
-# Hito 2 - Test Scripts
+﻿# Hito 2 - Test Scripts
 
 This directory contains acceptance test scripts for Hito 2 (APS Integration Centralization).
 
@@ -12,11 +12,11 @@ This directory contains acceptance test scripts for Hito 2 (APS Integration Cent
 
 1. Login to the application
 2. Open browser DevTools → Application → Cookies
-3. Copy the value of `dom-session` cookie
+3. Copy the value of `dom-bim-session` cookie
 4. Export as environment variable:
 
 ```bash
-export SESSION_COOKIE="dom-session=YOUR_COOKIE_VALUE_HERE"
+export SESSION_COOKIE="dom-bim-session=YOUR_COOKIE_VALUE_HERE"
 ```
 
 ## Test Scripts
@@ -26,7 +26,7 @@ export SESSION_COOKIE="dom-session=YOUR_COOKIE_VALUE_HERE"
 Tests that cache reduces APS API calls.
 
 ```bash
-SESSION_COOKIE="dom-session=..." ./test-a-cache-hit.sh
+SESSION_COOKIE="dom-bim-session=..." ./test-a-cache-hit.sh
 ```
 
 **Expected**:
@@ -41,7 +41,7 @@ SESSION_COOKIE="dom-session=..." ./test-a-cache-hit.sh
 Tests that rate limiter blocks excessive requests.
 
 ```bash
-SESSION_COOKIE="dom-session=..." ./test-b-rate-limit.sh
+SESSION_COOKIE="dom-bim-session=..." ./test-b-rate-limit.sh
 ```
 
 **Expected**:
@@ -56,7 +56,7 @@ SESSION_COOKIE="dom-session=..." ./test-b-rate-limit.sh
 Tests that service returns 503 when Redis is unavailable.
 
 ```bash
-SESSION_COOKIE="dom-session=..." ./test-c-redis-down.sh
+SESSION_COOKIE="dom-bim-session=..." ./test-c-redis-down.sh
 ```
 
 **Expected**:
@@ -74,7 +74,7 @@ SESSION_COOKIE="dom-session=..." ./test-c-redis-down.sh
 Tests that concurrent requests trigger only one token refresh.
 
 ```bash
-SESSION_COOKIE="dom-session=..." ./test-d-refresh-lock.sh
+SESSION_COOKIE="dom-bim-session=..." ./test-d-refresh-lock.sh
 ```
 
 **Expected**:
@@ -105,7 +105,7 @@ Tests that errors are correctly normalized.
 
 ```bash
 # Set session cookie
-export SESSION_COOKIE="dom-session=YOUR_VALUE"
+export SESSION_COOKIE="dom-bim-session=YOUR_VALUE"
 
 # Run tests
 ./test-a-cache-hit.sh

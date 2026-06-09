@@ -151,8 +151,8 @@ export default function ProjectDetailPage() {
   } = useConversions({
     project,
     selectedFiles,
-    setSelectedFiles,
-    fetchProject,
+    onClearSelection: () => setSelectedFiles([]),
+    onConversionComplete: fetchProject,
     userRole: user?.role,
   });
 
@@ -268,7 +268,7 @@ export default function ProjectDetailPage() {
       {/* Header */}
       <ProjectHeader
         projectName={project.name}
-        clientName={project.clientName || "DOM Client"}
+        clientName={project.clientName || "BIM Client"}
         discipline={project.discipline || "Architecture"}
         status={(project.status as "Active" | "Archived" | "Draft") || "Active"}
         lastUpdated={new Date(project.updatedAt).toLocaleDateString("en-US", {
@@ -323,7 +323,7 @@ export default function ProjectDetailPage() {
           <ProjectDetailsPanel
             projectType={project.status || "Standard"}
             discipline={project.discipline || "Architecture"}
-            ownerName={project.clientName || "DOM Client"}
+            ownerName={project.clientName || "BIM Client"}
             location={project.location || "Madrid, Spain"}
             startDate={
               project.startDate
